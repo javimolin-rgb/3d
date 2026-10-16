@@ -27,7 +27,7 @@ import bmesh
 from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-opts = {"step": "1", "wb": "6500", "out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
+opts = {"vista": "dron", "step": "1", "wb": "6500", "out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
         "still": None, "save": None}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
@@ -40,6 +40,7 @@ HDRI = os.path.join(ROOT, "assets", "cielo", "DaySkyHDRI065A_2K_HDR.exr")  # amb
 HDRI_SUN_U = 0.4983  # columna del sol en el HDRI (0-1); elevación 59,5°
 CAMPO = os.path.join(ROOT, "assets", "campo", "pastos_botaniq.blend")
 MUEBLES = os.path.join(ROOT, "assets", "casa", "muebles_terraza.blend")
+INTERIOR = os.path.join(ROOT, "assets", "casa", "interior.blend")
 W, D = 4.40, 8.50           # ancho y fondo de la caja (marco negro)
 T = 0.20                    # espesor de muros / techo
 FLOOR = 0.55                # nivel de piso terminado sobre el terreno
@@ -486,51 +487,15 @@ def build_house(M):
         box("VidrioB", a, b, BACK_Y + 0.05, BACK_Y + 0.06, FLOOR + c, FLOOR + d, M["vidrio"], hc)
     box("PuertaAcceso", 0.22, 1.08, BACK_Y + 0.08, BACK_Y + 0.12, FLOOR, FLOOR + 2.25, M["negro"], hc)
 
-    # Interior: pisos, entrepiso con hueco de escalera, muebles
-    yi0, yi1 = FRONT_Y + 0.06, BACK_Y
-    box("PisoInt", T, W - T, yi0, yi1, FLOOR - 0.01, FLOOR + 0.005, M["piso"], hc)
-    box("Entrepiso", T, W - T, 5.3, yi1, FLOOR + SLAB0, FLOOR + SLAB1, M["maderaCielo"], hc)
-    box("Entrepiso", 1.0, W - T, yi0, 5.3, FLOOR + SLAB0, FLOOR + SLAB1, M["maderaCielo"], hc)
-    box("PisoAlto", T, W - T, yi0, yi1, FLOOR + SLAB1, FLOOR + SLAB1 + 0.005, M["piso"], hc)
-    for k in range(13):  # escalera de un tramo junto al muro -X
-        y = 5.2 - k * 0.22
-        z = FLOOR + (k + 1) * (SLAB1 / 13)
-        box("Peldaño", T + 0.02, 0.95, y - 0.24, y, z - 0.04, z, M["maderaOsc"], hc)
-    box("Baranda", 1.0, 1.03, 2.6, 5.3, FLOOR + SLAB1, FLOOR + SLAB1 + 0.95, M["perfil"], hc)
-    # baranda negra del dormitorio (render)
-    box("BarandaDorm", T, W - T, yi0 + 0.25, yi0 + 0.28, FLOOR + SLAB1 + 0.92, FLOOR + SLAB1 + 0.96, M["perfil"], hc)
-    for x in (T + 0.05, W / 2, W - T - 0.08):
-        box("ParanteDorm", x, x + 0.03, yi0 + 0.25, yi0 + 0.28, FLOOR + SLAB1, FLOOR + SLAB1 + 0.95, M["perfil"], hc)
-    # 1er piso: living, comedor, cocina, estufa
-    box("Sofa", 1.5, 3.4, 2.9, 3.75, FLOOR, FLOOR + 0.42, M["tela"], hc)
-    box("SofaResp", 1.5, 3.4, 3.55, 3.8, FLOOR, FLOOR + 0.82, M["tela"], hc)
-    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=0.4, depth=0.04, location=(2.4, 2.2, FLOOR + 0.4))
-    bpy.context.object.data.materials.append(M["maderaOsc"])
-    box("Alfombra", 1.3, 3.6, 1.6, 3.9, FLOOR + 0.005, FLOOR + 0.012, M["alfombra"], hc)
-    box("Estufa", 3.6, 4.05, 1.7, 2.1, FLOOR, FLOOR + 0.9, M["negro"], hc)
-    box("CañonEstufa", 3.78, 3.88, 1.85, 1.95, FLOOR + 0.9, FLOOR + SLAB0, M["negro"], hc)
-    box("MesaComedor", 2.0, 3.4, 4.3, 5.1, FLOOR + 0.72, FLOOR + 0.76, M["maderaOsc"], hc)
-    box("Cocina", 2.2, W - T, 5.55, 6.15, FLOOR, FLOOR + 0.9, M["negro"], hc)
-    box("Cubierta", 2.2, W - T, 5.55, 6.15, FLOOR + 0.9, FLOOR + 0.94, M["piedra"], hc)
-    box("TabiqueCocina", 1.1, W - T, 6.15, 6.25, FLOOR, FLOOR + SLAB0, M["maderaRev"], hc)
-    # 2do piso: dormitorio
-    zf = FLOOR + SLAB1
-    box("Cama", 2.2, 3.9, 3.0, 5.0, zf, zf + 0.5, M["sabanas"], hc)
-    box("Respaldo", 2.2, 3.9, 5.0, 5.1, zf, zf + 1.1, M["maderaOsc"], hc)
-    box("Pie", 2.2, 3.9, 3.0, 3.6, zf + 0.5, zf + 0.53, M["telaAzul"], hc)
-    box("Velador", 3.95, 4.15, 4.6, 5.0, zf, zf + 0.5, M["maderaOsc"], hc)
-    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.15, depth=0.25, location=(4.05, 4.8, zf + 0.8))
-    bpy.context.object.data.materials.append(M["lampara"])
-    # luces interiores cálidas
-    for x, y, z, p in ((2.2, 3.0, 2.1, 140), (2.8, 5.0, 2.1, 110), (2.2, 3.5, 5.0, 110), (2.6, 7.2, 2.1, 50)):
+    # Interior: piso de madera; altillo, tabiques, escalera y muebles vienen del modelo STL
+    # (assets/casa/interior.blend, ver tools/extraer_interior_stl.py)
+    box("PisoInt", T, W - T, FRONT_Y + 0.06, BACK_Y, FLOOR - 0.01, FLOOR + 0.005, M["piso"], hc)
+    # luces interiores cálidas (bajo el altillo, doble altura del living y dormitorio)
+    for x, y, z, p in ((2.4, 1.9, 3.2, 130), (2.8, 4.4, 2.2, 90), (2.8, 5.2, 4.6, 100), (2.6, 7.0, 2.2, 40)):
         bpy.ops.object.light_add(type="AREA", location=(x, y, FLOOR + z))
         lt = bpy.context.object
         lt.data.energy, lt.data.size = p, 1.2
         lt.data.color = WARM
-    for x, y in ((1.2, 2.2), (3.2, 2.2), (1.2, 4.5), (3.2, 4.5), (2.2, 6.8)):
-        bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=0.045, depth=0.02,
-                                            location=(x, y, FLOOR + SLAB0 - 0.01))
-        bpy.context.object.data.materials.append(M["spot"])
     # spots en el cielo del retranqueo + aplique en el muro (como en el render)
     for x in (1.1, W / 2, 3.3):
         bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=0.045, depth=0.02,
@@ -884,11 +849,12 @@ def load_field_assets(M, lib):
 
 
 def load_furniture(coll):
-    """Sillas tipo Acapulco con cojines, mesa y decoración, tomadas del modelo STL."""
-    with bpy.data.libraries.load(MUEBLES) as (a, b):
-        b.objects = a.objects
-    for o in b.objects:
-        coll.objects.link(o)
+    """Muebles del modelo STL: terraza (sillas tipo Acapulco, mesa) e interior completo."""
+    for path in (MUEBLES, INTERIOR):
+        with bpy.data.libraries.load(path) as (a, b):
+            b.objects = a.objects
+        for o in b.objects:
+            coll.objects.link(o)
 
 
 def bq_grass_mat():
@@ -1483,6 +1449,11 @@ def main():
     sc = bpy.context.scene
     f0, f1 = (int(v) for v in opts["frames"].split("-"))
     sc.frame_start, sc.frame_end = f0, f1
+    if opts["vista"] == "interior":  # toma fija frente al ventanal para revisar el interior
+        cam.animation_data_clear()
+        cam.location = (W / 2 + 0.3, -4.2, FLOOR + 1.9)
+        cam.rotation_euler = (Vector((W / 2, 4.0, FLOOR + 1.9)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+        cam.data.lens = 18
     sc.frame_step = int(opts["step"])  # >1 para previsualizaciones rápidas
     sc.render.filepath = opts["out"]
     if opts["save"]:
