@@ -13,6 +13,7 @@ Paisaje inspirado en los renders: bosque de pinos, lago, cordillera nevada,
 luz de atardecer con el interior encendido.
 """
 import math
+import os
 import random
 import sys
 
@@ -375,7 +376,7 @@ def build_house(M):
     box("Sofa", 4.3, 6.6, 3.0, 3.9, FLOOR, FLOOR + 0.45, M["tela"], hc)
     box("SofaResp", 4.3, 6.6, 3.7, 3.95, FLOOR, FLOOR + 0.85, M["tela"], hc)
     box("Mesa", 4.9, 6.0, 2.2, 2.8, FLOOR, FLOOR + 0.38, M["maderaOsc"], hc)
-    box("Isla", 5.0, 7.2, 4.6, 5.3, FLOOR, FLOOR + 0.92, M["negro"], hc)
+    box("Isla", 5.0, 7.2, 4.6, 5.3, FLOOR, FLOOR + 0.92, M["piedra"], hc)
     box("Muebles", 3.4, 8.6, 5.65, 5.99, FLOOR, FLOOR + 0.9, M["maderaOsc"], hc)
     box("Cuadro", 7.3, 8.3, 5.98, 6.0, FLOOR + 1.4, FLOOR + 2.1, M["cuadro"], hc)
     for x0, x1 in ((0.6, 2.6), (9.4, 11.4)):
@@ -958,20 +959,54 @@ def setup_render():
     nt.links.new(m_out, comp_in)
 
 
+SK_TEX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "sketchup_tex")
+
+
+def img_mat(name, image, size_m, rough=0.6, bump=0.15, rot_z=0.0, tint=(1, 1, 1)):
+    """Material con una textura del modelo SketchUp, proyección en caja (tamaño real en metros)."""
+    m, n, l = new_mat(name)
+    b = n["Principled BSDF"]
+    tc = n.new("ShaderNodeTexCoord")
+    mp = n.new("ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = (1 / size_m,) * 3
+    mp.inputs["Rotation"].default_value = (0, 0, math.radians(rot_z))
+    img = n.new("ShaderNodeTexImage")
+    img.image = bpy.data.images.load(os.path.join(SK_TEX, image), check_existing=True)
+    img.projection = "BOX"
+    img.projection_blend = 0.15
+    l.new(tc.outputs["Object"], mp.inputs["Vector"])
+    l.new(mp.outputs["Vector"], img.inputs["Vector"])
+    col = n.new("ShaderNodeMixRGB")
+    col.blend_type = "MULTIPLY"
+    col.inputs["Fac"].default_value = 1.0
+    col.inputs["Color2"].default_value = (*tint, 1)
+    l.new(img.outputs["Color"], col.inputs["Color1"])
+    l.new(col.outputs["Color"], b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = rough
+    if bump:
+        bm = n.new("ShaderNodeBump")
+        bm.inputs["Strength"].default_value = bump
+        l.new(img.outputs["Color"], bm.inputs["Height"])
+        l.new(bm.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
 def materials():
     M = {}
     M["negro"] = principled("NegroMarco", (0.012, 0.012, 0.013), 0.5)
-    M["chapa"] = ribbed_metal("ChapaNegra")
-    M["madera"] = boards_mat("MaderaRevest", (0.36, 0.19, 0.08), (0.62, 0.38, 0.17), "X", 7.5, 0.65)
-    M["maderaInt"] = boards_mat("MaderaInt", (0.55, 0.36, 0.18), (0.8, 0.58, 0.33), "X", 7.5, 0.6, 0.1)
+    # texturas del modelo SketchUp de Casa Cipres
+    M["chapa"] = img_mat("MaderaNegra", "tw_face3.png", 1.4, 0.55, 0.25)
+    M["madera"] = img_mat("MaderaRevest", "tw_face0.png", 1.4, 0.65, 0.2, tint=(1.0, 0.82, 0.62))
+    M["maderaInt"] = img_mat("MaderaInt", "tw_face2.png", 1.4, 0.6, 0.08)
     M["maderaOsc"] = principled("MaderaOsc", (0.12, 0.06, 0.03), 0.5)
-    M["deck"] = boards_mat("Deck", (0.2, 0.11, 0.06), (0.36, 0.21, 0.11), "Y", 7.0, 0.55, 0.3)
-    M["piso"] = boards_mat("PisoInt", (0.45, 0.28, 0.14), (0.62, 0.42, 0.22), "Y", 5.0, 0.35, 0.05)
+    M["deck"] = img_mat("Deck", "tw_face2.png", 1.6, 0.6, 0.3, rot_z=90, tint=(0.62, 0.5, 0.42))
+    M["piso"] = img_mat("PisoInt", "tw_face52.png", 1.2, 0.35, 0.03, rot_z=90)
+    M["piedra"] = img_mat("Piedra", "tw_face53.png", 1.0, 0.3, 0.05)
     M["pilote"] = principled("Pilote", (0.08, 0.07, 0.06), 0.8)
     M["perfil"] = principled("PerfilNegro", (0.01, 0.01, 0.01), 0.35, 0.6)
     M["vidrio"] = glass_mat()
-    M["tela"] = principled("TelaClara", (0.7, 0.66, 0.6), 0.9)
-    M["telaAzul"] = principled("TelaAzul", (0.15, 0.2, 0.3), 0.9)
+    M["tela"] = img_mat("TelaClara", "tw_face98.png", 0.4, 0.9, 0.1)
+    M["telaAzul"] = img_mat("TelaAzul", "tw_face7.png", 0.6, 0.9, 0.05)
     M["cuadro"] = principled("Cuadro", (0.25, 0.35, 0.4), 0.4)
     M["lampara"] = emit_mat("Lampara", WARM, 12)
     M["spot"] = emit_mat("Spot", (1, 0.8, 0.55), 30)
