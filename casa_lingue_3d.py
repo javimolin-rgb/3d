@@ -12,8 +12,10 @@ Medidas tomadas de "Planta con Cotas" y "Lámina Casa Lingue" (escala 1:50):
   - techo a dos aguas: alero a 4,93 m y cumbrera a 6,15 m sobre el piso
   - piso elevado 0,55 m; terraza de 2 m al frente y pasillo lateral de 1 m
   - entrepiso a 2,30-2,82 m (dormitorio en el 2do piso)
-Paisaje: campo chileno a la hora dorada (potreros, álamos, cercos de palo,
-fardos, cerros bajos y cordillera al fondo).
+Paisaje: campo chileno con luz natural de día (cielo HDRI real), potreros, álamos,
+cercos de palo, fardos, cerros bajos y cordillera al fondo. Pastos y rocas de
+assets/campo (Botaniq, del archivo "Field (free)") y muebles de terraza tomados del
+modelo STL de la casa (tools/extraer_muebles_stl.py).
 """
 import math
 import os
@@ -25,7 +27,7 @@ import bmesh
 from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-opts = {"step": "1", "wb": "7200", "out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
+opts = {"step": "1", "wb": "6500", "out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
         "still": None, "save": None}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
@@ -33,7 +35,11 @@ for i in range(0, len(argv), 2):
 random.seed(11)
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PHOTO = os.path.join(ROOT, "assets", "photo")
-WB_TEMP = float(opts["wb"])  # balance de blancos cálido
+WB_TEMP = float(opts["wb"])  # balance de blancos (6500 = neutro, luz de día)
+HDRI = os.path.join(ROOT, "assets", "cielo", "DaySkyHDRI065A_2K_HDR.exr")  # ambientCG, CC0
+HDRI_SUN_U = 0.4983  # columna del sol en el HDRI (0-1); elevación 59,5°
+CAMPO = os.path.join(ROOT, "assets", "campo", "pastos_botaniq.blend")
+MUEBLES = os.path.join(ROOT, "assets", "casa", "muebles_terraza.blend")
 W, D = 4.40, 8.50           # ancho y fondo de la caja (marco negro)
 T = 0.20                    # espesor de muros / techo
 FLOOR = 0.55                # nivel de piso terminado sobre el terreno
@@ -43,7 +49,7 @@ BACK_Y = D - 0.50           # fachada de acceso (porch)
 SLAB0, SLAB1 = 2.30, 2.82   # entrepiso (sobre el piso)
 DECK_X1 = W + 1.0           # pasillo lateral de 1 m
 WARM = (1.0, 0.62, 0.32)
-SUN_ELEV, SUN_AZ = 11.0, 128.0   # sol bajo desde adelante-derecha (azimut desde +Y hacia +X)
+SUN_ELEV, SUN_AZ = 59.5, 140.0   # sol de día (el del HDRI) desde adelante-derecha (azimut desde +Y hacia +X)
 SLOPE = (RIDGE - EAVE) / (W / 2)
 
 
@@ -540,29 +546,13 @@ def build_house(M):
         sp.data.shadow_soft_size = 0.02
 
     # Deck: terraza frontal 2 m, pasillo lateral 1 m, porch; estructura negra y escalera
-    box("Deck", 0, DECK_X1, -2.0, D + 0.5, FLOOR - 0.06, FLOOR - 0.0, M["deck"], hc)
-    box("CantoDeck", -0.02, DECK_X1 + 0.02, -2.03, D + 0.53, FLOOR - 0.25, FLOOR - 0.05, M["negro"], hc)
+    box("Deck", 0, DECK_X1, -2.0, D + 1.25, FLOOR - 0.06, FLOOR - 0.0, M["deck"], hc)
+    box("CantoDeck", -0.02, DECK_X1 + 0.02, -2.03, D + 1.28, FLOOR - 0.25, FLOOR - 0.05, M["negro"], hc)
     for x in (0.1, W / 2, W - 0.1, DECK_X1 - 0.1):
-        for y in (-1.9, 0.0, 2.2, 4.4, 6.6, D + 0.4):
+        for y in (-1.9, 0.0, 2.2, 4.4, 6.6, D + 0.4, D + 1.15):
             box("Pilote", x - 0.08, x + 0.08, y - 0.08, y + 0.08, -0.5, FLOOR - 0.2, M["negro"], hc)
     for k, (h, d) in enumerate(((0.41, 0.3), (0.27, 0.6), (0.13, 0.9))):
         box("Escalon", DECK_X1 + d - 0.3, DECK_X1 + d, -2.0, -0.8, h - 0.04, h, M["deck"], hc)
-    # sillas de terraza y mesa (render)
-    for x, y in ((0.9, -1.0), (3.0, -1.1)):
-        bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=0.4, location=(x, y, FLOOR + 0.5))
-        ch = bpy.context.object
-        ch.scale = (1, 1, 0.5)
-        ch.rotation_euler.x = math.radians(-15)
-        ch.data.materials.append(M["perfil"])
-        for a in range(4):
-            ang = a * math.pi / 2 + 0.6
-            bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=0.012, depth=0.5,
-                                                location=(x + 0.25 * math.cos(ang), y + 0.25 * math.sin(ang), FLOOR + 0.22))
-            bpy.context.object.data.materials.append(M["perfil"])
-    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.32, depth=0.03, location=(1.95, -1.25, FLOOR + 0.45))
-    bpy.context.object.data.materials.append(M["maderaOsc"])
-    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.03, depth=0.45, location=(1.95, -1.25, FLOOR + 0.22))
-    bpy.context.object.data.materials.append(M["perfil"])
     # maceteros (la planta se agrega en main, con los arbustos Sapling)
     for x, y in MACETEROS:
         box("Macetero", x - 0.18, x + 0.18, y - 0.18, y + 0.18, FLOOR, FLOOR + 0.45, M["negro"], hc)
@@ -745,8 +735,9 @@ def grass_tuft(M, name, mat, blades=34, hmin=0.04, hmax=0.15, flower=None):
     return t
 
 
-def build_grass(M):
-    """Pradera alrededor de la casa (matas instanciadas con nodos de geometría)."""
+def build_grass(M, bq):
+    """Pradera alrededor de la casa: matas finas propias + pastos Botaniq (una pasada de
+    nodos de geometría por especie, cada una con sus manchones)."""
     xs = [-30 + i * 1.0 for i in range(71)]
     ys = [-34 + j * 1.0 for j in range(67)]
     verts = [(x, y, terrain_h(x, y) + 0.01) for y in ys for x in xs]
@@ -788,7 +779,7 @@ def build_grass(M):
     nz.inputs["Scale"].default_value = 0.2
     mr = N.new("ShaderNodeMapRange")
     mr.inputs[1].default_value, mr.inputs[2].default_value = 0.3, 0.6
-    mr.inputs[3].default_value, mr.inputs[4].default_value = 30, 70
+    mr.inputs[3].default_value, mr.inputs[4].default_value = 22, 50
     Lk.new(nz.outputs["Fac"], mr.inputs[0])
     Lk.new(mr.outputs[0], dist.inputs["Density"])
     inst = N.new("GeometryNodeInstanceOnPoints")
@@ -827,9 +818,160 @@ def build_grass(M):
     Lk.new(next(o for o in rsc.outputs if o.type == "VALUE"), inst.inputs["Scale"])
     Lk.new(gi.outputs[0], join.inputs[0])
     Lk.new(inst.outputs[0], join.inputs[0])
+
+    def scatter(obj, dens, smin, smax, seed, lo=0.45, hi=0.62, nscale=0.12):
+        """Una especie: densidad por manchones (ruido 4D con semilla propia)."""
+        d = N.new("GeometryNodeDistributePointsOnFaces")
+        d.inputs["Seed"].default_value = seed
+        z = N.new("ShaderNodeTexNoise")
+        z.noise_dimensions = "4D"
+        z.inputs["W"].default_value = seed * 7.3
+        z.inputs["Scale"].default_value = nscale
+        r = N.new("ShaderNodeMapRange")
+        r.inputs[1].default_value, r.inputs[2].default_value = lo, hi
+        r.inputs[3].default_value, r.inputs[4].default_value = 0.0, dens
+        Lk.new(z.outputs["Fac"], r.inputs[0])
+        Lk.new(r.outputs[0], d.inputs["Density"])
+        ins = N.new("GeometryNodeInstanceOnPoints")
+        oi = N.new("GeometryNodeObjectInfo")
+        oi.inputs[0].default_value = obj
+        rr = N.new("FunctionNodeRandomValue")
+        rr.data_type = "FLOAT_VECTOR"
+        rr.inputs["Max"].default_value = (0.12, 0.12, 6.28)
+        rr.inputs["Seed"].default_value = seed
+        rs = N.new("FunctionNodeRandomValue")
+        rs.data_type = "FLOAT"
+        for sk in rs.inputs:
+            if sk.type == "VALUE" and sk.name in ("Min", "Max"):
+                sk.default_value = smin if sk.name == "Min" else smax
+        rs.inputs["Seed"].default_value = seed + 1
+        Lk.new(gi.outputs[0], d.inputs["Mesh"])
+        Lk.new(d.outputs["Points"], ins.inputs["Points"])
+        Lk.new(oi.outputs["Geometry"], ins.inputs["Instance"])
+        Lk.new(rr.outputs[0], ins.inputs["Rotation"])
+        Lk.new(next(o for o in rs.outputs if o.type == "VALUE"), ins.inputs["Scale"])
+        Lk.new(ins.outputs[0], join.inputs[0])
+
+    scatter(bq["Grass_Basic_A"], 5.0, 0.45, 0.8, 11, 0.35, 0.6)
+    scatter(bq["Grass_Wild_B"], 1.6, 0.25, 0.42, 12)
+    scatter(bq["Grass_Wild_C"], 1.6, 0.25, 0.42, 13)
+    scatter(bq["Grass_Tall_A"], 0.9, 0.45, 0.75, 14)
+    scatter(bq["Grass_Karl-foerster_B"], 0.35, 0.45, 0.65, 15, 0.5, 0.62, 0.3)
+    scatter(bq["Grass_Cortaderia-Selloana_B"], 0.05, 1.7, 2.5, 16, 0.55, 0.65, 0.05)
     Lk.new(join.outputs[0], go.inputs[0])
     md = g.modifiers.new("Pasto", "NODES")
     md.node_group = ng
+
+
+def load_field_assets(M, lib):
+    """Pastos y rocas de assets/campo (Botaniq, del "Field (free)"). Sus shaders vienen vacíos
+    en la versión gratuita, así que se les asignan materiales propios."""
+    with bpy.data.libraries.load(CAMPO) as (a, b):
+        b.objects = a.objects
+    swap = {"Grass_bqm": M["bqPasto"], "Flower_Cortaderia-selloana_bqm": M["bqPenacho"],
+            "Grass_Karl-foerster_bqm": M["bqEspiga"]}
+    out = {}
+    for o in b.objects:
+        lib.objects.link(o)
+        for sl in o.material_slots:
+            nm = sl.material.name if sl.material else ""
+            sl.material = swap.get(nm, M["bqBasalto"] if "Basalt" in nm else M["bqGranito"])
+        for md in o.modifiers:
+            if md.type == "SUBSURF":
+                md.levels = md.render_levels = min(md.render_levels, 1)
+        out[o.name.split("_spring")[0]] = o
+    return out
+
+
+def load_furniture(coll):
+    """Sillas tipo Acapulco con cojines, mesa y decoración, tomadas del modelo STL."""
+    with bpy.data.libraries.load(MUEBLES) as (a, b):
+        b.objects = a.objects
+    for o in b.objects:
+        coll.objects.link(o)
+
+
+def bq_grass_mat():
+    """Pasto Botaniq: verde con puntas secas según los atributos 'dry'/'R' de la malla."""
+    m, n, l = new_mat("BqPasto")
+    b = n["Principled BSDF"]
+    dry = n.new("ShaderNodeAttribute")
+    dry.attribute_name = "dry"
+    rr = n.new("ShaderNodeAttribute")
+    rr.attribute_name = "R"
+    info = n.new("ShaderNodeObjectInfo")
+    add = n.new("ShaderNodeMath")
+    add.operation = "ADD"
+    l.new(dry.outputs["Fac"], add.inputs[0])
+    l.new(rr.outputs["Fac"], add.inputs[1])
+    add2 = n.new("ShaderNodeMath")
+    add2.operation = "MULTIPLY_ADD"
+    add2.inputs[1].default_value = 0.45
+    l.new(info.outputs["Random"], add2.inputs[0])
+    l.new(add.outputs[0], add2.inputs[2])
+    ramp = n.new("ShaderNodeValToRGB")
+    e = ramp.color_ramp.elements
+    e[0].position, e[0].color = 0.05, (0.035, 0.08, 0.012, 1)
+    e[1].position, e[1].color = 1.0, (0.36, 0.29, 0.12, 1)
+    e.new(0.4).color = (0.07, 0.13, 0.02, 1)
+    e.new(0.7).color = (0.16, 0.18, 0.05, 1)
+    l.new(add2.outputs[0], ramp.inputs["Fac"])
+    l.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.55
+    tr = n.new("ShaderNodeBsdfTranslucent")
+    l.new(ramp.outputs["Color"], tr.inputs["Color"])
+    mix = n.new("ShaderNodeMixShader")
+    mix.inputs[0].default_value = 0.35
+    l.new(b.outputs[0], mix.inputs[1])
+    l.new(tr.outputs[0], mix.inputs[2])
+    l.new(mix.outputs[0], n["Material Output"].inputs["Surface"])
+    return m
+
+
+def plume_mat(name, color, translucent=0.5):
+    """Penachos y espigas: color pajizo con translucidez."""
+    m, n, l = new_mat(name)
+    b = n["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (*color, 1)
+    b.inputs["Roughness"].default_value = 0.8
+    tr = n.new("ShaderNodeBsdfTranslucent")
+    tr.inputs["Color"].default_value = (*color, 1)
+    mix = n.new("ShaderNodeMixShader")
+    mix.inputs[0].default_value = translucent
+    l.new(b.outputs[0], mix.inputs[1])
+    l.new(tr.outputs[0], mix.inputs[2])
+    l.new(mix.outputs[0], n["Material Output"].inputs["Surface"])
+    return m
+
+
+def rock_mat(name, c1, c2):
+    """Roca fotoescaneada sin textura: color con ruido y vetas, relieve fino."""
+    m, n, l = new_mat(name)
+    b = n["Principled BSDF"]
+    tc = n.new("ShaderNodeTexCoord")
+    nz = n.new("ShaderNodeTexNoise")
+    nz.inputs["Scale"].default_value = 3.0
+    nz.inputs["Detail"].default_value = 12
+    l.new(tc.outputs["Object"], nz.inputs["Vector"])
+    vor = n.new("ShaderNodeTexVoronoi")
+    vor.inputs["Scale"].default_value = 18
+    l.new(tc.outputs["Object"], vor.inputs["Vector"])
+    ramp = n.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (*c1, 1)
+    ramp.color_ramp.elements[1].color = (*c2, 1)
+    l.new(nz.outputs["Fac"], ramp.inputs["Fac"])
+    _, f, ca, cb, o = mix_rgb(n, "MULTIPLY")
+    f.default_value = 0.35
+    l.new(ramp.outputs["Color"], ca)
+    l.new(vor.outputs["Color"], cb)
+    l.new(o, b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.85
+    bmp = n.new("ShaderNodeBump")
+    bmp.inputs["Strength"].default_value = 0.5
+    bmp.inputs["Distance"].default_value = 0.02
+    l.new(vor.outputs["Distance"], bmp.inputs["Height"])
+    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    return m
 
 
 def finish_tree(t, coll, radius, tex, tex_fine):
@@ -1002,7 +1144,7 @@ def scatter_trees(veg, lod, coll, avoid):
         n = int((b - a).length / 5.0)
         for k in range(n):
             p = a.lerp(b, k / n) + Vector((random.uniform(-0.6, 0.6), random.uniform(-0.6, 0.6)))
-            if in_sun_corridor(p.x, p.y, 400):
+            if in_sun_corridor(p.x, p.y, 120):
                 continue
             r = (p - HC).length
             instance(pick("alamo", r), (p.x, p.y, terrain_h(p.x, p.y) - 0.3),
@@ -1017,7 +1159,7 @@ def scatter_trees(veg, lod, coll, avoid):
             continue
         if any((Vector((x, y)) - a).length < rad for a, rad in avoid):
             continue
-        if in_sun_corridor(x, y, 400):
+        if in_sun_corridor(x, y, 120):
             continue
         cluster = 1 + (random.random() < 0.35) * random.randint(2, 7)
         for _ in range(cluster):
@@ -1083,7 +1225,7 @@ def build_bales(M, coll):
         coll.objects.link(o)
 
 
-def scatter_small(M, coll, shrubs):
+def scatter_small(M, coll, shrubs, rocks):
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1)
     rock = bpy.context.object
     rock.name = "Roca"
@@ -1104,9 +1246,8 @@ def scatter_small(M, coll, shrubs):
             o = instance(random.choice(shrubs), (x, y, terrain_h(x, y) - 0.05), random.uniform(0.6, 1.4),
                          random.uniform(0, 6.3), coll)
         else:
-            s = random.uniform(0.08, 0.25)
-            o = instance(rock, (x, y, terrain_h(x, y) + s * 0.2), s, random.uniform(0, 6.3), coll)
-            o.scale.z *= 0.6
+            s = random.uniform(0.06, 0.18)
+            o = instance(random.choice(rocks), (x, y, terrain_h(x, y) - s * 0.25), s, random.uniform(0, 6.3), coll)
         o.hide_render = False
     # arbustos al pie del deck
     for x, y in ((-0.8, -1.0), (-0.9, 3.0), (-0.8, 7.2), (DECK_X1 + 0.8, 2.5), (DECK_X1 + 0.9, 6.5), (2.0, -2.7)):
@@ -1166,87 +1307,27 @@ def build_camera(round_src, coll, shrub):
 
 # ---------------------------------------------------------------- mundo
 def build_world():
+    """Cielo e iluminación con el HDRI de día (sol real a 59,5°), girado para que el sol
+    entre desde adelante-derecha (SUN_AZ)."""
     sc = bpy.context.scene
     w = bpy.data.worlds.new("Cielo")
     sc.world = w
     w.use_nodes = True
     n, l = w.node_tree.nodes, w.node_tree.links
     bg = n["Background"]
-    sky = n.new("ShaderNodeTexSky")
-    sky.sky_type = "MULTIPLE_SCATTERING" if bpy.app.version >= (5, 0) else "NISHITA"
-    sky.sun_elevation = math.radians(SUN_ELEV)
-    sky.sun_rotation = math.radians(SUN_AZ)
-    sky.altitude = 300
-    sky.air_density = 1.0
-    if hasattr(sky, "aerosol_density"):
-        sky.aerosol_density = 1.6
-    else:
-        sky.dust_density = 3.5
-    sky.sun_size = math.radians(1.2)
-    sky.sun_disc = False  # la luz directa la aporta la lámpara solar
-    # degradado de atardecer: horizonte cálido, cenit azul suave
-    tcw = n.new("ShaderNodeTexCoord")
-    sepw = n.new("ShaderNodeSeparateXYZ")
-    l.new(tcw.outputs["Generated"], sepw.inputs[0])
-    grad = n.new("ShaderNodeValToRGB")
-    ge = grad.color_ramp.elements
-    ge[0].position, ge[0].color = 0.0, (1.5, 0.82, 0.5, 1)
-    ge[1].position, ge[1].color = 0.45, (0.85, 0.88, 1.05, 1)
-    ge.new(0.12).color = (1.2, 0.9, 0.72, 1)
-    l.new(sepw.outputs["Z"], grad.inputs["Fac"])
-    _, wf, wa, wb, wo = mix_rgb(n, "MULTIPLY")
-    wf.default_value = 1.0
-    l.new(sky.outputs[0], wa)
-    l.new(grad.outputs["Color"], wb)
-    l.new(wo, bg.inputs[0])
-    bg.inputs[1].default_value = 0.3
-    bpy.ops.object.light_add(type="SUN")
-    sun = bpy.context.object
-    sun.data.energy = 13.0
-    sun.data.color = (1.0, 0.58, 0.3)  # luz de atardecer, dorado anaranjado
-    sun.data.angle = math.radians(1.0)
-    e, a = math.radians(SUN_ELEV), math.radians(SUN_AZ)
-    to_sun = Vector((math.cos(e) * math.sin(a), math.cos(e) * math.cos(a), math.sin(e)))
-    sun.rotation_euler = (-to_sun).to_track_quat("-Z", "Y").to_euler()
-    # capa de nubes altas, iluminada por el sol
-    m, n, l = new_mat("Nubes")
-    b = n["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (1, 1, 1, 1)
-    b.inputs["Roughness"].default_value = 1.0
     tc = n.new("ShaderNodeTexCoord")
     mp = n.new("ShaderNodeMapping")
-    mp.inputs["Scale"].default_value = (1, 2.2, 1)
-    nz = n.new("ShaderNodeTexNoise")
-    nz.inputs["Scale"].default_value = 7
-    nz.inputs["Detail"].default_value = 12
-    nz.inputs["Roughness"].default_value = 0.62
-    ramp = n.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].position = 0.55
-    ramp.color_ramp.elements[1].position = 0.75
+    # sol del HDRI sin girar: u = 0,5 queda hacia +X (azimut 90°); verificado con un poste
+    b = (HDRI_SUN_U - 0.5) * 2 * math.pi
+    az0 = math.degrees(math.atan2(math.cos(b), -math.sin(b)))
+    mp.inputs["Rotation"].default_value = (0, 0, math.radians(SUN_AZ - az0))
+    env = n.new("ShaderNodeTexEnvironment")
+    env.image = bpy.data.images.load(HDRI, check_existing=True)
+    env.interpolation = "Cubic"
     l.new(tc.outputs["Generated"], mp.inputs["Vector"])
-    l.new(mp.outputs["Vector"], nz.inputs["Vector"])
-    l.new(nz.outputs["Fac"], ramp.inputs["Fac"])
-    tr = n.new("ShaderNodeBsdfTransparent")
-    mx = n.new("ShaderNodeMixShader")
-    lp = n.new("ShaderNodeLightPath")
-    inv = n.new("ShaderNodeMath")
-    inv.operation = "SUBTRACT"
-    inv.inputs[0].default_value = 1.0
-    l.new(lp.outputs["Is Shadow Ray"], inv.inputs[1])
-    cov = n.new("ShaderNodeMath")
-    cov.operation = "MULTIPLY"
-    l.new(ramp.outputs["Color"], cov.inputs[0])
-    l.new(inv.outputs[0], cov.inputs[1])
-    l.new(cov.outputs[0], mx.inputs[0])
-    l.new(tr.outputs[0], mx.inputs[1])
-    l.new(b.outputs[0], mx.inputs[2])
-    l.new(mx.outputs[0], n["Material Output"].inputs["Surface"])
-    bpy.ops.mesh.primitive_plane_add(size=16000, location=(W / 2, 3000, 2200))
-    clouds = bpy.context.object
-    clouds.name = "Nubes"
-    clouds.data.materials.append(m)
-    clouds.visible_shadow = False
-    clouds.visible_diffuse = False
+    l.new(mp.outputs["Vector"], env.inputs["Vector"])
+    l.new(env.outputs["Color"], bg.inputs[0])
+    bg.inputs[1].default_value = 1.0
     w.mist_settings.start = 40
     w.mist_settings.depth = 6500
     w.mist_settings.falloff = "LINEAR"
@@ -1285,7 +1366,7 @@ def setup_render():
         sc.view_settings.white_balance_temperature = WB_TEMP
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
-    sc.view_settings.exposure = -0.1
+    sc.view_settings.exposure = 0.0
     sc.view_layers[0].use_pass_mist = True
     sc.render.use_motion_blur = True
     sc.render.motion_blur_shutter = 0.35
@@ -1313,7 +1394,7 @@ def setup_render():
 
     lt, pw, amt = mnode("LESS_THAN", 0.999), mnode("POWER", 0.9), mnode("MULTIPLY", 0.55)
     mul = mnode("MULTIPLY", 1.0)
-    haze = (0.95, 0.74, 0.58, 1)
+    haze = (0.7, 0.77, 0.86, 1)  # bruma azulada de día
     if bpy.app.version >= (5, 0):
         mix = nt.nodes.new("ShaderNodeMix")
         mix.data_type = "RGBA"
@@ -1363,6 +1444,11 @@ def materials():
     M["pastoSeco"] = grass_mat("PastoSeco", dry=True)
     M["terreno"] = terrain_mat()
     M["maicillo"] = gravel_mat()
+    M["bqPasto"] = bq_grass_mat()
+    M["bqPenacho"] = plume_mat("Penacho", (0.78, 0.7, 0.55), 0.55)
+    M["bqEspiga"] = plume_mat("Espiga", (0.5, 0.38, 0.2), 0.4)
+    M["bqGranito"] = rock_mat("Granito", (0.2, 0.19, 0.18), (0.45, 0.43, 0.4))
+    M["bqBasalto"] = rock_mat("Basalto", (0.06, 0.06, 0.065), (0.2, 0.19, 0.18))
     return M
 
 
@@ -1375,11 +1461,14 @@ def main():
     bpy.context.scene.collection.children.link(lib)
     lod = make_tree_variants(M, lib)  # versiones livianas para lo lejano
     veg = build_vegetation(lib)
+    bq = load_field_assets(M, lib)
+    rocks = [bq[k] for k in bq if k.startswith("Rock")]
     lib.hide_render = True
     lib.hide_viewport = True
     trees = bpy.data.collections.new("Arboles")
     bpy.context.scene.collection.children.link(trees)
-    shrub, rock = scatter_small(M, trees, veg["arbusto"])
+    shrub, rock = scatter_small(M, trees, veg["arbusto"], rocks)
+    load_furniture(trees)
     for x, y in MACETEROS:
         o = instance(veg["arbusto"][1], (x, y, FLOOR + 0.42), 0.75, random.uniform(0, 6.3), trees)
         o.hide_render = False
@@ -1388,7 +1477,7 @@ def main():
                   [(cam_pose(u)[0].xy, 8) for u in (0, 0.25, 0.5, 0.75, 1)])
     build_fences(M, trees)
     build_bales(M, trees)
-    build_grass(M)
+    build_grass(M, bq)
     build_world()
     setup_render()
     sc = bpy.context.scene
