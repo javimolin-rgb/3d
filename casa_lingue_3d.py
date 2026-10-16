@@ -16,6 +16,7 @@ Paisaje: campo chileno a la hora dorada (potreros, álamos, cercos de palo,
 fardos, cerros bajos y cordillera al fondo).
 """
 import math
+import os
 import random
 import sys
 
@@ -24,12 +25,15 @@ import bmesh
 from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-opts = {"out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
+opts = {"step": "1", "wb": "7200", "out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
         "still": None, "save": None}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
 
 random.seed(11)
+ROOT = os.path.dirname(os.path.abspath(__file__))
+PHOTO = os.path.join(ROOT, "assets", "photo")
+WB_TEMP = float(opts["wb"])  # balance de blancos cálido
 W, D = 4.40, 8.50           # ancho y fondo de la caja (marco negro)
 T = 0.20                    # espesor de muros / techo
 FLOOR = 0.55                # nivel de piso terminado sobre el terreno
@@ -291,7 +295,42 @@ def terrain_mat():
     f1.default_value = 1.0
     l.new(fields.outputs["Color"], a1)
     l.new(var.outputs[0], b1)
-    # cerca de la casa: pradera homogénea (el pasto 3D se encarga del detalle)
+    # cerca de la casa: pasto fotográfico CC0 en dos escalas (como en Casa Cipres)
+    tc = n.new("ShaderNodeTexCoord")
+    img = bpy.data.images.load(os.path.join(PHOTO, "grasslight-big.jpg"), check_existing=True)
+
+    def photo(size, rot):
+        mp = n.new("ShaderNodeMapping")
+        mp.inputs["Scale"].default_value = (1 / size, 1 / size, 1)
+        mp.inputs["Rotation"].default_value = (0, 0, math.radians(rot))
+        t = n.new("ShaderNodeTexImage")
+        t.image = img
+        l.new(tc.outputs["Object"], mp.inputs["Vector"])
+        l.new(mp.outputs["Vector"], t.inputs["Vector"])
+        return t
+
+    p1, p2 = photo(2.6, 0), photo(9.0, 37)
+    _, fp, ap, bp, op = mix_rgb(n)
+    fp.default_value = 0.45
+    l.new(p1.outputs["Color"], ap)
+    l.new(p2.outputs["Color"], bp)
+    hsv = n.new("ShaderNodeHueSaturation")
+    hsv.inputs["Saturation"].default_value = 0.8
+    hsv.inputs["Value"].default_value = 0.6
+    hsv.inputs["Hue"].default_value = 0.49
+    l.new(op, hsv.inputs["Color"])
+    big = n.new("ShaderNodeTexNoise")
+    big.inputs["Scale"].default_value = 0.06
+    big.inputs["Detail"].default_value = 6
+    l.new(tc.outputs["Object"], big.inputs["Vector"])
+    dry_f = n.new("ShaderNodeMapRange")
+    dry_f.inputs[1].default_value, dry_f.inputs[2].default_value = 0.5, 0.68
+    dry_f.inputs[4].default_value = 0.6
+    l.new(big.outputs["Fac"], dry_f.inputs[0])
+    _, fd, ad, bd, od = mix_rgb(n, "MULTIPLY")
+    bd.default_value = (1.35, 0.95, 0.55, 1)
+    l.new(dry_f.outputs[0], fd)
+    l.new(hsv.outputs["Color"], ad)
     geo_d = n.new("ShaderNodeVectorMath")
     geo_d.operation = "LENGTH"
     l.new(geo.outputs["Position"], geo_d.inputs[0])
@@ -300,13 +339,13 @@ def terrain_mat():
     near.inputs[3].default_value, near.inputs[4].default_value = 1.0, 0.0
     l.new(geo_d.outputs["Value"], near.inputs[0])
     _, f2, a2, b2, o2 = mix_rgb(n)
-    b2.default_value = (0.12, 0.13, 0.04, 1)
     l.new(near.outputs[0], f2)
     l.new(o1, a2)
+    l.new(od, b2)
     # cerros boscosos -> roca -> nieve, según altura
     rock_c = n.new("ShaderNodeValToRGB")
-    rock_c.color_ramp.elements[0].color = (0.035, 0.05, 0.03, 1)
-    rock_c.color_ramp.elements[1].color = (0.16, 0.15, 0.14, 1)
+    rock_c.color_ramp.elements[0].color = (0.03, 0.03, 0.035, 1)
+    rock_c.color_ramp.elements[1].color = (0.2, 0.18, 0.16, 1)
     l.new(fine.outputs["Fac"], rock_c.inputs["Fac"])
     h_rock = n.new("ShaderNodeMapRange")
     h_rock.inputs[1].default_value, h_rock.inputs[2].default_value = 35, 160
@@ -321,17 +360,26 @@ def terrain_mat():
     l.new(fine.outputs["Fac"], snow_n.inputs[0])
     l.new(sep.outputs["Z"], snow_n.inputs[2])
     h_snow = n.new("ShaderNodeMapRange")
-    h_snow.inputs[1].default_value, h_snow.inputs[2].default_value = 900, 1000
+    h_snow.inputs[1].default_value, h_snow.inputs[2].default_value = 700, 820
     l.new(snow_n.outputs[0], h_snow.inputs[0])
+    nrm = n.new("ShaderNodeSeparateXYZ")
+    l.new(geo.outputs["True Normal"], nrm.inputs[0])
+    sn = n.new("ShaderNodeMapRange")
+    sn.inputs[1].default_value, sn.inputs[2].default_value = 0.55, 0.75
+    l.new(nrm.outputs["Z"], sn.inputs[0])
+    snow = n.new("ShaderNodeMath")
+    snow.operation = "MULTIPLY"
+    l.new(h_snow.outputs[0], snow.inputs[0])
+    l.new(sn.outputs[0], snow.inputs[1])
     _, f4, a4, b4, o4 = mix_rgb(n)
-    b4.default_value = (0.85, 0.87, 0.92, 1)
-    l.new(h_snow.outputs[0], f4)
+    b4.default_value = (0.8, 0.83, 0.88, 1)
+    l.new(snow.outputs[0], f4)
     l.new(o3, a4)
     l.new(o4, b.inputs["Base Color"])
     b.inputs["Roughness"].default_value = 0.92
     bmp = n.new("ShaderNodeBump")
     bmp.inputs["Strength"].default_value = 0.4
-    l.new(fine.outputs["Fac"], bmp.inputs["Height"])
+    l.new(p1.outputs["Color"], bmp.inputs["Height"])
     l.new(bmp.outputs["Normal"], b.inputs["Normal"])
     return m
 
@@ -342,8 +390,8 @@ def gravel_mat():
     v = n.new("ShaderNodeTexVoronoi")
     v.inputs["Scale"].default_value = 45
     ramp = n.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].color = (0.24, 0.17, 0.11, 1)
-    ramp.color_ramp.elements[1].color = (0.5, 0.4, 0.29, 1)
+    ramp.color_ramp.elements[0].color = (0.13, 0.095, 0.065, 1)
+    ramp.color_ramp.elements[1].color = (0.32, 0.25, 0.18, 1)
     l.new(v.outputs["Distance"], ramp.inputs["Fac"])
     l.new(ramp.outputs["Color"], b.inputs["Base Color"])
     bmp = n.new("ShaderNodeBump")
@@ -539,6 +587,16 @@ def path_dist(x, y):
     return best
 
 
+def mountain_h(x, y):
+    """Cordillera: crestas con deformación de dominio, cumbres afiladas y erosión fina (Casa Cipres)."""
+    q = Vector((x / 2600, y / 2600, 3.1))
+    w = noise.noise_vector(q * 0.7) * 0.4
+    r = noise.ridged_multi_fractal(q + w, 0.85, 2.05, 7, 1.0, 2.2)
+    peaks = min(max(0.0, r) ** 1.35 * 600, 1400)
+    gullies = noise.ridged_multi_fractal(Vector((x / 500, y / 500, 9.3)), 0.9, 2.2, 5, 1.0, 2.0)
+    return peaks + gullies * 35 * min(1.0, peaks / 300)
+
+
 def terrain_h(x, y):
     p = Vector((x, y))
     d = (p - HC).length
@@ -547,9 +605,9 @@ def terrain_h(x, y):
     # lomas bajas (cerros de la costa / precordillera) a media distancia
     hills_m = max(0.0, min(1.0, (d - 450) / 900))
     hills = (noise.fractal(Vector((x / 900, y / 900, 2.1)), 0.55, 2.0, 6) + 0.45) * 150 * hills_m
-    # cordillera nevada sólo al fondo (+Y)
-    mtn_m = max(0.0, min(1.0, (y - 3000) / 2500)) * max(0.0, min(1.0, 1 - abs(x) / 9000))
-    mtn = noise.ridged_multi_fractal(Vector((x / 2200, y / 2200, 1.7)), 0.8, 2.0, 6, 1.0, 2.0) * 1000 * mtn_m
+    # cordillera sólo al fondo (+Y)
+    mtn_m = max(0.0, min(1.0, (y - 3300) / 2600)) * max(0.0, min(1.0, 1.3 - abs(x) / 7000))
+    mtn = mountain_h(x, y) * mtn_m if mtn_m > 0 else 0.0
     micro = noise.noise(Vector((x / 6, y / 6, 0))) * 0.12 * min(1, d / 12)
     return max(rolling + hills + mtn, -3) + micro
 
@@ -558,16 +616,32 @@ def build_landscape(M):
     lc = bpy.data.collections.new("Paisaje")
     bpy.context.scene.collection.children.link(lc)
     steps, x = [], 0.0
-    while x < 7000:
+    while x < 2000:
         steps.append(x)
-        x += 0.6 + x * 0.04
+        x += 0.6 + x * 0.035
     coords = sorted(set([-s for s in steps] + steps))
     cx, cy = HC
     verts = [(cx + u, cy + v, terrain_h(cx + u, cy + v)) for v in coords for u in coords]
     n = len(coords)
     faces = [(j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i)
-             for j in range(n - 1) for i in range(n - 1)]
+             for j in range(n - 1) for i in range(n - 1)
+             if math.hypot((coords[i] + coords[i + 1]) / 2, (coords[j] + coords[j + 1]) / 2) < 1430]
     mesh_obj("Terreno", verts, faces, M["terreno"], lc, smooth=True)
+    # lejos: malla polar de alta resolución en azimut (cerros y cordillera con detalle)
+    radii, r = [], 1400.0
+    while r < 9000:
+        radii.append(r)
+        r += 6 + r * 0.008
+    na = 1400
+    verts = []
+    for r in radii:
+        for k in range(na):
+            a = 2 * math.pi * k / na
+            x, y = cx + r * math.sin(a), cy + r * math.cos(a)
+            verts.append((x, y, terrain_h(x, y)))
+    faces = [(j * na + k, j * na + (k + 1) % na, (j + 1) * na + (k + 1) % na, (j + 1) * na + k)
+             for j in range(len(radii) - 1) for k in range(na)]
+    mesh_obj("Cordillera", verts, faces, M["terreno"], lc, smooth=True)
     # camino de maicillo desde la escalera de la terraza
     pts = []
     for a, b in zip(PATH, PATH[1:]):
@@ -587,8 +661,8 @@ def build_landscape(M):
     return lc
 
 
-def grass_mat():
-    m, n, l = new_mat("Pasto")
+def grass_mat(name="Pasto", dry=False):
+    m, n, l = new_mat(name)
     b = n["Principled BSDF"]
     info = n.new("ShaderNodeObjectInfo")
     tc = n.new("ShaderNodeTexCoord")
@@ -602,12 +676,16 @@ def grass_mat():
     add.inputs[1].default_value = 0.5
     ramp = n.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
-    e[0].position, e[0].color = 0.3, (0.08, 0.12, 0.025, 1)
-    e[1].position, e[1].color = 0.92, (0.42, 0.33, 0.12, 1)
-    e.new(0.62).color = (0.2, 0.2, 0.06, 1)
+    e[0].position, e[0].color = 0.25, (0.03, 0.075, 0.012, 1)
+    e[1].position, e[1].color = 0.97, (0.26, 0.22, 0.08, 1)
+    e.new(0.55).color = (0.07, 0.13, 0.02, 1)
+    e.new(0.8).color = (0.12, 0.17, 0.035, 1)
     l.new(nz.outputs["Fac"], add.inputs[0])
     l.new(info.outputs["Random"], add.inputs[2])
     l.new(add.outputs[0], ramp.inputs["Fac"])
+    if dry:  # pasto seco/espigado del campo en verano
+        for el, c in zip(e, ((0.16, 0.12, 0.04), (0.5, 0.4, 0.2), (0.3, 0.24, 0.09), (0.38, 0.3, 0.13))):
+            el.color = (*c, 1)
     base = n.new("ShaderNodeMapRange")
     base.inputs[1].default_value, base.inputs[2].default_value = 0.0, 0.25
     base.inputs[3].default_value, base.inputs[4].default_value = 0.35, 1.0
@@ -628,38 +706,41 @@ def grass_mat():
     return m
 
 
-def grass_tuft(M, name, mat, blades=14, hmin=0.15, hmax=0.4, flower=None):
-    """Mata de pasto: hojas finas triangulares, levemente inclinadas (opcional: florcitas)."""
-    verts, faces, fl = [], [], []
+def grass_tuft(M, name, mat, blades=34, hmin=0.04, hmax=0.15, flower=None):
+    """Mata de pasto: hojas finas y curvas (dos tramos), con distinta altura e inclinación."""
+    verts, faces, tips = [], [], []
     for k in range(blades):
         a = random.uniform(0, 2 * math.pi)
-        r = random.uniform(0, 0.08)
+        r = random.uniform(0, 0.09)
         x, y = r * math.cos(a), r * math.sin(a)
         h = random.uniform(hmin, hmax)
-        lean = random.uniform(0.02, 0.12)
+        lean = random.uniform(0.15, 0.55) * h
         la = random.uniform(0, 2 * math.pi)
-        w = 0.008
-        px, py = -math.sin(a) * w, math.cos(a) * w
+        w = random.uniform(0.0025, 0.0045)
+        px, py = -math.sin(la) * w, math.cos(la) * w
+        dx, dy = math.cos(la), math.sin(la)
         i = len(verts)
-        tip = (x + lean * math.cos(la), y + lean * math.sin(la), h)
-        verts += [(x - px, y - py, 0), (x + px, y + py, 0), tip]
-        faces.append((i, i + 1, i + 2))
-        if flower and k % 4 == 0:
-            fl.append(tip)
+        verts += [(x - px, y - py, 0), (x + px, y + py, 0),
+                  (x + dx * lean * 0.35 + px * 0.7, y + dy * lean * 0.35 + py * 0.7, h * 0.6),
+                  (x + dx * lean * 0.35 - px * 0.7, y + dy * lean * 0.35 - py * 0.7, h * 0.6),
+                  (x + dx * lean, y + dy * lean, h)]
+        faces += [(i, i + 1, i + 2, i + 3), (i + 3, i + 2, i + 4)]
+        if flower and k % 6 == 0:
+            tips.append(verts[-1])
     t = mesh_obj(name, verts, faces, mat)
     if flower:
         t.data.materials.append(flower)
-        for (x, y, z) in fl:
-            i = len(t.data.vertices)
-            bm = bmesh.new()
-            bm.from_mesh(t.data)
-            r = 0.025
-            vs = [bm.verts.new((x + r * math.cos(a), y + r * math.sin(a), z)) for a in
-                  (0, 2.1, 4.2)]
-            f = bm.faces.new(vs)
-            f.material_index = 1
-            bm.to_mesh(t.data)
-            bm.free()
+        bm = bmesh.new()
+        bm.from_mesh(t.data)
+        for (x, y, z) in tips:
+            for j in range(5):  # florcita de 5 pétalos
+                a0 = j * 2 * math.pi / 5
+                vs = [bm.verts.new((x, y, z)),
+                      bm.verts.new((x + 0.012 * math.cos(a0 - 0.3), y + 0.012 * math.sin(a0 - 0.3), z + 0.002)),
+                      bm.verts.new((x + 0.012 * math.cos(a0 + 0.3), y + 0.012 * math.sin(a0 + 0.3), z + 0.002))]
+                bm.faces.new(vs).material_index = 1
+        bm.to_mesh(t.data)
+        bm.free()
     t.hide_render = True
     t.hide_viewport = True
     return t
@@ -683,11 +764,11 @@ def build_grass(M):
     g = mesh_obj("Pradera", verts, faces, M["terreno"])
     if g.data.polygons[0].normal.z < 0:
         g.data.flip_normals()
-    tufts = [grass_tuft(M, "MataPasto", M["pasto"], 14, 0.08, 0.2),
-             grass_tuft(M, "MataPasto2", M["pasto"], 14, 0.1, 0.24),
-             grass_tuft(M, "MataPasto3", M["pasto"], 12, 0.06, 0.16),
-             grass_tuft(M, "MataAlta", M["pasto"], 16, 0.25, 0.45),
-             grass_tuft(M, "MataFlor", M["pasto"], 10, 0.12, 0.28, flower=M["flor"])]
+    tufts = [grass_tuft(M, "MataPasto", M["pasto"]),
+             grass_tuft(M, "MataPasto2", M["pasto"], 30, 0.05, 0.18),
+             grass_tuft(M, "MataPasto3", M["pasto"], 34, 0.03, 0.12),
+             grass_tuft(M, "MataSeca", M["pastoSeco"], 22, 0.12, 0.32),
+             grass_tuft(M, "MataFlor", M["pasto"], 24, 0.05, 0.16, flower=M["flor"])]
     tc = bpy.data.collections.new("Matas")
     bpy.context.scene.collection.children.link(tc)
     for t in tufts:
@@ -708,7 +789,7 @@ def build_grass(M):
     nz.inputs["Scale"].default_value = 0.2
     mr = N.new("ShaderNodeMapRange")
     mr.inputs[1].default_value, mr.inputs[2].default_value = 0.3, 0.6
-    mr.inputs[3].default_value, mr.inputs[4].default_value = 14, 45
+    mr.inputs[3].default_value, mr.inputs[4].default_value = 30, 70
     Lk.new(nz.outputs["Fac"], mr.inputs[0])
     Lk.new(mr.outputs[0], dist.inputs["Density"])
     inst = N.new("GeometryNodeInstanceOnPoints")
@@ -729,11 +810,11 @@ def build_grass(M):
     ridx.data_type = "INT"
     for sk in ridx.inputs:
         if sk.type == "INT" and sk.name in ("Min", "Max"):
-            sk.default_value = 0 if sk.name == "Min" else 9
-    # índice 0-9 -> 0..4 con pocas matas con flor (índice 4 sólo 1 de cada 10)
+            sk.default_value = 0 if sk.name == "Min" else 13
+    # índice 0-13 -> 0..4: mayoría pasto verde, 3/14 pasto seco, 1/14 con flores
     idx_map = N.new("ShaderNodeMath")
     idx_map.operation = "MULTIPLY"
-    idx_map.inputs[1].default_value = 0.45
+    idx_map.inputs[1].default_value = 0.31
     idx_fl = N.new("ShaderNodeMath")
     idx_fl.operation = "FLOOR"
     Lk.new(next(o for o in ridx.outputs if o.type == "INT"), idx_map.inputs[0])
@@ -848,6 +929,41 @@ def make_tree_variants(M, coll):
     return rounds, poplars, pines
 
 
+def build_vegetation(lib):
+    """Árboles y arbustos realistas con Sapling Tree Gen (ver vegetacion.py, igual que Casa Cipres)."""
+    import vegetacion as vg
+    bark = vg.bark_material("Corteza")
+    bark_l = vg.bark_material("CortezaClara", (0.05, 0.045, 0.04), (0.22, 0.2, 0.17))
+    leaf = vg.foliage_material("Hojas", "hoja.png", (1, 1, 1), (1.4, 1.1, 0.6), 0.45)
+    leaf_d = vg.foliage_material("HojasRoble", "hoja.png", (0.75, 0.85, 0.6), (1.1, 1.0, 0.6), 0.4)
+    leaf_p = vg.foliage_material("HojasAlamo", "hoja.png", (1.2, 1.15, 0.65), (1.5, 1.25, 0.55), 0.5)
+    dry = vg.foliage_material("HojasSecas", "hoja_seca.png", (1, 1, 1), (0.9, 0.8, 0.7), 0.4)
+    pine_leaf = vg.foliage_material("AgujasPino", "pino_ramita.png", (1, 1, 1), (1.15, 1.05, 0.7))
+    V = {"roble": [], "alamo": [], "sauce": [], "pino": [], "arbusto": []}
+    oak = dict(leaves=80, leafScale=0.5, leafScaleX=0.8)
+    for i, (sd, h) in enumerate(((3, 11), (7, 13), (12, 9))):
+        V["roble"].append(vg.make_plant(f"Roble{i}", "small_maple", sd, h, leaf_d, bark, oak, lib))
+    # álamo chileno (columnar): álamo temblón de Sapling comprimido en planta
+    asp = dict(leaves=80, leafScale=0.42, leafScaleX=0.8)
+    for i, (sd, h) in enumerate(((4, 21), (14, 24))):
+        t = vg.make_plant(f"Alamo{i}", "quaking_aspen", sd, h, leaf_p, bark_l, asp, lib)
+        t.scale = (0.38, 0.38, 1.0)
+        bpy.ops.object.select_all(action="DESELECT")
+        t.select_set(True)
+        bpy.context.view_layer.objects.active = t
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        V["alamo"].append(t)
+    V["sauce"].append(vg.make_plant("Sauce0", "weeping_willow", 5, 11, leaf, bark_l,
+                                    dict(leaves=110, leafScale=0.3), lib))
+    pine = dict(leaves=90, leafScale=0.12, leafScaleX=0.5)
+    for i, (sd, h) in enumerate(((5, 13), (8, 10))):
+        V["pino"].append(vg.make_plant(f"Pino{i}", "small_pine", sd, h, pine_leaf, bark, pine, lib))
+    shrub = dict(leaves=30, leafScale=0.3, leafScaleX=0.75, scale=3.0, scaleV=1.0)
+    for i, (sd, h, mat) in enumerate(((2, 1.4, leaf), (6, 1.0, leaf), (9, 1.2, dry))):
+        V["arbusto"].append(vg.make_plant(f"Arbusto{i}", "small_maple", sd, h, mat, bark_l, shrub, lib))
+    return V
+
+
 def instance(src, loc, scale, rot, coll):
     ob = bpy.data.objects.new("inst", src.data)
     ob.location, ob.scale = loc, (scale, scale, scale * random.uniform(0.9, 1.15))
@@ -864,20 +980,33 @@ def in_sun_corridor(x, y, max_r):
     return r < max_r and abs(ang) < 35
 
 
-def scatter_trees(variants, coll, avoid):
-    rounds, poplars, pines = variants
+def scatter_trees(veg, lod, coll, avoid):
+    """Cerca (< 600 m) árboles Sapling; lejos, las versiones livianas."""
+    rounds, poplars, pines = lod
+    near = 600
+
+    def pick(kind, r):
+        if kind == "alamo":
+            return random.choice(veg["alamo"] if r < near else poplars)
+        if kind == "pino":
+            return random.choice(veg["pino"] if r < near else pines)
+        if r < near:
+            return random.choice(veg["roble"] * 3 + veg["sauce"])
+        return random.choice(rounds)
+
     # alamedas: hileras de álamos que bordean potreros (típico del campo chileno)
     rows = [((-90, 75), (170, 95)), ((-120, 150), (-40, 420)), ((120, 130), (380, 260)),
             ((-260, 60), (-420, 300)), ((40, 260), (420, 520)), ((-200, -60), (-500, 40)),
             ((220, -20), (520, 90))]
     for a, b in rows:
         a, b = Vector(a), Vector(b)
-        n = int((b - a).length / 5.5)
+        n = int((b - a).length / 5.0)
         for k in range(n):
             p = a.lerp(b, k / n) + Vector((random.uniform(-0.6, 0.6), random.uniform(-0.6, 0.6)))
             if in_sun_corridor(p.x, p.y, 400):
                 continue
-            instance(random.choice(poplars), (p.x, p.y, terrain_h(p.x, p.y) - 0.3),
+            r = (p - HC).length
+            instance(pick("alamo", r), (p.x, p.y, terrain_h(p.x, p.y) - 0.3),
                      random.uniform(0.85, 1.15), random.uniform(0, 6.3), coll)
     # árboles sueltos y bosquetes en los potreros
     placed = 0
@@ -894,11 +1023,12 @@ def scatter_trees(variants, coll, avoid):
         cluster = 1 + (random.random() < 0.35) * random.randint(2, 7)
         for _ in range(cluster):
             px, py = x + random.uniform(-9, 9) * (cluster > 1), y + random.uniform(-9, 9) * (cluster > 1)
-            src = random.choice(rounds) if random.random() < 0.85 else random.choice(pines)
-            instance(src, (px, py, terrain_h(px, py) - 0.3), random.uniform(0.7, 1.3), random.uniform(0, 6.3), coll)
+            src = pick("roble" if random.random() < 0.85 else "pino", r)
+            instance(src, (px, py, terrain_h(px, py) - 0.3), random.uniform(0.75, 1.2), random.uniform(0, 6.3), coll)
         placed += 1
     # árboles grandes que enmarcan la casa (atrás y a los lados)
-    for x, y, s, src in ((-24, 30, 1.2, rounds[1]), (20, 34, 1.0, rounds[0]), (-9, 48, 1.0, pines[0])):
+    for x, y, s, src in ((-24, 30, 1.1, veg["roble"][1]), (20, 34, 1.0, veg["roble"][0]),
+                         (-9, 48, 1.0, veg["pino"][0]), (34, 12, 0.9, veg["sauce"][0])):
         instance(src, (x, y, terrain_h(x, y) - 0.2), s, random.uniform(0, 6.3), coll)
 
 
@@ -954,17 +1084,7 @@ def build_bales(M, coll):
         coll.objects.link(o)
 
 
-def scatter_small(M, coll):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1)
-    shrub = bpy.context.object
-    shrub.name = "Arbusto"
-    d = shrub.modifiers.new("d", "DISPLACE")
-    d.texture = bpy.data.textures.new("arb", "CLOUDS")
-    d.texture.noise_scale = 0.4
-    d.strength = 0.5
-    bpy.ops.object.modifier_apply(modifier="d")
-    bpy.ops.object.shade_smooth()
-    shrub.data.materials.append(M["arbusto"])
+def scatter_small(M, coll, shrubs):
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1)
     rock = bpy.context.object
     rock.name = "Roca"
@@ -973,25 +1093,27 @@ def scatter_small(M, coll):
     d.strength = 0.35
     bpy.ops.object.modifier_apply(modifier="d")
     rock.data.materials.append(M["roca"])
-    for ob in (shrub, rock):
-        ob.hide_render = True
-        ob.hide_viewport = True
+    rock.hide_render = True
+    rock.hide_viewport = True
     for _ in range(110):
         x, y = random.uniform(-20, 30), random.uniform(-25, 22)
         if -1.5 < x < DECK_X1 + 1.5 and -3.0 < y < D + 1.5:
             continue
         if path_dist(x, y) < 1.3:
             continue
-        src = shrub if random.random() < 0.75 else rock
-        s = random.uniform(0.2, 0.55) if src is shrub else random.uniform(0.08, 0.25)
-        o = instance(src, (x, y, terrain_h(x, y) + s * 0.3), s, random.uniform(0, 6.3), coll)
+        if random.random() < 0.75:
+            o = instance(random.choice(shrubs), (x, y, terrain_h(x, y) - 0.05), random.uniform(0.6, 1.4),
+                         random.uniform(0, 6.3), coll)
+        else:
+            s = random.uniform(0.08, 0.25)
+            o = instance(rock, (x, y, terrain_h(x, y) + s * 0.2), s, random.uniform(0, 6.3), coll)
+            o.scale.z *= 0.6
         o.hide_render = False
-        o.scale.z *= 0.6
     # arbustos al pie del deck
     for x, y in ((-0.8, -1.0), (-0.9, 3.0), (-0.8, 7.2), (DECK_X1 + 0.8, 2.5), (DECK_X1 + 0.9, 6.5), (2.0, -2.7)):
-        o = instance(shrub, (x, y, 0.2), random.uniform(0.4, 0.6), 0, coll)
+        o = instance(random.choice(shrubs), (x, y, 0.0), random.uniform(0.9, 1.2), random.uniform(0, 6.3), coll)
         o.hide_render = False
-    return shrub, rock
+    return shrubs[0], rock
 
 
 # --------------------------------------------------------------- cámara
@@ -1035,14 +1157,12 @@ def build_camera(round_src, coll, shrub):
         cam.rotation_euler = e
         cam.keyframe_insert("location", frame=f + 1)
         cam.keyframe_insert("rotation_euler", frame=f + 1)
-    # árbol en primer plano que cruza el cuadro hacia el final del vuelo
-    pos, tgt = cam_pose(0.8)
-    p = pos + (tgt - pos) * 0.34
-    p += (tgt - pos).cross(Vector((0, 0, 1))).normalized() * -2.2
-    tr = instance(round_src, (p.x, p.y, terrain_h(p.x, p.y) - 0.2), 0.55, 0.4, coll)
-    o = instance(shrub, (p.x + 0.8, p.y + 0.6, terrain_h(p.x, p.y) + 0.1), 0.5, 0, coll)
+    # árbol mediano a la derecha de la casa (enmarca el final del vuelo sin tapar la casa)
+    p = Vector((15.0, 1.5))
+    instance(round_src, (p.x, p.y, terrain_h(p.x, p.y) - 0.2), 0.75, 0.4, coll)
+    o = instance(shrub, (p.x - 1.2, p.y - 1.0, terrain_h(p.x, p.y) - 0.05), 1.1, 0, coll)
     o.hide_render = False
-    return cam, Vector((p.x, p.y))
+    return cam, p
 
 
 # ---------------------------------------------------------------- mundo
@@ -1065,12 +1185,26 @@ def build_world():
         sky.dust_density = 3.5
     sky.sun_size = math.radians(1.2)
     sky.sun_disc = False  # la luz directa la aporta la lámpara solar
-    l.new(sky.outputs[0], bg.inputs[0])
-    bg.inputs[1].default_value = 0.32
+    # degradado de atardecer: horizonte cálido, cenit azul suave
+    tcw = n.new("ShaderNodeTexCoord")
+    sepw = n.new("ShaderNodeSeparateXYZ")
+    l.new(tcw.outputs["Generated"], sepw.inputs[0])
+    grad = n.new("ShaderNodeValToRGB")
+    ge = grad.color_ramp.elements
+    ge[0].position, ge[0].color = 0.0, (1.5, 0.82, 0.5, 1)
+    ge[1].position, ge[1].color = 0.45, (0.85, 0.88, 1.05, 1)
+    ge.new(0.12).color = (1.2, 0.9, 0.72, 1)
+    l.new(sepw.outputs["Z"], grad.inputs["Fac"])
+    _, wf, wa, wb, wo = mix_rgb(n, "MULTIPLY")
+    wf.default_value = 1.0
+    l.new(sky.outputs[0], wa)
+    l.new(grad.outputs["Color"], wb)
+    l.new(wo, bg.inputs[0])
+    bg.inputs[1].default_value = 0.3
     bpy.ops.object.light_add(type="SUN")
     sun = bpy.context.object
-    sun.data.energy = 10.0
-    sun.data.color = (1.0, 0.66, 0.4)
+    sun.data.energy = 13.0
+    sun.data.color = (1.0, 0.58, 0.3)  # luz de atardecer, dorado anaranjado
     sun.data.angle = math.radians(1.0)
     e, a = math.radians(SUN_ELEV), math.radians(SUN_AZ)
     to_sun = Vector((math.cos(e) * math.sin(a), math.cos(e) * math.cos(a), math.sin(e)))
@@ -1130,7 +1264,7 @@ def setup_render():
     cy.max_bounces = 4
     cy.diffuse_bounces = 2
     cy.glossy_bounces = 2
-    cy.transparent_max_bounces = 6
+    cy.transparent_max_bounces = 12
     cy.caustics_reflective = cy.caustics_refractive = False
     cy.blur_glossy = 1.0
     cy.use_denoising = True
@@ -1144,6 +1278,12 @@ def setup_render():
     sc.render.fps = FPS
     sc.render.use_persistent_data = True
     sc.render.image_settings.file_format = "PNG"
+    # reanudable: no vuelve a renderizar cuadros ya guardados
+    sc.render.use_overwrite = False
+    sc.render.use_placeholder = True
+    if hasattr(sc.view_settings, "use_white_balance"):
+        sc.view_settings.use_white_balance = True
+        sc.view_settings.white_balance_temperature = WB_TEMP
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
     sc.view_settings.exposure = -0.1
@@ -1174,7 +1314,7 @@ def setup_render():
 
     lt, pw, amt = mnode("LESS_THAN", 0.999), mnode("POWER", 0.9), mnode("MULTIPLY", 0.55)
     mul = mnode("MULTIPLY", 1.0)
-    haze = (0.74, 0.66, 0.62, 1)
+    haze = (0.95, 0.74, 0.58, 1)
     if bpy.app.version >= (5, 0):
         mix = nt.nodes.new("ShaderNodeMix")
         mix.data_type = "RGBA"
@@ -1219,8 +1359,9 @@ def materials():
     M["poste"] = principled("Poste", (0.2, 0.17, 0.14), 0.95)
     M["paja"] = boards_mat("Paja", (0.4, 0.3, 0.12), (0.62, 0.5, 0.25), "Z", 30.0, 0.9, 0.3, 6.0)
     M["roca"] = principled("Roca", (0.16, 0.14, 0.12), 0.85)
-    M["flor"] = principled("Flor", (0.85, 0.75, 0.25), 0.6)
+    M["flor"] = principled("Flor", (0.9, 0.72, 0.12), 0.6)
     M["pasto"] = grass_mat()
+    M["pastoSeco"] = grass_mat("PastoSeco", dry=True)
     M["terreno"] = terrain_mat()
     M["maicillo"] = gravel_mat()
     return M
@@ -1233,14 +1374,15 @@ def main():
     build_landscape(M)
     lib = bpy.data.collections.new("Biblioteca")
     bpy.context.scene.collection.children.link(lib)
-    variants = make_tree_variants(M, lib)
+    lod = make_tree_variants(M, lib)  # versiones livianas para lo lejano
+    veg = build_vegetation(lib)
     lib.hide_render = True
     lib.hide_viewport = True
     trees = bpy.data.collections.new("Arboles")
     bpy.context.scene.collection.children.link(trees)
-    shrub, rock = scatter_small(M, trees)
-    cam, fg = build_camera(variants[0][2], trees, shrub)
-    scatter_trees(variants, trees, avoid=[(fg, 6), (HC, 14)] +
+    shrub, rock = scatter_small(M, trees, veg["arbusto"])
+    cam, fg = build_camera(veg["roble"][2], trees, shrub)
+    scatter_trees(veg, lod, trees, avoid=[(fg, 6), (HC, 14)] +
                   [(cam_pose(u)[0].xy, 8) for u in (0, 0.25, 0.5, 0.75, 1)])
     build_fences(M, trees)
     build_bales(M, trees)
@@ -1250,6 +1392,7 @@ def main():
     sc = bpy.context.scene
     f0, f1 = (int(v) for v in opts["frames"].split("-"))
     sc.frame_start, sc.frame_end = f0, f1
+    sc.frame_step = int(opts["step"])  # >1 para previsualizaciones rápidas
     sc.render.filepath = opts["out"]
     if opts["save"]:
         bpy.ops.wm.save_as_mainfile(filepath=opts["save"])
