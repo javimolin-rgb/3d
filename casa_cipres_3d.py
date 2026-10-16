@@ -36,7 +36,8 @@ WALL_T = 0.25               # espesor de muros laterales negros
 FRONT_Y = 0.90              # fachada frontal retranqueada (terraza cubierta)
 BACK_Y = D - 1.10           # fachada posterior retranqueada (porch)
 WARM = (1.0, 0.62, 0.32)
-SUN_ELEV, SUN_AZ = 18.0, -115.0  # azimut desde +Y hacia +X: sol de tarde desde la izquierda
+WB_TEMP = float(opts.get("wb", "7600"))  # balance de blancos cálido
+SUN_ELEV, SUN_AZ = 8.0, -115.0  # azimut desde +Y hacia +X: sol de atardecer desde la izquierda
 
 
 def roof_top(x):
@@ -811,7 +812,7 @@ def scatter_trees(variants, coll, avoid, far_variants=None):
         # el frente (hacia la cámara) queda más despejado, como un claro
         if r < 90 and random.random() < (0.9 if y < -5 else 0.6):
             continue
-        if in_sun_corridor(x, y, 170):
+        if in_sun_corridor(x, y, 280):
             continue
         if far_variants and r > 220:
             instance(random.choice(far_variants), (x, y, z - 0.3), random.uniform(0.9, 1.5), random.uniform(0, 6.3), coll)
@@ -821,7 +822,7 @@ def scatter_trees(variants, coll, avoid, far_variants=None):
     # pinos cercanos detrás y a los lados de la casa (encuadre de los renders)
     for x, y, s in ((-7, 10, 1.2), (-4, 19, 1.4), (19, 9, 1.1), (22, 16, 1.4), (-13, 3, 1.3),
                     (27, -1, 1.1), (-10, 24, 1.2), (30, 22, 1.3)):
-        if not in_sun_corridor(x, y, 170):
+        if not in_sun_corridor(x, y, 280):
             instance(random.choice(variants), (x, y, terrain_h(x, y) - 0.2), s * 0.8, random.uniform(0, 6.3), coll)
 
 
@@ -942,20 +943,35 @@ def build_world():
     sky.sun_elevation = math.radians(SUN_ELEV)
     sky.sun_rotation = math.radians(SUN_AZ)
     sky.altitude = 400
-    sky.air_density = 0.7  # aire limpio: cielo azul profundo
+    sky.air_density = 1.2
     if hasattr(sky, "aerosol_density"):
-        sky.aerosol_density = 0.6
+        sky.aerosol_density = 1.6
     else:
         sky.dust_density = 3.5
     sky.sun_size = math.radians(1.2)
     sky.sun_disc = False  # la luz directa la aporta la lámpara solar
-    l.new(sky.outputs[0], bg.inputs[0])
-    bg.inputs[1].default_value = 0.27
+    # degradado de atardecer: horizonte anaranjado, cenit azul suave
+    tcw = n.new("ShaderNodeTexCoord")
+    sepw = n.new("ShaderNodeSeparateXYZ")
+    l.new(tcw.outputs["Generated"], sepw.inputs[0])
+    grad = n.new("ShaderNodeValToRGB")
+    ge = grad.color_ramp.elements
+    ge[0].position, ge[0].color = 0.0, (1.6, 0.8, 0.45, 1)
+    ge[1].position, ge[1].color = 0.45, (0.85, 0.88, 1.05, 1)
+    ge.new(0.12).color = (1.25, 0.88, 0.7, 1)
+    l.new(sepw.outputs["Z"], grad.inputs["Fac"])
+    warm = n.new("ShaderNodeMixRGB")
+    warm.blend_type = "MULTIPLY"
+    warm.inputs["Fac"].default_value = 1.0
+    l.new(sky.outputs[0], warm.inputs["Color1"])
+    l.new(grad.outputs["Color"], warm.inputs["Color2"])
+    l.new(warm.outputs["Color"], bg.inputs[0])
+    bg.inputs[1].default_value = 0.3
     # sol cálido y rasante desde la izquierda: luz lateral de hora dorada
     bpy.ops.object.light_add(type="SUN")
     sun = bpy.context.object
-    sun.data.energy = 13.0
-    sun.data.color = (1.0, 0.73, 0.47)  # dorado de media tarde, aún no naranjo
+    sun.data.energy = 14.0
+    sun.data.color = (1.0, 0.56, 0.27)  # luz de atardecer, dorado anaranjado
     sun.data.angle = math.radians(1.0)
     # misma dirección que el sol del cielo (rotación 0 = +Y, positiva hacia +X)
     e, a = math.radians(SUN_ELEV), math.radians(SUN_AZ)
@@ -1034,6 +1050,9 @@ def setup_render():
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
     sc.view_settings.exposure = -0.05
+    if hasattr(sc.view_settings, "use_white_balance"):
+        sc.view_settings.use_white_balance = True
+        sc.view_settings.white_balance_temperature = WB_TEMP
     sc.view_layers[0].use_pass_mist = True
     sc.render.use_motion_blur = True
     sc.render.motion_blur_shutter = 0.35
@@ -1059,9 +1078,9 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    lt, pw, amt = mnode("LESS_THAN", 0.999), mnode("POWER", 1.0), mnode("MULTIPLY", 0.42)
+    lt, pw, amt = mnode("LESS_THAN", 0.999), mnode("POWER", 1.0), mnode("MULTIPLY", 0.45)
     mul = mnode("MULTIPLY", 1.0)
-    haze = (0.62, 0.72, 0.86, 1)
+    haze = (0.95, 0.72, 0.55, 1)
     if bpy.app.version >= (5, 0):
         mix = nt.nodes.new("ShaderNodeMix")
         mix.data_type = "RGBA"
