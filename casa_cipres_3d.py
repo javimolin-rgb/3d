@@ -1047,6 +1047,9 @@ def setup_render():
     sc.render.fps = FPS
     sc.render.use_persistent_data = True
     sc.render.image_settings.file_format = "PNG"
+    # reanudable: no vuelve a renderizar cuadros ya guardados
+    sc.render.use_overwrite = False
+    sc.render.use_placeholder = True
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
     sc.view_settings.exposure = -0.05
