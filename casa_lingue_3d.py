@@ -209,13 +209,18 @@ def glass_mat():
     n.remove(n["Principled BSDF"])
     out = n["Material Output"]
     fr = n.new("ShaderNodeFresnel")
-    fr.inputs["IOR"].default_value = 1.6
+    fr.inputs["IOR"].default_value = 1.45
+    # reflejo atenuado: en ángulos rasantes el vidrio no se vuelve un espejo negro
+    att = n.new("ShaderNodeMath")
+    att.operation = "MULTIPLY"
+    att.inputs[1].default_value = 0.45
+    l.new(fr.outputs["Fac"], att.inputs[0])
     tr = n.new("ShaderNodeBsdfTransparent")
-    tr.inputs["Color"].default_value = (0.86, 0.9, 0.9, 1)
+    tr.inputs["Color"].default_value = (0.9, 0.93, 0.93, 1)
     gl = n.new("ShaderNodeBsdfGlossy")
     gl.inputs["Roughness"].default_value = 0.02
     mix = n.new("ShaderNodeMixShader")
-    l.new(fr.outputs["Fac"], mix.inputs["Fac"])
+    l.new(att.outputs[0], mix.inputs["Fac"])
     l.new(tr.outputs[0], mix.inputs[1])
     l.new(gl.outputs[0], mix.inputs[2])
     l.new(mix.outputs[0], out.inputs["Surface"])
@@ -491,7 +496,8 @@ def build_house(M):
     # (assets/casa/interior.blend, ver tools/extraer_interior_stl.py)
     box("PisoInt", T, W - T, FRONT_Y + 0.06, BACK_Y, FLOOR - 0.01, FLOOR + 0.005, M["piso"], hc)
     # luces interiores cálidas (bajo el altillo, doble altura del living y dormitorio)
-    for x, y, z, p in ((2.4, 1.9, 3.2, 130), (2.8, 4.4, 2.2, 90), (2.8, 5.2, 4.6, 100), (2.6, 7.0, 2.2, 40)):
+    for x, y, z, p in ((2.4, 1.9, 3.2, 260), (2.8, 4.4, 2.2, 170), (2.8, 5.2, 4.6, 200), (2.6, 7.0, 2.2, 90),
+                       (2.2, 6.6, 4.4, 120)):
         bpy.ops.object.light_add(type="AREA", location=(x, y, FLOOR + z))
         lt = bpy.context.object
         lt.data.energy, lt.data.size = p, 1.2
@@ -518,6 +524,7 @@ def build_house(M):
             box("Pilote", x - 0.08, x + 0.08, y - 0.08, y + 0.08, -0.5, FLOOR - 0.2, M["negro"], hc)
     for k, (h, d) in enumerate(((0.41, 0.3), (0.27, 0.6), (0.13, 0.9))):
         box("Escalon", DECK_X1 + d - 0.3, DECK_X1 + d, -2.0, -0.8, h - 0.04, h, M["deck"], hc)
+        box("EscalonAtras", DECK_X1 + d - 0.3, DECK_X1 + d, D + 0.05, D + 1.25, h - 0.04, h, M["deck"], hc)
     # maceteros (la planta se agrega en main, con los arbustos Sapling)
     for x, y in MACETEROS:
         box("Macetero", x - 0.18, x + 0.18, y - 0.18, y + 0.18, FLOOR, FLOOR + 0.45, M["negro"], hc)
@@ -527,8 +534,8 @@ def build_house(M):
 # --------------------------------------------------------------- paisaje
 HC = Vector((W / 2, D / 2))
 MACETEROS = ((W - 0.35, -0.3), (0.35, -0.3))
-PATH = [Vector(p) for p in ((DECK_X1 + 1.1, -1.4), (8.5, -5.0), (10.5, -11.0), (11.5, -18.0),
-                            (14.0, -28.0), (20.0, -45.0), (30.0, -70.0))]
+PATH = [Vector(p) for p in ((DECK_X1 + 1.1, D + 0.65), (8.5, D + 4.5), (10.0, D + 11.0), (12.5, D + 19.0),
+                            (15.5, D + 30.0), (21.0, D + 48.0), (30.0, D + 75.0))]  # llega por atrás (acceso)
 
 
 def path_dist(x, y):
@@ -551,13 +558,17 @@ def mountain_h(x, y):
     return peaks + gullies * 35 * min(1.0, peaks / 300)
 
 
-def in_view(x, y, margin=2.5):
-    """True si (x, y) queda entre el dron y el frente de la casa en algún momento del vuelo
-    (ahí no van arbustos ni pastos altos, para no tapar la fachada)."""
+def in_view(x, y, margin=2.5, near=6.0):
+    """True si (x, y) queda entre el dron y la casa en algún momento del vuelo y a menos de
+    `near` m del deck (más lejos, la línea de vista ya pasa por encima de arbustos y pastos)."""
+    dx = max(-0.03 - x, 0.0, x - (DECK_X1 + 1.0))
+    dy = max(-2.03 - y, 0.0, y - (D + 1.3))
+    if math.hypot(dx, dy) > near:
+        return False
     p = Vector((x, y))
-    tgt = Vector((W / 2, FRONT_Y))
+    tgt = HC
     if not hasattr(in_view, "cams"):
-        in_view.cams = [cam_pose(k / 12)[0].xy for k in range(13)]
+        in_view.cams = [cam_pose(k / 24)[0].xy for k in range(25)]
     for a in in_view.cams:
         ab = tgt - a
         t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
@@ -719,7 +730,7 @@ def build_grass(M, bq):
     """Pradera alrededor de la casa: matas finas propias + pastos Botaniq (una pasada de
     nodos de geometría por especie, cada una con sus manchones)."""
     xs = [-30 + i * 1.0 for i in range(71)]
-    ys = [-34 + j * 1.0 for j in range(67)]
+    ys = [-34 + j * 1.0 for j in range(81)]
     verts = [(x, y, terrain_h(x, y) + 0.01) for y in ys for x in xs]
     n = len(xs)
     faces = []
@@ -728,8 +739,8 @@ def build_grass(M, bq):
             xc, yc = xs[i] + 0.5, ys[j] + 0.5
             if 0.3 < xc < DECK_X1 - 0.3 and -1.7 < yc < D + 1.0:
                 continue  # bajo el deck
-            if DECK_X1 - 0.3 < xc < DECK_X1 + 1.2 and -2.2 < yc < -0.6:
-                continue  # escalera
+            if DECK_X1 - 0.3 < xc < DECK_X1 + 1.2 and (-2.2 < yc < -0.6 or D - 0.1 < yc < D + 1.4):
+                continue  # escaleras
             if path_dist(xc, yc) < 1.1:
                 continue
             faces.append((j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i))
@@ -738,7 +749,7 @@ def build_grass(M, bq):
         g.data.flip_normals()
     # 'alto' = 0 donde un pasto alto taparía la fachada desde el dron
     alto = g.data.attributes.new("alto", "FLOAT", "POINT")
-    alto.data.foreach_set("value", [0.0 if in_view(v.co.x, v.co.y, 3.0) else 1.0 for v in g.data.vertices])
+    alto.data.foreach_set("value", [0.0 if in_view(v.co.x, v.co.y, 3.0, 10.0) else 1.0 for v in g.data.vertices])
     tufts = [grass_tuft(M, "MataPasto", M["pasto"]),
              grass_tuft(M, "MataPasto2", M["pasto"], 30, 0.05, 0.18),
              grass_tuft(M, "MataPasto3", M["pasto"], 34, 0.03, 0.12),
@@ -1060,8 +1071,9 @@ def make_tree_variants(M, coll):
             parts.append(c)
         return finish_tree(join_parts(parts, name), coll, r * 0.9, tex, tex_fine)
 
-    rounds = [round_tree(f"Roble{i}", h, r, b) for i, (h, r, b) in
-              enumerate(((9, 4.5, 7), (11, 5.5, 8), (7, 3.6, 6)))]
+    # copas con distinta frondosidad (pocas o muchas masas de follaje)
+    rounds = [round_tree(f"RobleLOD{i}", h, r, b) for i, (h, r, b) in
+              enumerate(((9, 4.5, 7), (11, 5.5, 11), (7, 3.6, 5), (10, 4.2, 4), (12, 6.0, 13)))]
     poplars = [poplar(f"Alamo{i}", h, r) for i, (h, r) in enumerate(((20, 1.5), (23, 1.7)))]
     pines = [pine("Pino0", 13, 3.2, 7)]
     return rounds, poplars, pines
@@ -1078,13 +1090,15 @@ def build_vegetation(lib):
     dry = vg.foliage_material("HojasSecas", "hoja_seca.png", (1, 1, 1), (0.9, 0.8, 0.7), 0.4)
     pine_leaf = vg.foliage_material("AgujasPino", "pino_ramita.png", (1, 1, 1), (1.15, 1.05, 0.7))
     V = {"roble": [], "alamo": [], "sauce": [], "pino": [], "arbusto": []}
-    oak = dict(leaves=80, leafScale=0.5, leafScaleX=0.8)
-    for i, (sd, h) in enumerate(((3, 11), (7, 13), (12, 9))):
-        V["roble"].append(vg.make_plant(f"Roble{i}", "small_maple", sd, h, leaf_d, bark, oak, lib))
+    # frondosidad variada: ralo, normal y muy frondoso (hojas y tamaño de hoja distintos)
+    for i, (sd, h, lv, ls) in enumerate(((3, 11, 80, 0.5), (7, 13, 130, 0.55), (12, 9, 80, 0.5),
+                                         (21, 12, 40, 0.42), (33, 10, 160, 0.6), (45, 14, 55, 0.45))):
+        V["roble"].append(vg.make_plant(f"Roble{i}", "small_maple", sd, h, leaf_d, bark,
+                                        dict(leaves=lv, leafScale=ls, leafScaleX=0.8), lib))
     # álamo chileno (columnar): álamo temblón de Sapling comprimido en planta
-    asp = dict(leaves=80, leafScale=0.42, leafScaleX=0.8)
-    for i, (sd, h) in enumerate(((4, 21), (14, 24))):
-        t = vg.make_plant(f"Alamo{i}", "quaking_aspen", sd, h, leaf_p, bark_l, asp, lib)
+    for i, (sd, h, lv) in enumerate(((4, 21, 80), (14, 24, 120), (26, 19, 50))):
+        t = vg.make_plant(f"Alamo{i}", "quaking_aspen", sd, h, leaf_p, bark_l,
+                          dict(leaves=lv, leafScale=0.42, leafScaleX=0.8), lib)
         t.scale = (0.38, 0.38, 1.0)
         bpy.ops.object.select_all(action="DESELECT")
         t.select_set(True)
@@ -1102,9 +1116,12 @@ def build_vegetation(lib):
     return V
 
 
-def instance(src, loc, scale, rot, coll):
+def instance(src, loc, scale, rot, coll, vary=0.0):
     ob = bpy.data.objects.new("inst", src.data)
     ob.location, ob.scale = loc, (scale, scale, scale * random.uniform(0.9, 1.15))
+    if vary:  # copa más ancha o más angosta
+        ob.scale.x *= random.uniform(1 - vary, 1 + vary)
+        ob.scale.y *= random.uniform(1 - vary, 1 + vary)
     ob.rotation_euler.z = rot
     coll.objects.link(ob)
     return ob
@@ -1145,7 +1162,7 @@ def scatter_trees(veg, lod, coll, avoid):
                 continue
             r = (p - HC).length
             instance(pick("alamo", r), (p.x, p.y, terrain_h(p.x, p.y) - 0.3),
-                     random.uniform(0.85, 1.15), random.uniform(0, 6.3), coll)
+                     random.uniform(0.8, 1.2), random.uniform(0, 6.3), coll, vary=0.15)
     # árboles sueltos y bosquetes en los potreros
     placed = 0
     while placed < 650:
@@ -1162,23 +1179,31 @@ def scatter_trees(veg, lod, coll, avoid):
         for _ in range(cluster):
             px, py = x + random.uniform(-9, 9) * (cluster > 1), y + random.uniform(-9, 9) * (cluster > 1)
             src = pick("roble" if random.random() < 0.85 else "pino", r)
-            instance(src, (px, py, terrain_h(px, py) - 0.3), random.uniform(0.75, 1.2), random.uniform(0, 6.3), coll)
+            instance(src, (px, py, terrain_h(px, py) - 0.3), random.uniform(0.65, 1.3), random.uniform(0, 6.3), coll,
+                     vary=0.25)
         placed += 1
     # árboles grandes que enmarcan la casa (atrás y a los lados)
-    for x, y, s, src in ((-24, 30, 1.1, veg["roble"][1]), (20, 34, 1.0, veg["roble"][0]),
-                         (-9, 48, 1.0, veg["pino"][0]), (34, 12, 0.9, veg["sauce"][0])):
-        instance(src, (x, y, terrain_h(x, y) - 0.2), s, random.uniform(0, 6.3), coll)
+    for x, y, s, src in ((-24, 30, 1.1, veg["roble"][1]), (-16, 46, 1.0, veg["roble"][0]),
+                         (-9, 58, 1.0, veg["pino"][0]), (40, 8, 0.9, veg["sauce"][0]), (-20, -2, 1.0, veg["roble"][2])):
+        if min((cam_pose(k / 24)[0].xy - Vector((x, y))).length for k in range(25)) < 9:
+            continue
+        instance(src, (x, y, terrain_h(x, y) - 0.2), s, random.uniform(0, 6.3), coll, vary=0.2)
 
 
 def build_fences(M, coll):
     """Cercos de palo con alambre (postes de madera rústica y tres hebras)."""
-    lines = [((-40, 20), (45, 20)), ((-22, -40), (-22, 20)), ((45, 20), (45, -40))]
+    lines = [((-45, 36), (50, 36)), ((-26, -40), (-26, 36)), ((50, 36), (50, -40))]
     for a, b in lines:
         a, b = Vector(a), Vector(b)
         n = int((b - a).length / 2.6)
-        posts = []
+        posts, wire_lines = [], []
         for k in range(n + 1):
             p = a.lerp(b, k / n)
+            if path_dist(p.x, p.y) < 2.0:  # tranquera abierta donde pasa el camino
+                if len(posts) > 1:
+                    wire_lines.append(posts)
+                posts = []
+                continue
             z = terrain_h(p.x, p.y)
             bpy.ops.mesh.primitive_cylinder_add(vertices=7, radius=0.06, depth=1.5, location=(p.x, p.y, z + 0.55))
             o = bpy.context.object
@@ -1188,7 +1213,9 @@ def build_fences(M, coll):
                 c.objects.unlink(o)
             coll.objects.link(o)
             posts.append(Vector((p.x, p.y, z)))
-        for h in (0.45, 0.8, 1.15):
+        if len(posts) > 1:
+            wire_lines.append(posts)
+        for h, posts in ((h, pl) for h in (0.45, 0.8, 1.15) for pl in wire_lines):
             verts, edges = [], []
             for i, p in enumerate(posts):
                 verts.append((p.x, p.y, p.z + h - 0.02 * math.sin(i)))
@@ -1208,7 +1235,7 @@ def build_bales(M, coll):
     """Fardos de paja redondos en el potrero de atrás."""
     for _ in range(26):
         x, y = random.uniform(-30, 60), random.uniform(32, 140)
-        if abs(x - 3) < 12 and y < 45:
+        if (abs(x - 3) < 14 and y < 48) or path_dist(x, y) < 3:
             continue
         bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.75, depth=1.25,
                                             location=(x, y, terrain_h(x, y) + 0.68))
@@ -1263,8 +1290,8 @@ def plant_deck_skirt(coll, shrubs, bq):
         n = int((b - a).length / 0.32)
         for k in range(n + 1):
             p = a.lerp(b, k / n)
-            if nx == 1 and p.y < -0.6:
-                continue  # escalera y llegada del camino
+            if nx == 1 and (p.y < -0.6 or p.y > D - 0.1):
+                continue  # escaleras y llegada del camino
             for row in (0.12, 0.42):
                 q = p + Vector((nx, ny)) * (row + random.uniform(-0.06, 0.08))
                 z = terrain_h(q.x, q.y) - 0.03
@@ -1281,24 +1308,41 @@ def plant_deck_skirt(coll, shrubs, bq):
 
 
 # --------------------------------------------------------------- cámara
-FPS, SECS = 24, 8.0
-PIVOT = Vector((W / 2 + 0.6, 3.6, 0))
+FPS, SECS = 24, 10.0
+PIVOT = Vector((W / 2 + 0.6, D / 2, 0))
+TH0, TH1 = -32.0, 148.0  # 180°: frente en ángulo -> costado +X (rápido) -> fachada de acceso en ángulo
 
 
 def ease(t):
     return t * t * (3 - 2 * t)
 
 
+def orbit(u):
+    """Avance de la órbita (0-1): lento frente a cada fachada, rápido por el costado."""
+    a = 0.72
+    return u - a * math.sin(2 * math.pi * u) / (2 * math.pi)
+
+
 def cam_pose(u):
-    """Órbita baja de izquierda a derecha, acercándose al frente vidriado."""
-    k = ease(u)
-    th = math.radians(-42 + 80 * k)
-    R = 16.5 - 3.0 * k
-    z = 3.8 - 0.8 * k + 0.06 * math.sin(u * 7.0)
-    pos = PIVOT + Vector((R * math.sin(th), -R * math.cos(th), 0))
+    """Órbita de 180° alrededor de la casa (frente -> costado +X -> acceso)."""
+    k = orbit(u)
+    th = math.radians(TH0 + (TH1 - TH0) * k)
+    side = math.sin(math.radians(TH0 + (TH1 - TH0) * k)) ** 2  # 1 en el costado
+    R = 15.5 + 1.5 * side
+    z = 3.5 + 0.4 * side + 0.06 * math.sin(u * 7.0)
+    d = Vector((math.sin(th), -math.cos(th), 0))
+    pos = PIVOT + d * R
     pos.z = terrain_h(pos.x, pos.y) + z
-    tgt = Vector((W / 2 + 0.5 * math.sin(th), 2.6, 2.7 - 0.2 * k))
+    tgt = PIVOT + d * 1.6  # apunta a la fachada que tiene enfrente
+    tgt.z = 2.6
     return pos, tgt
+
+
+def frame_for_angle(deg):
+    """Cuadro (1-based) en que el dron pasa por el ángulo dado (0 = frente, 180 = atrás)."""
+    n = int(FPS * SECS)
+    best = min(range(n), key=lambda f: abs(TH0 + (TH1 - TH0) * orbit(f / (n - 1)) - deg))
+    return best + 1
 
 
 def build_camera(round_src, coll, shrub):
@@ -1321,8 +1365,8 @@ def build_camera(round_src, coll, shrub):
         cam.rotation_euler = e
         cam.keyframe_insert("location", frame=f + 1)
         cam.keyframe_insert("rotation_euler", frame=f + 1)
-    # árbol mediano a la derecha de la casa (enmarca el final del vuelo sin tapar la casa)
-    p = Vector((15.0, 1.5))
+    # árbol mediano fuera de la órbita, a la izquierda del frente
+    p = Vector((-14.0, -6.0))
     instance(round_src, (p.x, p.y, terrain_h(p.x, p.y) - 0.2), 0.75, 0.4, coll)
     o = instance(shrub, (p.x - 1.2, p.y - 1.0, terrain_h(p.x, p.y) - 0.05), 1.1, 0, coll)
     o.hide_render = False
