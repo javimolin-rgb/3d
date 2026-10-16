@@ -551,6 +551,21 @@ def mountain_h(x, y):
     return peaks + gullies * 35 * min(1.0, peaks / 300)
 
 
+def in_view(x, y, margin=2.5):
+    """True si (x, y) queda entre el dron y el frente de la casa en algún momento del vuelo
+    (ahí no van arbustos ni pastos altos, para no tapar la fachada)."""
+    p = Vector((x, y))
+    tgt = Vector((W / 2, FRONT_Y))
+    if not hasattr(in_view, "cams"):
+        in_view.cams = [cam_pose(k / 12)[0].xy for k in range(13)]
+    for a in in_view.cams:
+        ab = tgt - a
+        t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+        if (p - (a + ab * t)).length < margin:
+            return True
+    return False
+
+
 def terrain_h(x, y):
     p = Vector((x, y))
     d = (p - HC).length
@@ -711,14 +726,19 @@ def build_grass(M, bq):
     for j in range(len(ys) - 1):
         for i in range(n - 1):
             xc, yc = xs[i] + 0.5, ys[j] + 0.5
-            if -0.4 < xc < DECK_X1 + 1.3 and -2.4 < yc < D + 0.9:
-                continue
+            if 0.3 < xc < DECK_X1 - 0.3 and -1.7 < yc < D + 1.0:
+                continue  # bajo el deck
+            if DECK_X1 - 0.3 < xc < DECK_X1 + 1.2 and -2.2 < yc < -0.6:
+                continue  # escalera
             if path_dist(xc, yc) < 1.1:
                 continue
             faces.append((j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i))
     g = mesh_obj("Pradera", verts, faces, M["terreno"])
     if g.data.polygons[0].normal.z < 0:
         g.data.flip_normals()
+    # 'alto' = 0 donde un pasto alto taparía la fachada desde el dron
+    alto = g.data.attributes.new("alto", "FLOAT", "POINT")
+    alto.data.foreach_set("value", [0.0 if in_view(v.co.x, v.co.y, 3.0) else 1.0 for v in g.data.vertices])
     tufts = [grass_tuft(M, "MataPasto", M["pasto"]),
              grass_tuft(M, "MataPasto2", M["pasto"], 30, 0.05, 0.18),
              grass_tuft(M, "MataPasto3", M["pasto"], 34, 0.03, 0.12),
@@ -784,8 +804,9 @@ def build_grass(M, bq):
     Lk.new(gi.outputs[0], join.inputs[0])
     Lk.new(inst.outputs[0], join.inputs[0])
 
-    def scatter(obj, dens, smin, smax, seed, lo=0.45, hi=0.62, nscale=0.12):
-        """Una especie: densidad por manchones (ruido 4D con semilla propia)."""
+    def scatter(obj, dens, smin, smax, seed, lo=0.45, hi=0.62, nscale=0.12, tall=False):
+        """Una especie: densidad por manchones (ruido 4D con semilla propia). Las altas
+        (tall=True) no crecen en el corredor de vista del dron."""
         d = N.new("GeometryNodeDistributePointsOnFaces")
         d.inputs["Seed"].default_value = seed
         z = N.new("ShaderNodeTexNoise")
@@ -796,7 +817,17 @@ def build_grass(M, bq):
         r.inputs[1].default_value, r.inputs[2].default_value = lo, hi
         r.inputs[3].default_value, r.inputs[4].default_value = 0.0, dens
         Lk.new(z.outputs["Fac"], r.inputs[0])
-        Lk.new(r.outputs[0], d.inputs["Density"])
+        if tall:
+            na = N.new("GeometryNodeInputNamedAttribute")
+            na.data_type = "FLOAT"
+            na.inputs["Name"].default_value = "alto"
+            mul = N.new("ShaderNodeMath")
+            mul.operation = "MULTIPLY"
+            Lk.new(r.outputs[0], mul.inputs[0])
+            Lk.new(na.outputs["Attribute"], mul.inputs[1])
+            Lk.new(mul.outputs[0], d.inputs["Density"])
+        else:
+            Lk.new(r.outputs[0], d.inputs["Density"])
         ins = N.new("GeometryNodeInstanceOnPoints")
         oi = N.new("GeometryNodeObjectInfo")
         oi.inputs[0].default_value = obj
@@ -820,9 +851,9 @@ def build_grass(M, bq):
     scatter(bq["Grass_Basic_A"], 5.0, 0.45, 0.8, 11, 0.35, 0.6)
     scatter(bq["Grass_Wild_B"], 1.6, 0.25, 0.42, 12)
     scatter(bq["Grass_Wild_C"], 1.6, 0.25, 0.42, 13)
-    scatter(bq["Grass_Tall_A"], 0.9, 0.45, 0.75, 14)
-    scatter(bq["Grass_Karl-foerster_B"], 0.35, 0.45, 0.65, 15, 0.5, 0.62, 0.3)
-    scatter(bq["Grass_Cortaderia-Selloana_B"], 0.05, 1.7, 2.5, 16, 0.55, 0.65, 0.05)
+    scatter(bq["Grass_Tall_A"], 0.9, 0.45, 0.75, 14, tall=True)
+    scatter(bq["Grass_Karl-foerster_B"], 0.35, 0.45, 0.65, 15, 0.5, 0.62, 0.3, tall=True)
+    scatter(bq["Grass_Cortaderia-Selloana_B"], 0.05, 1.7, 2.5, 16, 0.55, 0.65, 0.05, tall=True)
     Lk.new(join.outputs[0], go.inputs[0])
     md = g.modifiers.new("Pasto", "NODES")
     md.node_group = ng
@@ -1208,18 +1239,45 @@ def scatter_small(M, coll, shrubs, rocks):
             continue
         if path_dist(x, y) < 1.3:
             continue
-        if random.random() < 0.75:
+        if in_view(x, y) and random.random() < 0.85:
+            continue  # sólo piedras bajas entre el dron y la fachada
+        if random.random() < 0.75 and not in_view(x, y):
             o = instance(random.choice(shrubs), (x, y, terrain_h(x, y) - 0.05), random.uniform(0.6, 1.4),
                          random.uniform(0, 6.3), coll)
         else:
             s = random.uniform(0.06, 0.18)
             o = instance(random.choice(rocks), (x, y, terrain_h(x, y) - s * 0.25), s, random.uniform(0, 6.3), coll)
         o.hide_render = False
-    # arbustos al pie del deck
-    for x, y in ((-0.8, -1.0), (-0.9, 3.0), (-0.8, 7.2), (DECK_X1 + 0.8, 2.5), (DECK_X1 + 0.9, 6.5), (2.0, -2.7)):
-        o = instance(random.choice(shrubs), (x, y, 0.0), random.uniform(0.9, 1.2), random.uniform(0, 6.3), coll)
-        o.hide_render = False
     return shrubs[0], rock
+
+
+def plant_deck_skirt(coll, shrubs, bq):
+    """Borde vegetal al pie del deck que tapa los pilotes: pastos y arbustos bajos (no más
+    altos que el deck, ~0,5 m) en todo el perímetro, salvo la escalera."""
+    x0, x1, y0, y1 = -0.03, DECK_X1 + 0.03, -2.03, D + 1.28
+    grasses = [bq["Grass_Wild_B"], bq["Grass_Wild_C"], bq["Grass_Basic_A"]]
+    edges = [((x0, y0), (x1, y0), (0, -1)), ((x1, y0), (x1, y1), (1, 0)),
+             ((x1, y1), (x0, y1), (0, 1)), ((x0, y1), (x0, y0), (-1, 0))]
+    for (ax, ay), (bx, by), (nx, ny) in edges:
+        a, b = Vector((ax, ay)), Vector((bx, by))
+        n = int((b - a).length / 0.32)
+        for k in range(n + 1):
+            p = a.lerp(b, k / n)
+            if nx == 1 and p.y < -0.6:
+                continue  # escalera y llegada del camino
+            for row in (0.12, 0.42):
+                q = p + Vector((nx, ny)) * (row + random.uniform(-0.06, 0.08))
+                z = terrain_h(q.x, q.y) - 0.03
+                r = random.random()
+                if r < 0.55:   # mata de pasto (0,4-0,6 m)
+                    src = random.choice(grasses)
+                    s = random.uniform(1.4, 2.0) if src is bq["Grass_Basic_A"] else random.uniform(0.55, 0.75)
+                elif r < 0.85 or ny == -1:   # arbusto bajo (al frente, sólo arbustos bajos)
+                    src, s = random.choice(shrubs), random.uniform(0.35, 0.5)
+                else:          # gramínea alta a los costados y atrás
+                    src, s = bq["Grass_Karl-foerster_B"], random.uniform(0.45, 0.6)
+                o = instance(src, (q.x, q.y, z), s, random.uniform(0, 6.3), coll)
+                o.hide_render = False
 
 
 # --------------------------------------------------------------- cámara
@@ -1434,6 +1492,7 @@ def main():
     trees = bpy.data.collections.new("Arboles")
     bpy.context.scene.collection.children.link(trees)
     shrub, rock = scatter_small(M, trees, veg["arbusto"], rocks)
+    plant_deck_skirt(trees, veg["arbusto"], bq)
     load_furniture(trees)
     for x, y in MACETEROS:
         o = instance(veg["arbusto"][1], (x, y, FLOOR + 0.42), 0.75, random.uniform(0, 6.3), trees)
