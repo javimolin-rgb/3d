@@ -354,6 +354,53 @@ def terrain_mat():
     l.new(near.outputs[0], f2)
     l.new(o1, a2)
     l.new(od, b2)
+    # tierra pisada alrededor del deck y bajo él (la casa "asentada" en el sitio)
+    sxy = n.new("ShaderNodeSeparateXYZ")
+    l.new(geo.outputs["Position"], sxy.inputs[0])
+    cxy = n.new("ShaderNodeCombineXYZ")
+    l.new(sxy.outputs["X"], cxy.inputs["X"])
+    l.new(sxy.outputs["Y"], cxy.inputs["Y"])
+    rel = n.new("ShaderNodeVectorMath")
+    rel.operation = "SUBTRACT"
+    rel.inputs[1].default_value = (DECK_X1 / 2, (D - 0.75) / 2, 0)
+    l.new(cxy.outputs[0], rel.inputs[0])
+    ab = n.new("ShaderNodeVectorMath")
+    ab.operation = "ABSOLUTE"
+    l.new(rel.outputs[0], ab.inputs[0])
+    sh = n.new("ShaderNodeVectorMath")
+    sh.operation = "SUBTRACT"
+    sh.inputs[1].default_value = (DECK_X1 / 2, (D + 3.31) / 2, 0)
+    l.new(ab.outputs[0], sh.inputs[0])
+    mx0 = n.new("ShaderNodeVectorMath")
+    mx0.operation = "MAXIMUM"
+    mx0.inputs[1].default_value = (0, 0, 0)
+    l.new(sh.outputs[0], mx0.inputs[0])
+    ln = n.new("ShaderNodeVectorMath")
+    ln.operation = "LENGTH"
+    l.new(mx0.outputs[0], ln.inputs[0])
+    ring = n.new("ShaderNodeMapRange")
+    ring.inputs[1].default_value, ring.inputs[2].default_value = 0.3, 2.8
+    ring.inputs[3].default_value, ring.inputs[4].default_value = 1.0, 0.0
+    l.new(ln.outputs["Value"], ring.inputs[0])
+    patch = n.new("ShaderNodeTexNoise")
+    patch.inputs["Scale"].default_value = 1.4
+    patch.inputs["Detail"].default_value = 6
+    pm = n.new("ShaderNodeMapRange")
+    pm.inputs[1].default_value, pm.inputs[2].default_value = 0.3, 0.55
+    l.new(patch.outputs["Fac"], pm.inputs[0])
+    wear = n.new("ShaderNodeMath")
+    wear.operation = "MULTIPLY"
+    l.new(ring.outputs[0], wear.inputs[0])
+    l.new(pm.outputs[0], wear.inputs[1])
+    soil = n.new("ShaderNodeValToRGB")
+    soil.color_ramp.elements[0].color = (0.07, 0.05, 0.035, 1)
+    soil.color_ramp.elements[1].color = (0.22, 0.17, 0.11, 1)
+    l.new(fine.outputs["Fac"], soil.inputs["Fac"])
+    _, fw, aw, bw, ow = mix_rgb(n)
+    l.new(wear.outputs[0], fw)
+    l.new(o2, aw)
+    l.new(soil.outputs["Color"], bw)
+    o2 = ow
     # cerros boscosos -> roca -> nieve, según altura
     rock_c = n.new("ShaderNodeValToRGB")
     rock_c.color_ramp.elements[0].color = (0.03, 0.03, 0.035, 1)
@@ -397,20 +444,57 @@ def terrain_mat():
 
 
 def gravel_mat():
+    """Huella de tierra compactada con maicillo; orilla irregular que se funde con el pasto
+    (corte con transparencia según el atributo 'borde' y ruido)."""
     m, n, l = new_mat("Maicillo")
     b = n["Principled BSDF"]
+    tc = n.new("ShaderNodeTexCoord")
+    soil_n = n.new("ShaderNodeTexNoise")
+    soil_n.inputs["Scale"].default_value = 2.5
+    soil_n.inputs["Detail"].default_value = 8
+    l.new(tc.outputs["Object"], soil_n.inputs["Vector"])
+    soil = n.new("ShaderNodeValToRGB")
+    soil.color_ramp.elements[0].color = (0.1, 0.07, 0.05, 1)
+    soil.color_ramp.elements[1].color = (0.25, 0.19, 0.13, 1)
+    l.new(soil_n.outputs["Fac"], soil.inputs["Fac"])
     v = n.new("ShaderNodeTexVoronoi")
-    v.inputs["Scale"].default_value = 45
-    ramp = n.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].color = (0.13, 0.095, 0.065, 1)
-    ramp.color_ramp.elements[1].color = (0.32, 0.25, 0.18, 1)
-    l.new(v.outputs["Distance"], ramp.inputs["Fac"])
-    l.new(ramp.outputs["Color"], b.inputs["Base Color"])
+    v.inputs["Scale"].default_value = 28
+    l.new(tc.outputs["Object"], v.inputs["Vector"])
+    peb = n.new("ShaderNodeMapRange")
+    peb.inputs[1].default_value, peb.inputs[2].default_value = 0.12, 0.05
+    l.new(v.outputs["Distance"], peb.inputs[0])
+    _, fp, ap, bp, op = mix_rgb(n)
+    bp.default_value = (0.42, 0.37, 0.3, 1)  # piedritas de maicillo
+    l.new(peb.outputs[0], fp)
+    l.new(soil.outputs["Color"], ap)
+    l.new(op, b.inputs["Base Color"])
     bmp = n.new("ShaderNodeBump")
-    bmp.inputs["Strength"].default_value = 0.5
-    l.new(v.outputs["Distance"], bmp.inputs["Height"])
+    bmp.inputs["Strength"].default_value = 0.6
+    l.new(peb.outputs[0], bmp.inputs["Height"])
     l.new(bmp.outputs["Normal"], b.inputs["Normal"])
     b.inputs["Roughness"].default_value = 0.95
+    # orilla: borde + ruido > umbral -> transparente (se ve el suelo y el pasto de abajo)
+    edge = n.new("ShaderNodeAttribute")
+    edge.attribute_name = "borde"
+    en = n.new("ShaderNodeTexNoise")
+    en.inputs["Scale"].default_value = 3.5
+    en.inputs["Detail"].default_value = 6
+    l.new(tc.outputs["Object"], en.inputs["Vector"])
+    ad = n.new("ShaderNodeMath")
+    ad.operation = "MULTIPLY_ADD"
+    ad.inputs[1].default_value = 0.55
+    l.new(en.outputs["Fac"], ad.inputs[0])
+    l.new(edge.outputs["Fac"], ad.inputs[2])
+    cut = n.new("ShaderNodeMath")
+    cut.operation = "GREATER_THAN"
+    cut.inputs[1].default_value = 1.05
+    l.new(ad.outputs[0], cut.inputs[0])
+    tr = n.new("ShaderNodeBsdfTransparent")
+    mx = n.new("ShaderNodeMixShader")
+    l.new(cut.outputs[0], mx.inputs[0])
+    l.new(b.outputs[0], mx.inputs[1])
+    l.new(tr.outputs[0], mx.inputs[2])
+    l.new(mx.outputs[0], n["Material Output"].inputs["Surface"])
     return m
 
 
@@ -589,7 +673,18 @@ def terrain_h(x, y):
     mtn_m = max(0.0, min(1.0, (y - 3300) / 2600)) * max(0.0, min(1.0, 1.3 - abs(x) / 7000))
     mtn = mountain_h(x, y) * mtn_m if mtn_m > 0 else 0.0
     micro = noise.noise(Vector((x / 6, y / 6, 0))) * 0.12 * min(1, d / 12)
+    # el terreno natural sigue alrededor de la casa: lomajes suaves y relieve fino (no un plano)
+    dh = deck_dist(x, y)
+    micro += noise.noise(Vector((x / 2.2, y / 2.2, 3.3))) * 0.06 * min(1.0, dh / 2.0)
+    micro += noise.noise(Vector((x / 14, y / 14, 7.1))) * 0.45 * max(0.0, min(1.0, (dh - 1.0) / 8.0))
     return max(rolling + hills + mtn, -3) + micro
+
+
+def deck_dist(x, y):
+    """Distancia (m) al borde del deck en planta (0 dentro)."""
+    dx = max(-0.03 - x, 0.0, x - DECK_X1)
+    dy = max(-2.03 - y, 0.0, y - (D + 1.28))
+    return math.hypot(dx, dy)
 
 
 def build_landscape(M):
@@ -628,16 +723,24 @@ def build_landscape(M):
         for k in range(12):
             pts.append(a.lerp(b, k / 12))
     pts.append(PATH[-1])
-    verts, faces = [], []
+    # 5 vértices por sección: el centro algo elevado y los bordes a ras de suelo; el atributo
+    # 'borde' (0 centro, 1 orilla) deja la orilla irregular y con pasto (ver gravel_mat)
+    verts, faces, edge = [], [], []
+    across = (-1.0, -0.5, 0.0, 0.5, 1.0)
     for i, p in enumerate(pts):
         q = pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]
-        side = Vector((-q.y, q.x)).normalized() * (0.65 + 0.15 * noise.noise(Vector((p.x, p.y, 0.5))))
-        for s in (-1, 1):
-            v = p + side * s
-            verts.append((v.x, v.y, terrain_h(v.x, v.y) + 0.025))
+        side = Vector((-q.y, q.x)).normalized() * (0.85 + 0.2 * noise.noise(Vector((p.x, p.y, 0.5))))
+        for a in across:
+            v = p + side * a
+            verts.append((v.x, v.y, terrain_h(v.x, v.y) + 0.012 + 0.012 * (1 - abs(a))))
+            edge.append(abs(a))
         if i:
-            faces.append((2 * i - 2, 2 * i - 1, 2 * i + 1, 2 * i))
-    mesh_obj("Camino", verts, faces, M["maicillo"], lc)
+            for j in range(4):
+                b0, b1 = 5 * (i - 1) + j, 5 * i + j
+                faces.append((b0, b0 + 1, b1 + 1, b1))
+    cam_ob = mesh_obj("Camino", verts, faces, M["maicillo"], lc)
+    at = cam_ob.data.attributes.new("borde", "FLOAT", "POINT")
+    at.data.foreach_set("value", edge)
     return lc
 
 
@@ -741,7 +844,7 @@ def build_grass(M, bq):
                 continue  # bajo el deck
             if DECK_X1 - 0.3 < xc < DECK_X1 + 1.2 and (-2.2 < yc < -0.6 or D - 0.1 < yc < D + 1.4):
                 continue  # escaleras
-            if path_dist(xc, yc) < 1.1:
+            if path_dist(xc, yc) < 0.45:
                 continue
             faces.append((j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i))
     g = mesh_obj("Pradera", verts, faces, M["terreno"])
@@ -750,6 +853,15 @@ def build_grass(M, bq):
     # 'alto' = 0 donde un pasto alto taparía la fachada desde el dron
     alto = g.data.attributes.new("alto", "FLOAT", "POINT")
     alto.data.foreach_set("value", [0.0 if in_view(v.co.x, v.co.y, 3.0, 10.0) else 1.0 for v in g.data.vertices])
+    # 'pisado': pasto ralo donde se camina (borde del deck, escaleras y orillas del camino)
+    pis = []
+    for v in g.data.vertices:
+        x, y = v.co.x, v.co.y
+        w = min(1.0, max(0.0, (deck_dist(x, y) - 0.3) / 2.8), max(0.0, (path_dist(x, y) - 0.5) / 1.4))
+        w = min(1.0, w + 0.35 * noise.noise(Vector((x / 1.7, y / 1.7, 5.0))))
+        pis.append(0.2 + 0.8 * max(0.0, w))
+    pisado = g.data.attributes.new("pisado", "FLOAT", "POINT")
+    pisado.data.foreach_set("value", pis)
     tufts = [grass_tuft(M, "MataPasto", M["pasto"]),
              grass_tuft(M, "MataPasto2", M["pasto"], 30, 0.05, 0.18),
              grass_tuft(M, "MataPasto3", M["pasto"], 34, 0.03, 0.12),
@@ -777,7 +889,19 @@ def build_grass(M, bq):
     mr.inputs[1].default_value, mr.inputs[2].default_value = 0.3, 0.6
     mr.inputs[3].default_value, mr.inputs[4].default_value = 22, 50
     Lk.new(nz.outputs["Fac"], mr.inputs[0])
-    Lk.new(mr.outputs[0], dist.inputs["Density"])
+
+    def trampled(sock):
+        """Multiplica una densidad por el atributo 'pisado'."""
+        na = N.new("GeometryNodeInputNamedAttribute")
+        na.data_type = "FLOAT"
+        na.inputs["Name"].default_value = "pisado"
+        mm = N.new("ShaderNodeMath")
+        mm.operation = "MULTIPLY"
+        Lk.new(sock, mm.inputs[0])
+        Lk.new(na.outputs["Attribute"], mm.inputs[1])
+        return mm.outputs[0]
+
+    Lk.new(trampled(mr.outputs[0]), dist.inputs["Density"])
     inst = N.new("GeometryNodeInstanceOnPoints")
     ci = N.new("GeometryNodeCollectionInfo")
     ci.inputs["Collection"].default_value = tc
@@ -828,17 +952,18 @@ def build_grass(M, bq):
         r.inputs[1].default_value, r.inputs[2].default_value = lo, hi
         r.inputs[3].default_value, r.inputs[4].default_value = 0.0, dens
         Lk.new(z.outputs["Fac"], r.inputs[0])
+        dens_out = trampled(r.outputs[0])
         if tall:
             na = N.new("GeometryNodeInputNamedAttribute")
             na.data_type = "FLOAT"
             na.inputs["Name"].default_value = "alto"
             mul = N.new("ShaderNodeMath")
             mul.operation = "MULTIPLY"
-            Lk.new(r.outputs[0], mul.inputs[0])
+            Lk.new(dens_out, mul.inputs[0])
             Lk.new(na.outputs["Attribute"], mul.inputs[1])
             Lk.new(mul.outputs[0], d.inputs["Density"])
         else:
-            Lk.new(r.outputs[0], d.inputs["Density"])
+            Lk.new(dens_out, d.inputs["Density"])
         ins = N.new("GeometryNodeInstanceOnPoints")
         oi = N.new("GeometryNodeObjectInfo")
         oi.inputs[0].default_value = obj
@@ -1278,6 +1403,53 @@ def scatter_small(M, coll, shrubs, rocks):
     return shrubs[0], rock
 
 
+def settle_house(coll, veg, bq, rocks):
+    """Integra la casa al sitio: piedritas y rocas semienterradas en el borde del deck, las
+    escaleras y el camino; matas en las esquinas y robles viejos al costado -X."""
+    # piedritas (3-9 cm) y algunas rocas medianas semienterradas
+    for k in range(420):
+        if k % 3 == 0 and len(PATH) > 1:  # orillas del camino
+            i = random.randrange(len(PATH) - 1)
+            a, b = PATH[i], PATH[i + 1]
+            p = a.lerp(b, random.random())
+            t = (b - a).normalized()
+            p += Vector((-t.y, t.x)) * random.choice((-1, 1)) * random.uniform(0.6, 1.3)
+        else:                             # banda alrededor del deck
+            ang = random.uniform(0, 2 * math.pi)
+            p = HC + Vector((math.cos(ang) * 4.5, math.sin(ang) * 7.5))
+            for _ in range(20):
+                if 0.15 < deck_dist(p.x, p.y) < 2.6:
+                    break
+                p = Vector((random.uniform(-2.6, DECK_X1 + 2.6), random.uniform(-4.6, D + 3.9)))
+        s = random.uniform(0.01, 0.03)
+        o = instance(random.choice(rocks), (p.x, p.y, terrain_h(p.x, p.y) - s * 0.35), s, random.uniform(0, 6.3), coll)
+        o.rotation_euler.x = random.uniform(-0.4, 0.4)
+    for x, y in ((-0.9, -2.6), (-1.1, 4.0), (-0.8, D + 2.0), (DECK_X1 + 1.6, D + 1.9),
+                 (DECK_X1 + 1.5, -2.5), (DECK_X1 + 1.2, 3.5)):
+        s = random.uniform(0.07, 0.12)
+        instance(random.choice(rocks), (x, y, terrain_h(x, y) - s * 0.55), s, random.uniform(0, 6.3), coll)
+    # matas en las esquinas (altas sólo atrás y del lado -X; adelante, bajas)
+    corners = [((-0.7, -2.7), False), ((DECK_X1 + 0.7, -2.8), False), ((-0.8, D + 1.9), True),
+               ((DECK_X1 + 0.6, D + 2.2), True), ((-1.0, 2.0), True), ((-1.0, 6.5), True)]
+    for (cx, cy), tall in corners:
+        for _ in range(5):
+            x, y = cx + random.uniform(-0.7, 0.7), cy + random.uniform(-0.7, 0.7)
+            z = terrain_h(x, y) - 0.03
+            r = random.random()
+            if tall and r < 0.35:
+                src, s = bq["Grass_Karl-foerster_B"], random.uniform(0.55, 0.75)
+            elif tall and r < 0.5:
+                src, s = bq["Grass_Tall_A"], random.uniform(0.7, 0.95)
+            elif r < 0.75:
+                src, s = random.choice(veg["arbusto"]), random.uniform(0.45, 0.8 if tall else 0.55)
+            else:
+                src, s = bq["Grass_Wild_B"], random.uniform(0.6, 0.85)
+            instance(src, (x, y, z), s, random.uniform(0, 6.3), coll)
+    # robles viejos al costado -X: la casa parece construida junto a ellos
+    for (x, y), src, s in (((-8.5, 2.5), veg["roble"][4], 1.0), ((-7.5, 12.5), veg["roble"][1], 0.8)):
+        instance(src, (x, y, terrain_h(x, y) - 0.2), s, random.uniform(0, 6.3), coll, vary=0.12)
+
+
 def plant_deck_skirt(coll, shrubs, bq):
     """Borde vegetal al pie del deck que tapa los pilotes: pastos y arbustos bajos (no más
     altos que el deck, ~0,5 m) en todo el perímetro, salvo la escalera."""
@@ -1537,6 +1709,7 @@ def main():
     bpy.context.scene.collection.children.link(trees)
     shrub, rock = scatter_small(M, trees, veg["arbusto"], rocks)
     plant_deck_skirt(trees, veg["arbusto"], bq)
+    settle_house(trees, veg, bq, rocks)
     load_furniture(trees)
     for x, y in MACETEROS:
         o = instance(veg["arbusto"][1], (x, y, FLOOR + 0.42), 0.75, random.uniform(0, 6.3), trees)
