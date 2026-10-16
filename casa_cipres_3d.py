@@ -36,7 +36,7 @@ WALL_T = 0.25               # espesor de muros laterales negros
 FRONT_Y = 0.90              # fachada frontal retranqueada (terraza cubierta)
 BACK_Y = D - 1.10           # fachada posterior retranqueada (porch)
 WARM = (1.0, 0.62, 0.32)
-SUN_ELEV, SUN_AZ = 14.0, -115.0  # azimut desde +Y hacia +X: sol bajo desde la izquierda
+SUN_ELEV, SUN_AZ = 18.0, -115.0  # azimut desde +Y hacia +X: sol de tarde desde la izquierda
 
 
 def roof_top(x):
@@ -942,20 +942,20 @@ def build_world():
     sky.sun_elevation = math.radians(SUN_ELEV)
     sky.sun_rotation = math.radians(SUN_AZ)
     sky.altitude = 400
-    sky.air_density = 1.0
+    sky.air_density = 0.7  # aire limpio: cielo azul profundo
     if hasattr(sky, "aerosol_density"):
-        sky.aerosol_density = 1.5
+        sky.aerosol_density = 0.6
     else:
         sky.dust_density = 3.5
     sky.sun_size = math.radians(1.2)
     sky.sun_disc = False  # la luz directa la aporta la lámpara solar
     l.new(sky.outputs[0], bg.inputs[0])
-    bg.inputs[1].default_value = 0.32
+    bg.inputs[1].default_value = 0.27
     # sol cálido y rasante desde la izquierda: luz lateral de hora dorada
     bpy.ops.object.light_add(type="SUN")
     sun = bpy.context.object
-    sun.data.energy = 11.0
-    sun.data.color = (1.0, 0.64, 0.38)
+    sun.data.energy = 13.0
+    sun.data.color = (1.0, 0.73, 0.47)  # dorado de media tarde, aún no naranjo
     sun.data.angle = math.radians(1.0)
     # misma dirección que el sol del cielo (rotación 0 = +Y, positiva hacia +X)
     e, a = math.radians(SUN_ELEV), math.radians(SUN_AZ)
@@ -974,8 +974,8 @@ def build_world():
     nz.inputs["Detail"].default_value = 12
     nz.inputs["Roughness"].default_value = 0.62
     ramp = n.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].position = 0.52
-    ramp.color_ramp.elements[1].position = 0.72
+    ramp.color_ramp.elements[0].position = 0.56
+    ramp.color_ramp.elements[1].position = 0.74
     l.new(tc.outputs["Generated"], mp.inputs["Vector"])
     l.new(mp.outputs["Vector"], nz.inputs["Vector"])
     l.new(nz.outputs["Fac"], ramp.inputs["Fac"])
@@ -1033,7 +1033,7 @@ def setup_render():
     sc.render.image_settings.file_format = "PNG"
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
-    sc.view_settings.exposure = -0.15
+    sc.view_settings.exposure = -0.05
     sc.view_layers[0].use_pass_mist = True
     sc.render.use_motion_blur = True
     sc.render.motion_blur_shutter = 0.35
@@ -1059,9 +1059,9 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    lt, pw, amt = mnode("LESS_THAN", 0.999), mnode("POWER", 0.9), mnode("MULTIPLY", 0.62)
+    lt, pw, amt = mnode("LESS_THAN", 0.999), mnode("POWER", 1.0), mnode("MULTIPLY", 0.42)
     mul = mnode("MULTIPLY", 1.0)
-    haze = (0.58, 0.66, 0.78, 1)
+    haze = (0.62, 0.72, 0.86, 1)
     if bpy.app.version >= (5, 0):
         mix = nt.nodes.new("ShaderNodeMix")
         mix.data_type = "RGBA"
