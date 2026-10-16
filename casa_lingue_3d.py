@@ -563,16 +563,15 @@ def build_house(M):
     bpy.context.object.data.materials.append(M["maderaOsc"])
     bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.03, depth=0.45, location=(1.95, -1.25, FLOOR + 0.22))
     bpy.context.object.data.materials.append(M["perfil"])
-    # maceteros
-    for x, y in ((W - 0.35, -0.3), (0.35, -0.3)):
+    # maceteros (la planta se agrega en main, con los arbustos Sapling)
+    for x, y in MACETEROS:
         box("Macetero", x - 0.18, x + 0.18, y - 0.18, y + 0.18, FLOOR, FLOOR + 0.45, M["negro"], hc)
-        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.3, location=(x, y, FLOOR + 0.7))
-        bpy.context.object.data.materials.append(M["arbusto"])
     return hc
 
 
 # --------------------------------------------------------------- paisaje
 HC = Vector((W / 2, D / 2))
+MACETEROS = ((W - 0.35, -0.3), (0.35, -0.3))
 PATH = [Vector(p) for p in ((DECK_X1 + 1.1, -1.4), (8.5, -5.0), (10.5, -11.0), (11.5, -18.0),
                             (14.0, -28.0), (20.0, -45.0), (30.0, -70.0))]
 
@@ -1381,6 +1380,9 @@ def main():
     trees = bpy.data.collections.new("Arboles")
     bpy.context.scene.collection.children.link(trees)
     shrub, rock = scatter_small(M, trees, veg["arbusto"])
+    for x, y in MACETEROS:
+        o = instance(veg["arbusto"][1], (x, y, FLOOR + 0.42), 0.75, random.uniform(0, 6.3), trees)
+        o.hide_render = False
     cam, fg = build_camera(veg["roble"][2], trees, shrub)
     scatter_trees(veg, lod, trees, avoid=[(fg, 6), (HC, 14)] +
                   [(cam_pose(u)[0].xy, 8) for u in (0, 0.25, 0.5, 0.75, 1)])
