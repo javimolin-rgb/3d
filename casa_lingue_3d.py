@@ -185,22 +185,60 @@ def boards_mat(name, c1, c2, axis, scale, rough=0.6, bump=0.25, distort=2.0):
     return m
 
 
-def ribbed_metal(name):
-    """Plancha negra acanalada (muros y techo): estrías verticales cada ~7 cm."""
+def ribbed_metal(name, pitch=0.30, rib=0.035, flank=0.018):
+    """Panel CN900 negro (escantillón de ventana: "forro muro terminación panel CN900") según la
+    foto de referencia 'revestimiento.png': nervios trapezoidales verticales cada ~30 cm, paños
+    planos con dos pliegues de rigidez y leve variación de brillo entre planchas de 0,9 m."""
     m, n, l = new_mat(name)
     b = n["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (0.016, 0.016, 0.018, 1)
-    b.inputs["Roughness"].default_value = 0.4
-    b.inputs["Metallic"].default_value = 0.35
+    b.inputs["Base Color"].default_value = (0.02, 0.02, 0.022, 1)
+    b.inputs["Metallic"].default_value = 0.55
     tc = n.new("ShaderNodeTexCoord")
-    wave = n.new("ShaderNodeTexWave")
-    wave.bands_direction = "Y"
-    wave.inputs["Scale"].default_value = 14
+    sep = n.new("ShaderNodeSeparateXYZ")
+    l.new(tc.outputs["Object"], sep.inputs[0])
+
+    def mth(op, a, b=None):
+        """Nodo Math; a y b pueden ser números o salidas de otros nodos."""
+        nd = n.new("ShaderNodeMath")
+        nd.operation = op
+        for k, v in ((0, a), (1, b)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                nd.inputs[k].default_value = v
+            else:
+                l.new(v, nd.inputs[k])
+        return nd.outputs[0]
+
+    # distancia (m) al eje del nervio más cercano
+    u = mth("FRACT", mth("DIVIDE", sep.outputs["Y"], pitch))
+    d = mth("MULTIPLY", mth("ABSOLUTE", mth("SUBTRACT", u, 0.5)), pitch)
+    d = mth("SUBTRACT", mth("MULTIPLY", mth("SUBTRACT", d, pitch / 2), -1.0), 0.0)  # 0 en el nervio
+    # nervio trapezoidal: alto en |d| < rib/2, flancos de `flank` m
+    top = mth("SUBTRACT", 1.0, mth("DIVIDE", mth("MAXIMUM", mth("SUBTRACT", d, rib / 2), 0.0), flank))
+    top = mth("MAXIMUM", top, 0.0)
+    # dos pliegues de rigidez en el paño
+    gro = mth("ABSOLUTE", mth("SUBTRACT", d, pitch * 0.25))
+    gro = mth("MULTIPLY", mth("MAXIMUM", mth("SUBTRACT", 1.0, mth("DIVIDE", gro, 0.006)), 0.0), -0.12)
+    height = mth("ADD", top, gro)
     bmp = n.new("ShaderNodeBump")
-    bmp.inputs["Strength"].default_value = 0.4
-    l.new(tc.outputs["Object"], wave.inputs["Vector"])
-    l.new(wave.outputs["Fac"], bmp.inputs["Height"])
+    bmp.inputs["Strength"].default_value = 1.0
+    bmp.inputs["Distance"].default_value = 0.02
+    l.new(height, bmp.inputs["Height"])
     l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    # cada plancha (0,9 m) con un brillo apenas distinto + polvo/desgaste suave
+    panel = mth("FLOOR", mth("DIVIDE", sep.outputs["Y"], 0.9))
+    wn = n.new("ShaderNodeTexWhiteNoise")
+    wn.noise_dimensions = "1D"
+    l.new(panel, wn.inputs["W"])
+    dust = n.new("ShaderNodeTexNoise")
+    dust.inputs["Scale"].default_value = 1.5
+    l.new(tc.outputs["Object"], dust.inputs["Vector"])
+    rough = n.new("ShaderNodeMapRange")
+    rough.inputs[3].default_value, rough.inputs[4].default_value = 0.3, 0.42
+    l.new(wn.outputs["Value"], rough.inputs[0])
+    rmix = mth("ADD", rough.outputs[0], mth("MULTIPLY", dust.outputs["Fac"], 0.08))
+    l.new(rmix, b.inputs["Roughness"])
     return m
 
 
