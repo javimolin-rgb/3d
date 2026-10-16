@@ -21,7 +21,7 @@ import bmesh
 from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-opts = {"out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
+opts = {"step": "1", "out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
         "still": None, "save": None}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
@@ -271,7 +271,7 @@ def terrain_mat():
     l.new(fine.outputs["Fac"], snow_n.inputs[0])
     l.new(sep.outputs["Z"], snow_n.inputs[2])
     h_snow = n.new("ShaderNodeMapRange")
-    h_snow.inputs[1].default_value, h_snow.inputs[2].default_value = 230, 260
+    h_snow.inputs[1].default_value, h_snow.inputs[2].default_value = 300, 340
     l.new(snow_n.outputs[0], h_snow.inputs[0])
     m2 = n.new("ShaderNodeMixRGB")
     m2.inputs["Color2"].default_value = (0.85, 0.87, 0.92, 1)
@@ -493,9 +493,9 @@ def grass_mat():
     add.inputs[1].default_value = 0.5
     ramp = n.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
-    e[0].position, e[0].color = 0.3, (0.06, 0.09, 0.02, 1)
-    e[1].position, e[1].color = 0.9, (0.36, 0.29, 0.1, 1)
-    e.new(0.6).color = (0.16, 0.17, 0.05, 1)
+    e[0].position, e[0].color = 0.3, (0.045, 0.085, 0.02, 1)
+    e[1].position, e[1].color = 0.95, (0.3, 0.26, 0.09, 1)
+    e.new(0.6).color = (0.11, 0.15, 0.035, 1)
     l.new(nz.outputs["Fac"], add.inputs[0])
     l.new(info.outputs["Random"], add.inputs[2])
     l.new(add.outputs[0], ramp.inputs["Fac"])
@@ -521,21 +521,24 @@ def grass_mat():
 
 
 def grass_tuft(M):
-    """Mata de pasto: hojas finas triangulares, levemente inclinadas."""
+    """Mata de pasto: hojas finas y curvas (dos tramos), con distinta altura e inclinación."""
     verts, faces = [], []
-    for k in range(14):
+    for k in range(22):
         a = random.uniform(0, 2 * math.pi)
-        r = random.uniform(0, 0.07)
+        r = random.uniform(0, 0.06)
         x, y = r * math.cos(a), r * math.sin(a)
-        h = random.uniform(0.12, 0.3)
-        lean = random.uniform(0.02, 0.09)
+        h = random.uniform(0.05, 0.2)
+        lean = random.uniform(0.02, 0.1) * (h / 0.15)
         la = random.uniform(0, 2 * math.pi)
-        w = 0.008
-        px, py = -math.sin(a) * w, math.cos(a) * w
+        w = random.uniform(0.004, 0.007)
+        px, py = -math.sin(la) * w, math.cos(la) * w
+        dx, dy = math.cos(la), math.sin(la)
         i = len(verts)
         verts += [(x - px, y - py, 0), (x + px, y + py, 0),
-                  (x + lean * math.cos(la), y + lean * math.sin(la), h)]
-        faces.append((i, i + 1, i + 2))
+                  (x + dx * lean * 0.35 + px * 0.7, y + dy * lean * 0.35 + py * 0.7, h * 0.6),
+                  (x + dx * lean * 0.35 - px * 0.7, y + dy * lean * 0.35 - py * 0.7, h * 0.6),
+                  (x + dx * lean, y + dy * lean, h)]
+        faces += [(i, i + 1, i + 2, i + 3), (i + 3, i + 2, i + 4)]
     t = mesh_obj("MataPasto", verts, faces, M["pasto"])
     t.hide_render = True
     t.hide_viewport = True
@@ -571,7 +574,7 @@ def build_grass(M):
     nz.inputs["Scale"].default_value = 0.25
     mr = N.new("ShaderNodeMapRange")
     mr.inputs[1].default_value, mr.inputs[2].default_value = 0.35, 0.6
-    mr.inputs[3].default_value, mr.inputs[4].default_value = 4, 34
+    mr.inputs[3].default_value, mr.inputs[4].default_value = 12, 48
     Lk.new(nz.outputs["Fac"], mr.inputs[0])
     Lk.new(mr.outputs[0], dist.inputs["Density"])
     inst = N.new("GeometryNodeInstanceOnPoints")
@@ -675,7 +678,7 @@ def in_sun_corridor(x, y, max_r):
     return r < max_r and abs(ang) < 32
 
 
-def scatter_trees(variants, coll, avoid):
+def scatter_trees(variants, coll, avoid, far_variants=None):
     placed = 0
     while placed < 1700:
         ang = random.uniform(0, 2 * math.pi)
@@ -691,27 +694,20 @@ def scatter_trees(variants, coll, avoid):
             continue
         if in_sun_corridor(x, y, 170):
             continue
-        instance(random.choice(variants), (x, y, z - 0.3), random.uniform(0.75, 1.45), random.uniform(0, 6.3), coll)
+        if far_variants and r > 220:
+            instance(random.choice(far_variants), (x, y, z - 0.3), random.uniform(0.9, 1.5), random.uniform(0, 6.3), coll)
+        else:
+            instance(random.choice(variants), (x, y, z - 0.3), random.uniform(0.75, 1.2), random.uniform(0, 6.3), coll)
         placed += 1
     # pinos cercanos detrás y a los lados de la casa (encuadre de los renders)
     for x, y, s in ((-7, 10, 1.2), (-4, 19, 1.4), (19, 9, 1.1), (22, 16, 1.4), (-13, 3, 1.3),
                     (27, -1, 1.1), (-10, 24, 1.2), (30, 22, 1.3)):
         if not in_sun_corridor(x, y, 170):
-            instance(random.choice(variants), (x, y, terrain_h(x, y) - 0.2), s, random.uniform(0, 6.3), coll)
+            instance(random.choice(variants), (x, y, terrain_h(x, y) - 0.2), s * 0.8, random.uniform(0, 6.3), coll)
 
 
-def scatter_small(M, coll, avoid_house=True):
-    # arbustos y rocas alrededor de la casa y del claro
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1)
-    shrub = bpy.context.object
-    shrub.name = "Arbusto"
-    d = shrub.modifiers.new("d", "DISPLACE")
-    d.texture = bpy.data.textures.new("arb", "CLOUDS")
-    d.texture.noise_scale = 0.4
-    d.strength = 0.5
-    bpy.ops.object.modifier_apply(modifier="d")
-    bpy.ops.object.shade_smooth()
-    shrub.data.materials.append(M["arbusto"])
+def scatter_small(M, coll, shrubs):
+    # arbustos (Sapling) y rocas alrededor de la casa y del claro
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1)
     rock = bpy.context.object
     rock.name = "Roca"
@@ -720,23 +716,35 @@ def scatter_small(M, coll, avoid_house=True):
     d.strength = 0.35
     bpy.ops.object.modifier_apply(modifier="d")
     rock.data.materials.append(M["roca"])
-    for ob in (shrub, rock):
-        ob.hide_render = True
-        ob.hide_viewport = True
+    d = rock.modifiers.new("d2", "DISPLACE")
+    d.texture = bpy.data.textures.new("roc2", "CLOUDS")
+    d.texture.noise_scale = 0.25
+    d.strength = 0.12
+    rock.modifiers.new("sub", "SUBSURF").render_levels = 1
+    bpy.ops.object.modifier_apply(modifier="d2")
+    bpy.ops.object.modifier_apply(modifier="sub")
+    rock.hide_render = True
+    rock.hide_viewport = True
     for _ in range(170):
         x, y = random.uniform(-14, 26), random.uniform(-16, 18)
         if -1.2 < x < L + 1.2 and -3.2 < y < D + 1.4:
             continue
-        src = shrub if random.random() < 0.7 else rock
-        s = random.uniform(0.18, 0.45) if src is shrub else random.uniform(0.08, 0.25)
-        o = instance(src, (x, y, terrain_h(x, y) + s * 0.3), s, random.uniform(0, 6.3), coll)
+        if min((cam_pose(u / 10)[0].xy - Vector((x, y))).length for u in range(11)) < 3.5:
+            continue
+        if random.random() < 0.7:
+            o = instance(random.choice(shrubs), (x, y, terrain_h(x, y) - 0.05), random.uniform(0.6, 1.5),
+                         random.uniform(0, 6.3), coll)
+        else:
+            s = random.uniform(0.08, 0.25)
+            o = instance(rock, (x, y, terrain_h(x, y) + s * 0.2), s, random.uniform(0, 6.3), coll)
+            o.scale.z *= 0.6
         o.hide_render = False
-        o.scale.z *= 0.6
     # arbustos al pie de la terraza
     for x in [-0.7, 2.6, 4.5, 7.5, 10.4, 12.8]:
-        o = instance(shrub, (x, -2.6 - random.random() * 0.6, 0.2), random.uniform(0.35, 0.55), 0, coll)
+        o = instance(random.choice(shrubs), (x, -2.6 - random.random() * 0.6, 0.0), random.uniform(0.9, 1.3),
+                     random.uniform(0, 6.3), coll)
         o.hide_render = False
-    return shrub, rock
+    return shrubs[0], rock
 
 
 # --------------------------------------------------------------- cámara
@@ -783,10 +791,10 @@ def build_camera(cypress_src, coll, shrub, rock):
         cam.keyframe_insert("rotation_euler", frame=f + 1)
     # Ciprés en primer plano que cruza el cuadro (como la palmera del original)
     pos, tgt = cam_pose(0.78)
-    p = pos + (tgt - pos) * 0.36
-    p += (tgt - pos).cross(Vector((0, 0, 1))).normalized() * -1.6
+    p = pos + (tgt - pos) * 0.4
+    p += (tgt - pos).cross(Vector((0, 0, 1))).normalized() * -1.2
     cyp = instance(cypress_src, (p.x, p.y, terrain_h(p.x, p.y) - 0.2), 1.0, 0.4, coll)
-    cyp.scale = (0.72, 0.72, 1.0)
+    cyp.scale = (1.0, 1.0, 1.0)
     # anillo de piedras a su alrededor (detalle de la referencia)
     for i in range(16):
         a = i / 16 * 2 * math.pi
@@ -794,7 +802,7 @@ def build_camera(cypress_src, coll, shrub, rock):
         o = instance(rock, (rx, ry, terrain_h(rx, ry) + 0.03), random.uniform(0.13, 0.2), random.uniform(0, 6), coll)
         o.hide_render = False
         o.scale.z *= 0.6
-    o = instance(shrub, (p.x + 1.0, p.y + 0.8, 0.15), 0.5, 0, coll)
+    o = instance(shrub, (p.x + 1.0, p.y + 0.8, 0.0), 1.1, 0, coll)
     o.hide_render = False
     return cam, p
 
@@ -887,7 +895,7 @@ def setup_render():
     cy.max_bounces = 4
     cy.diffuse_bounces = 2
     cy.glossy_bounces = 2
-    cy.transparent_max_bounces = 6
+    cy.transparent_max_bounces = 12
     cy.caustics_reflective = cy.caustics_refractive = False
     cy.blur_glossy = 1.0
     cy.use_denoising = True
@@ -985,21 +993,26 @@ def main():
     build_landscape(M)
     lib = bpy.data.collections.new("Biblioteca")
     bpy.context.scene.collection.children.link(lib)
-    variants, cypress = make_tree_variants(M, lib)
+    import vegetacion
+    veg = vegetacion.build_library(lib)
+    variants = veg["abeto"] * 2 + veg["pino"] + veg["alamo"]
+    cypress = veg["cipres"][0]
+    lod, _ = make_tree_variants(M, lib)  # versiones livianas para el bosque lejano
     lib.hide_render = True
     lib.hide_viewport = True
     trees = bpy.data.collections.new("Arboles")
     bpy.context.scene.collection.children.link(trees)
-    shrub, rock = scatter_small(M, trees)
+    shrub, rock = scatter_small(M, trees, veg["arbusto"])
     cam, cyp = build_camera(cypress, trees, shrub, rock)
     scatter_trees(variants, trees, avoid=[(Vector((cyp.x, cyp.y)), 6)] +
-                  [(cam_pose(u)[0].xy, 7) for u in (0, 0.25, 0.5, 0.75, 1)])
+                  [(cam_pose(u / 10)[0].xy, 13) for u in range(11)], far_variants=lod)
     build_grass(M)
     build_world()
     setup_render()
     sc = bpy.context.scene
     f0, f1 = (int(v) for v in opts["frames"].split("-"))
     sc.frame_start, sc.frame_end = f0, f1
+    sc.frame_step = int(opts["step"])  # >1 para previsualizaciones rápidas
     sc.render.filepath = opts["out"]
     if opts["save"]:
         bpy.ops.wm.save_as_mainfile(filepath=opts["save"])
