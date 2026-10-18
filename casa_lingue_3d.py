@@ -28,9 +28,12 @@ from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "dron", "step": "1", "wb": "6500", "out": "//frames/", "res": "1080x1920", "samples": "32", "frames": "1-192",
-        "still": None, "save": None}
+        "still": None, "save": None, "prof": None}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
+
+if opts["vista"] == "historia" and not opts["prof"]:
+    opts["prof"] = os.path.join(opts["out"], "z")  # se renombra por toma
 
 random.seed(11)
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +55,7 @@ DECK_X1 = W + 1.0           # pasillo lateral de 1 m
 WARM = (1.0, 0.62, 0.32)
 SUN_ELEV, SUN_AZ = 59.5, 140.0   # sol de día (el del HDRI) desde adelante-derecha (azimut desde +Y hacia +X)
 SLOPE = (RIDGE - EAVE) / (W / 2)
+DEPTH_MAX = 90.0            # metros que abarca el pase de profundidad normalizado
 
 
 def roof_out(x):
@@ -1555,6 +1559,32 @@ def frame_for_angle(deg):
     return best + 1
 
 
+# ------------------------------------------------------- tomas de la historia
+# Encuadres fijos de la historia de "modelo destacado" (9:16): ángulo alrededor de
+# la casa (0 = frente), radio, altura sobre el terreno, altura mirada y lente.
+TOMAS = {
+    "apertura": (-16, 17.5, 2.3, 3.2, 24),
+    "superficie": (-46, 13.5, 3.6, 2.6, 22),
+    "eficiencia": (26, 12.5, 6.2, 3.0, 28),
+    "acceso": (126, 13.0, 3.0, 2.5, 24),
+    "cierre": (-6, 24.0, 5.0, 3.4, 20),
+}
+
+
+PROF_NODE = None  # nodo de salida del pase de profundidad (se renombra en cada toma)
+
+
+def pose_toma(nombre):
+    th_deg, R, z, tgt_z, lens = TOMAS[nombre]
+    th = math.radians(th_deg)
+    d = Vector((math.sin(th), -math.cos(th), 0))
+    pos = PIVOT + d * R
+    pos.z = terrain_h(pos.x, pos.y) + z
+    tgt = PIVOT + d * 1.6
+    tgt.z = tgt_z
+    return pos, tgt, lens
+
+
 def build_camera(round_src, coll, shrub):
     cam_data = bpy.data.cameras.new("Dron")
     cam_data.lens = 22
@@ -1689,6 +1719,32 @@ def setup_render():
     nt.links.new(amt.outputs[0], m_fac)
     nt.links.new(rl.outputs["Image"], m_a)
     nt.links.new(m_out, comp_in)
+    # pase de profundidad normalizado (0 = cámara, 1 = DEPTH_MAX): permite componer
+    # textos y gráficos delante y detrás de la casa, los pastos y los árboles.
+    if opts["prof"]:
+        global PROF_NODE
+        sc.view_layers[0].use_pass_z = True
+        rng_t = "ShaderNodeMapRange" if bpy.app.version >= (5, 0) else "CompositorNodeMapRange"
+        rng = nt.nodes.new(rng_t)
+        for i, v in ((1, 0.0), (2, DEPTH_MAX), (3, 0.0), (4, 1.0)):
+            rng.inputs[i].default_value = v
+        rng.clamp = True
+        fo = nt.nodes.new("CompositorNodeOutputFile")
+        if hasattr(fo.format, "media_type"):
+            fo.format.media_type = "IMAGE"
+        fo.format.file_format = "PNG"
+        fo.format.color_mode = "BW"
+        fo.format.color_depth = "16"
+        if hasattr(fo, "file_output_items"):   # Blender 5.x
+            fo.directory = os.path.dirname(opts["prof"]) or "."
+            fo.file_name = os.path.basename(opts["prof"])
+            fo.file_output_items.new("FLOAT", "profundidad")
+        else:                                   # Blender 4.x
+            fo.base_path = os.path.dirname(opts["prof"]) or "."
+            fo.file_slots[0].path = os.path.basename(opts["prof"])
+        nt.links.new(rl.outputs["Depth"], rng.inputs[0])
+        nt.links.new(rng.outputs[0], fo.inputs[0])
+        PROF_NODE = fo
 
 
 def materials():
@@ -1768,6 +1824,37 @@ def main():
         cam.location = (W / 2 + 0.3, -4.2, FLOOR + 1.9)
         cam.rotation_euler = (Vector((W / 2, 4.0, FLOOR + 1.9)) - cam.location).to_track_quat("-Z", "Y").to_euler()
         cam.data.lens = 18
+    elif opts["vista"] in TOMAS:  # toma fija de la historia de modelo destacado
+        cam.animation_data_clear()
+        pos, tgt, lens = pose_toma(opts["vista"])
+        cam.location = pos
+        cam.rotation_euler = (tgt - pos).to_track_quat("-Z", "Y").to_euler()
+        cam.data.lens = lens
+    elif opts["vista"] == "historia":  # todas las tomas de la historia, en una pasada
+        cam.animation_data_clear()
+        sc.render.use_overwrite = True
+        sc.frame_set(1)
+        for nombre in list(TOMAS) + ["interior"]:
+            destino = os.path.join(opts["out"], nombre + ".png")
+            if os.path.exists(destino):  # reanudable: no repite las tomas ya hechas
+                continue
+            if nombre == "interior":  # toma fija frente al ventanal
+                cam.location = (W / 2 + 0.3, -4.2, FLOOR + 1.9)
+                cam.rotation_euler = (Vector((W / 2, 4.0, FLOOR + 1.9)) - Vector(cam.location)
+                                      ).to_track_quat("-Z", "Y").to_euler()
+                cam.data.lens = 18
+            else:
+                pos, tgt, lens = pose_toma(nombre)
+                cam.location = pos
+                cam.rotation_euler = (tgt - pos).to_track_quat("-Z", "Y").to_euler()
+                cam.data.lens = lens
+            sc.render.filepath = destino
+            if PROF_NODE:
+                PROF_NODE.directory = opts["out"]
+                PROF_NODE.file_name = nombre + "_z"
+            bpy.ops.render.render(write_still=True)
+            print(f"toma lista: {nombre}", flush=True)
+        return
     sc.frame_step = int(opts["step"])  # >1 para previsualizaciones rápidas
     sc.render.filepath = opts["out"]
     if opts["save"]:
