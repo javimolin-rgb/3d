@@ -116,7 +116,7 @@ last = Image.open(os.path.join(SRC, frames[-1])).convert("RGB")
 
 def paper(rect1, a2, a_txt, bg_alpha=1.0, base=None):
     """Lámina: fondo blanco, 1er piso en rect1 (x, y, escala), 2do piso y textos con alpha."""
-    canvas = Image.new("RGB", BASE_SIZE, (250, 249, 246))
+    canvas = Image.new("RGB", BASE_SIZE, (255, 255, 255))
     if base is not None and bg_alpha < 1:
         canvas = Image.blend(base, canvas, bg_alpha)
     x, y, sc = rect1
@@ -125,7 +125,7 @@ def paper(rect1, a2, a_txt, bg_alpha=1.0, base=None):
     if a2 > 0:
         b = p2.resize((int(p2.width * sc), int(p2.height * sc)), Image.LANCZOS)
         bx = W - 20 - b.width + int((1 - a2) * 120)
-        layer = Image.new("RGB", BASE_SIZE, (250, 249, 246))
+        layer = Image.new("RGB", BASE_SIZE, (255, 255, 255))
         layer.paste(b, (bx, int(y)))
         mask = Image.new("L", BASE_SIZE, 0)
         ImageDraw.Draw(mask).rectangle((bx, int(y), bx + b.width, int(y) + b.height), fill=int(255 * a2))
