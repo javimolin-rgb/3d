@@ -2,3 +2,6 @@ assets/vendor/
 assets/hdri/
 __pycache__/
 frames_lingue/
+frames_recintos/
+frames_recintos_post/
+frames_recintos_limpio/
