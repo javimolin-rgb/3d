@@ -32,6 +32,7 @@ OUT = sys.argv[1]
 A_INI, A_FIN, D_INI, D_FIN = 45, 125, 175, 240   # mismos A_FIN / D_INI que casa_lingue_3d.py
 N3D, OV = 264, 6                                 # cuadros 3D del corte; fundido c1 -> corte
 FPS = 24
+C4_N = 120                                       # REEL_N["c4"] de casa_lingue_3d.py (luego la toma final)
 
 
 def _curva_extremos():
@@ -46,8 +47,21 @@ def _curva_extremos():
 CURVA = _curva_extremos()
 
 
-def render(p):
+def calido(a, k):
+    """Grado de hora dorada (k: 0 día, 1 atardecer): dorado en medios tonos y sombras, el cielo
+    queda azul y algo más profundo arriba. Acompaña el cambio de luz del conector c4."""
+    lum = a @ np.array([0.2126, 0.7152, 0.0722])
+    t = np.clip((lum - 0.55) / 0.3, 0, 1)
+    w = (1 - t * t * (3 - 2 * t))[..., None] * k
+    y = (a * (1 + w * np.array([0.12, 0.03, -0.17]))) ** (1 + 0.08 * w)
+    top = np.clip(1 - np.arange(a.shape[0]) / (0.45 * a.shape[0]), 0, 1) ** 2
+    return np.clip(y * (1 - 0.28 * k * top)[:, None, None], 0, 1)
+
+
+def render(p, k=0.0):
     a = np.asarray(Image.open(p).convert("RGB"))
+    if k > 0:
+        a = (calido(a / 255.0, k) * 255 + 0.5).astype(np.uint8)
     return Image.fromarray(CURVA[a])
 
 
@@ -104,8 +118,9 @@ tramo("D vuelo fachada de acceso")
 for f in range(D_INI, D_FIN + 1):
     put(os.path.join(DRON, f"f_{f:04d}.png"))
 tramo("c4 conector al frente al atardecer")
-for p in c4:
-    put(p)
+for i, p in enumerate(c4):  # mismo paso día -> atardecer que el cielo y el sol del render
+    t = min(max((i + 1 - 0.15 * C4_N) / (0.7 * C4_N), 0.0), 1.0)
+    put(render(p, t * t * (3 - 2 * t)))
 
 info = [{"tramo": t, "desde_s": round(i / FPS, 2), "cuadro": i + 1} for t, i in tramos]
 json.dump({"cuadros": n, "segundos": round(n / FPS, 2), "tramos": info},
