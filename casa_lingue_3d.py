@@ -17,6 +17,7 @@ cercos de palo, fardos, cerros bajos y cordillera al fondo. Pastos y rocas de
 assets/campo (Botaniq, del archivo "Field (free)") y muebles de terraza tomados del
 modelo STL de la casa (tools/extraer_muebles_stl.py).
 """
+import json
 import math
 import os
 import random
@@ -1811,7 +1812,7 @@ def section_groups():
     return groups
 
 
-def geo_cut(objs):
+def geo_cut(objs, zfn=None, n=None):
     """Muebles del STL: borra (nodos de geometría) las caras que quedan enteras sobre el corte,
     así no se apilan capas transparentes; las caras cortadas a medias las recorta el shader."""
     ng = bpy.data.node_groups.new("CorteGeo", "GeometryNodeTree")
@@ -1840,12 +1841,13 @@ def geo_cut(objs):
     for o in objs:
         o.modifiers.new("Corte", "NODES").node_group = ng
     sock = zval.outputs[0]
-    for f in range(CORTE_N):
-        sock.default_value = corte_z(f)
+    zfn, n = zfn or corte_z, n or CORTE_N
+    for f in range(n):
+        sock.default_value = zfn(f)
         sock.keyframe_insert("default_value", frame=f + 1)
 
 
-def apply_section(furniture):
+def apply_section(furniture, zfn=None, n=None):
     """Inserta el corte en los materiales de la casa (no en el paisaje) y lo anima."""
     groups = section_groups()
     rect = lambda o: -0.6 < o.location.x < DECK_X1 + 1.0 and -2.6 < o.location.y < D + 1.8
@@ -1865,11 +1867,12 @@ def apply_section(furniture):
         g.node_tree = groups[m.name in capped]
         m.node_tree.links.new(src, g.inputs[0])
         m.node_tree.links.new(g.outputs[0], out.inputs["Surface"])
-    geo_cut(furniture)
-    for f in range(CORTE_N):
+    zfn, n = zfn or corte_z, n or CORTE_N
+    geo_cut(furniture, zfn, n)
+    for f in range(n):
         for ng in groups.values():
             sock = ng.nodes["AlturaCorte"].outputs[0]
-            sock.default_value = corte_z(f)
+            sock.default_value = zfn(f)
             sock.keyframe_insert("default_value", frame=f + 1)
     for o in bpy.context.scene.objects:  # con el techo cortado entra el día: luces interiores suaves
         if o.type == "LIGHT":
@@ -1922,6 +1925,189 @@ def corte_setup(cam, furniture, out_dir):
               open(os.path.join(out_dir, "rotulos.json"), "w"))
 
 
+# ------------------------------------------- conectores del reel (una sola toma de dron)
+# El reel une: vuelo de 180° (frames_lingue) -> recintos (frames_recintos) -> planta -> vuelo
+# (atrás) -> frente al atardecer. Cada conector parte en la pose exacta (y con la velocidad) del
+# último cuadro de una toma y llega a la del primer cuadro de la siguiente.
+#   c1: dron cuadro A_FIN -> recintos cuadro 1 (+ REEL_OV cuadros sobre la ruta del corte, para fundir)
+#   c3: recintos último cuadro (cenital, cortado) -> dron cuadro D_INI; el corte vuelve a cerrar la casa
+#   c4: dron último cuadro -> frente con luz de atardecer (sube y pasa sobre el costado +X) + toma final
+A_FIN, D_INI = 125, 175                 # cuadros (1-based) del vuelo de 180° donde termina A / empieza D
+REEL_N = {"c1": 96, "c3": 108, "c4": 120}
+REEL_OV, REEL_HOLD = 6, 72              # cuadros de fundido c1 -> recintos; toma final al atardecer
+SUNSET_ELEV, SUNSET_AZ = 12.0, 140.0    # sol bajo desde adelante-derecha, por el corredor sin árboles del sol de día
+
+
+def _sph(pos, tgt):
+    off = pos - tgt
+    return math.degrees(math.atan2(off.x, -off.y)), math.degrees(math.asin(off.z / off.length)), off.length
+
+
+def dron_src(f):
+    """Pose del vuelo de 180° en el cuadro f (1-based, puede ser fraccionario)."""
+    u = (f - 1) / (FPS * SECS - 1)
+    pos, tgt = cam_pose(u)
+    th, el, dist = _sph(pos, tgt)
+    return dict(T=tgt, th=th, el=el, dist=dist, lens=22.0, roll=0.6 * math.sin(u * 5.3))
+
+
+def corte_src(f):
+    """Pose del video de recintos en el cuadro f (0-based)."""
+    pos, tgt = corte_cam(f)
+    th, el, dist = _sph(pos, tgt)
+    if f >= CORTE_N - 2:
+        th = 0.0  # casi cenital: el ángulo es el de corte_cam, no el ruido de atan2
+    return dict(T=tgt, th=th, el=el, dist=dist, lens=30.0, roll=0.0)
+
+
+def frente_src(f):
+    """Toma final al atardecer: frente de la casa, acercamiento lento (f desde 0)."""
+    R = 15.5 - 1.8 * f / REEL_HOLD
+    d = Vector((0, -1, 0))
+    pos = PIVOT + d * R
+    pos.z = terrain_h(pos.x, pos.y) + 3.3
+    tgt = PIVOT + d * 1.6
+    tgt.z = 2.7
+    th, el, dist = _sph(pos, tgt)
+    return dict(T=tgt, th=th, el=el, dist=dist, lens=22.0, roll=0.0)
+
+
+def _deriv(src, f, h=0.5):
+    a, b = src(f - h), src(f + h)
+    return {k: (b[k] - a[k]) / (2 * h) for k in a}
+
+
+def _hermite(a, b, ma, mb, s):
+    s2, s3 = s * s, s * s * s
+    return (2 * s3 - 3 * s2 + 1) * a + (s3 - 2 * s2 + s) * ma + (-2 * s3 + 3 * s2) * b + (s3 - s2) * mb
+
+
+def reel_path(tramo):
+    """Lista de poses (por cuadro) del conector, sin los extremos (que son de las otras tomas)."""
+    N = REEL_N[tramo]
+    if tramo == "c1":
+        sa, fa, sb, fb = dron_src, A_FIN, corte_src, 0
+    elif tramo == "c3":
+        sa, fa, sb, fb = corte_src, CORTE_N - 1, dron_src, D_INI
+    else:
+        sa, fa, sb, fb = dron_src, FPS * SECS, frente_src, 0
+    A, B, dA, dB = sa(fa), sb(fb), _deriv(sa, fa), _deriv(sb, fb)
+    if tramo == "c3":
+        dA = {k: 0.0 * v for k, v in dA.items()}  # sale de la cenital detenida (después de la planta)
+    poses = []
+    for i in range(1, N):
+        s = i / N
+        p = {k: _hermite(A[k], B[k], dA[k] * N, dB[k] * N, s) for k in A}
+        bump = math.sin(math.pi * s) ** 2
+        if tramo == "c4":  # sube y cruza sobre el costado +X, lejos de los árboles
+            p["el"] += 38.0 * bump
+            p["dist"] += 4.0 * bump
+        if tramo == "c1":
+            p["dist"] += 2.0 * bump
+        poses.append(p)
+    if tramo == "c1":    # sigue la ruta del corte para fundir con sus primeros cuadros
+        poses += [corte_src(f) for f in range(REEL_OV)]
+    if tramo == "c4":    # toma final
+        poses += [frente_src(f) for f in range(REEL_HOLD)]
+    return poses
+
+
+def _pose_to_cam(p):
+    th, el = math.radians(p["th"]), math.radians(p["el"])
+    d = Vector((math.sin(th) * math.cos(el), -math.cos(th) * math.cos(el), math.sin(el)))
+    pos = p["T"] + d * p["dist"]
+    e = (p["T"] - pos).to_track_quat("-Z", "Y").to_euler()
+    e.y += math.radians(p["roll"])
+    return pos, e
+
+
+def sunset_world(keys):
+    """Mezcla el cielo HDRI de día con un cielo de atardecer y un sol cálido rasante.
+    keys: lista (cuadro, k) con k = 0 día, 1 atardecer."""
+    w = bpy.context.scene.world
+    n, l = w.node_tree.nodes, w.node_tree.links
+    bg_day = n["Background"]
+    out = next(nd for nd in n if nd.bl_idname == "ShaderNodeOutputWorld")
+    sky = n.new("ShaderNodeTexSky")
+    sky.sky_type = "MULTIPLE_SCATTERING" if bpy.app.version >= (5, 0) else "NISHITA"
+    sky.sun_elevation = math.radians(SUNSET_ELEV)
+    sky.sun_rotation = math.radians(SUNSET_AZ)
+    sky.altitude = 400
+    sky.air_density = 1.2
+    if hasattr(sky, "aerosol_density"):
+        sky.aerosol_density = 1.6
+    else:
+        sky.dust_density = 3.5
+    sky.sun_disc = False
+    tcw, sepw = n.new("ShaderNodeTexCoord"), n.new("ShaderNodeSeparateXYZ")
+    l.new(tcw.outputs["Generated"], sepw.inputs[0])
+    grad = n.new("ShaderNodeValToRGB")
+    ge = grad.color_ramp.elements
+    ge[0].position, ge[0].color = 0.0, (1.6, 0.8, 0.45, 1)
+    ge[1].position, ge[1].color = 0.45, (0.85, 0.88, 1.05, 1)
+    ge.new(0.12).color = (1.25, 0.88, 0.7, 1)
+    l.new(sepw.outputs["Z"], grad.inputs["Fac"])
+    warm = n.new("ShaderNodeMixRGB")
+    warm.blend_type = "MULTIPLY"
+    warm.inputs["Fac"].default_value = 1.0
+    l.new(sky.outputs[0], warm.inputs["Color1"])
+    l.new(grad.outputs["Color"], warm.inputs["Color2"])
+    bg_sun = n.new("ShaderNodeBackground")
+    l.new(warm.outputs["Color"], bg_sun.inputs[0])
+    bg_sun.inputs[1].default_value = 0.3
+    mix = n.new("ShaderNodeMixShader")
+    l.new(bg_day.outputs[0], mix.inputs[1])
+    l.new(bg_sun.outputs[0], mix.inputs[2])
+    l.new(mix.outputs[0], out.inputs["Surface"])
+    bpy.ops.object.light_add(type="SUN")
+    sun = bpy.context.object
+    sun.data.color = (1.0, 0.56, 0.27)
+    sun.data.angle = math.radians(1.0)
+    e, a = math.radians(SUNSET_ELEV), math.radians(SUNSET_AZ)
+    to_sun = Vector((math.cos(e) * math.sin(a), math.cos(e) * math.cos(a), math.sin(e)))
+    sun.rotation_euler = (-to_sun).to_track_quat("-Z", "Y").to_euler()
+    for f, k in keys:
+        mix.inputs[0].default_value = k
+        mix.inputs[0].keyframe_insert("default_value", frame=f)
+        sun.data.energy = 14.0 * k
+        sun.data.keyframe_insert("energy", frame=f)
+
+
+def reel_setup(cam, furniture, tramo):
+    sc = bpy.context.scene
+    poses = reel_path(tramo)
+    cam.animation_data_clear()
+    for f, p in enumerate(poses):
+        pos, e = _pose_to_cam(p)
+        cam.location, cam.rotation_euler = pos, e
+        cam.data.lens = p["lens"]
+        cam.keyframe_insert("location", frame=f + 1)
+        cam.keyframe_insert("rotation_euler", frame=f + 1)
+        cam.data.keyframe_insert("lens", frame=f + 1)
+    if tramo == "c3":  # el corte (planta 1er piso) vuelve a subir y cierra la casa mientras baja el dron
+        n = len(poses)
+        zfn = lambda f: smooth(Z_BAJO, Z_TECHO, f, 0, int(n * 0.6))
+        apply_section(furniture, zfn, n)
+        sc.cycles.transparent_max_bounces = int(opts.get("tb", "24"))
+        for o in sc.objects:  # luces interiores: de suaves (casa abierta) a normales (casa cerrada)
+            if o.type == "LIGHT" and o.data.type != "SUN":
+                full = o.data.energy * 4
+                for f in range(0, n, 6):
+                    o.data.energy = full * smooth(0.25, 1.0, f, int(n * 0.3), int(n * 0.65))
+                    o.data.keyframe_insert("energy", frame=f + 1)
+                o.data.energy = full
+                o.data.keyframe_insert("energy", frame=n)
+            if o.type == "LIGHT":
+                o.visible_camera = True
+    if tramo == "c4":
+        N = REEL_N["c4"]
+        sunset_world([(1, 0.0)] + [(f, smooth(0.0, 1.0, f, int(N * 0.15), int(N * 0.85))) for f in range(2, N, 4)]
+                     + [(N, 1.0)])
+    print("REEL", tramo, "cuadros:", len(poses))
+    json.dump([{k: (list(v) if k == "T" else v) for k, v in p.items()} for p in poses],
+              open(os.path.join(os.path.dirname(opts["out"]) or ".", "poses_%s.json" % tramo), "w"))
+
+
 def main():
     reset()
     M = materials()
@@ -1959,6 +2145,9 @@ def main():
     if opts["vista"] == "corte":
         furn = [o for o in bpy.context.scene.objects if o.name.startswith(("Interior_", "Terraza_"))]
         corte_setup(cam, furn, os.path.dirname(opts["out"]) or ".")
+    if opts["vista"] == "reel":
+        furn = [o for o in bpy.context.scene.objects if o.name.startswith(("Interior_", "Terraza_"))]
+        reel_setup(cam, furn, opts["tramo"])
     if opts["vista"] == "interior":  # toma fija frente al ventanal para revisar el interior
         cam.animation_data_clear()
         cam.location = (W / 2 + 0.3, -4.2, FLOOR + 1.9)

@@ -10,7 +10,11 @@ rótulos) e IBM Plex Mono (datos y rótulos en mayúsculas), en assets/fuentes/ 
 generadas con tools/instanciar_fuentes.py).
 
 Uso: python3 tools/video_corte.py <cuadros_3d> <salida_cuadros> [planta.png] [--sin-textos]
+                                   [--papel azul] [--hold N] [--vuelta cuadro_3d.png]
   --sin-textos: sin rótulos, sin título por piso y sin textos ni logo en la lámina (para editar el reel).
+  --papel azul: planta en líneas Niebla sobre Azul Origen (como la lámina del reel).
+  --vuelta: después de la lámina fija, la planta vuelve a calzarse sobre la casa y se funde con ese
+            cuadro 3D (el primero del conector c3 de casa_lingue_3d.py --vista reel).
 Luego: VIGNETA_HASTA=11 LOOK=dia tools/armar_video.sh <salida_cuadros> output/casa_lingue_recintos.mp4 24
 """
 import json
@@ -20,7 +24,14 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+OPC = {"--papel": "niebla", "--hold": None, "--vuelta": None}
+ARGS, _argv = [], sys.argv[1:]
+while _argv:
+    a = _argv.pop(0)
+    if a in OPC:
+        OPC[a] = _argv.pop(0)
+    elif not a.startswith("--"):
+        ARGS.append(a)
 SIN_TEXTOS = "--sin-textos" in sys.argv
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 SRC, OUT = ARGS[0], ARGS[1]
@@ -28,6 +39,8 @@ PLAN = ARGS[2] if len(ARGS) > 2 else os.path.join(ROOT, "assets", "plano", "plan
 LOGO_PNG = os.path.join(ROOT, "assets", "marca", "LOGO_FINAL_NEORIGEN-02.png")
 FUENTES = os.path.join(ROOT, "assets", "fuentes")
 TRANS, LAYOUT, HOLD = 24, 48, 84         # cuadros: fundido a plano, paso a lámina, lámina fija
+if OPC["--hold"]:
+    HOLD = int(OPC["--hold"])
 K = 6623 / 2000                          # px de la planta (200 dpi) por px de las cotas medidas
 # recortes en la planta (medidos a 2000 px de ancho)
 CROP1 = (190, 200, 700, 1140)            # 1er piso (incluye escalera de la terraza)
@@ -39,6 +52,7 @@ AZUL = (1, 30, 47)          # Azul Origen #011E2F
 NIEBLA = (241, 244, 243)    # Niebla #F1F4F3
 PINO = (60, 74, 62)         # Verde Pino #3C4A3E
 MADERA = (169, 118, 74)     # Madera #A9764A
+PAPEL, TINTA = (AZUL, NIEBLA) if OPC["--papel"] == "azul" else (NIEBLA, AZUL)
 MARGEN = 56
 NOMBRES = {"Walk-in closet": "Walking closet", "Living-comedor": "Estar comedor"}   # nombres de neorigen.cl
 
@@ -68,10 +82,10 @@ def crop(im, box):
     return im.crop(tuple(int(v * K) for v in box))
 
 
-def entintar(gris, fondo=NIEBLA):
-    """Planta en grises -> tinta Azul Origen sobre papel Niebla (tinta = 1 - luminancia)."""
+def entintar(gris):
+    """Planta en grises -> líneas en TINTA sobre PAPEL (tinta = 1 - luminancia)."""
     tinta = ImageOps.invert(gris)
-    return Image.composite(Image.new("RGB", gris.size, AZUL), Image.new("RGB", gris.size, fondo), tinta)
+    return Image.composite(Image.new("RGB", gris.size, TINTA), Image.new("RGB", gris.size, PAPEL), tinta)
 
 
 def _curva_extremos():
@@ -180,14 +194,14 @@ last = sin_extremos(Image.open(os.path.join(SRC, frames[-1])).convert("RGB"))
 
 def paper(rect1, a2, a_txt):
     """Lámina: papel Niebla, 1er piso en rect1 (x, y, escala), 2do piso y textos con alpha."""
-    canvas = Image.new("RGB", BASE_SIZE, NIEBLA)
+    canvas = Image.new("RGB", BASE_SIZE, PAPEL)
     x, y, sc = rect1
     a = entintar(p1.resize((int(p1.width * sc), int(p1.height * sc)), Image.LANCZOS))
     canvas.paste(a, (int(x), int(y)))
     if a2 > 0:
         b = entintar(p2.resize((int(p2.width * sc), int(p2.height * sc)), Image.LANCZOS))
         bx = W - 20 - b.width + int((1 - a2) * 120)
-        layer = Image.new("RGB", BASE_SIZE, NIEBLA)
+        layer = Image.new("RGB", BASE_SIZE, PAPEL)
         layer.paste(b, (bx, int(y)))
         mask = Image.new("L", BASE_SIZE, 0)
         ImageDraw.Draw(mask).rectangle((bx, int(y), bx + b.width, int(y) + b.height), fill=int(255 * a2))
@@ -196,7 +210,7 @@ def paper(rect1, a2, a_txt):
         dy = (1 - a_txt) * 12                                   # los textos suben 12 px al entrar
         t = Image.new("RGBA", BASE_SIZE, (0, 0, 0, 0))
         d = ImageDraw.Draw(t)
-        ink = rgba(AZUL, a_txt)
+        ink = rgba(TINTA, a_txt)
         d.text((MARGEN, 40 + dy), "PLANTAS DE ARQUITECTURA", font=font("mono", 18), fill=rgba(PINO, a_txt),
                anchor="la")
         d.text((MARGEN, 122 + dy), "Casa Lingue", font=font("titulo", 56), fill=ink, anchor="ls")
@@ -212,8 +226,8 @@ def paper(rect1, a2, a_txt):
             d.text((MARGEN, yy), lab, font=font("texto-medio" if k == 2 else "texto", 22), fill=ink, anchor="lm")
             d.text((W - MARGEN, yy), val, font=font("mono", 22), fill=ink, anchor="rm")
             if k == 0:
-                d.line((MARGEN, yy + 26, W - MARGEN, yy + 26), fill=rgba(AZUL, 0.2 * a_txt), width=1)
-        logo = Image.new("RGBA", LOGO_MASK.size, (*AZUL, 255))
+                d.line((MARGEN, yy + 26, W - MARGEN, yy + 26), fill=rgba(TINTA, 0.2 * a_txt), width=1)
+        logo = Image.new("RGBA", LOGO_MASK.size, (*TINTA, 255))
         logo.putalpha(LOGO_MASK.point(lambda v: int(v * a_txt)))
         t.alpha_composite(logo, (MARGEN, int(H - MARGEN - logo.height + dy)))
         canvas = Image.alpha_composite(canvas.convert("RGBA"), t).convert("RGB")
@@ -237,4 +251,14 @@ final = paper((20, y_fin, sc_fin), 1, 1)
 for k in range(HOLD):
     n += 1
     final.save(os.path.join(OUT, f"c_{n:04d}.png"))
+if OPC["--vuelta"]:  # la planta vuelve a calzarse sobre la casa y se funde con el 3D
+    base = sin_extremos(Image.open(OPC["--vuelta"]).convert("RGB"))
+    for k in reversed(range(LAYOUT)):
+        t = ease(k / (LAYOUT - 1))
+        rect = (ax + (20 - ax) * t, ay + (y_fin - ay) * t, s_al + (sc_fin - s_al) * t)
+        n += 1
+        paper(rect, ease((k - 12) / 30), ease((k - 24) / 24)).save(os.path.join(OUT, f"c_{n:04d}.png"))
+    for k in reversed(range(TRANS)):
+        n += 1
+        Image.blend(base, paper((ax, ay, s_al), 0, 0), ease(k / (TRANS - 1))).save(os.path.join(OUT, f"c_{n:04d}.png"))
 print("cuadros:", n)
