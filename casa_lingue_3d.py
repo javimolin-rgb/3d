@@ -554,7 +554,7 @@ def build_house(M):
            (W - T, z_in(W - T)), (W - T, FLOOR - 0.2), (W, FLOOR - 0.2), (W, z_out(W)),
            (W / 2, z_out(W / 2)), (0, z_out(0))]
     prism_xz("CantoMarco", rim, -0.01, 0.0, M["negro"], hc)
-    box("Losa", 0, W, 0, D, FLOOR - 0.25, FLOOR, M["negro"], hc)
+    box("Losa", 0, W, 0, D, FLOOR - 0.25, FLOOR - 0.012, M["negro"], hc)  # bajo el deck: sin z-fighting
 
     # revestimiento interior de madera (se ve en el retranqueo y a través de los vidrios)
     lin_l = box("RevIzq", T, T + 0.02, 0, BACK_Y, FLOOR, z_in(T + 0.02), M["maderaRev"], hc)
@@ -925,7 +925,8 @@ def build_grass(M, bq):
     nz.inputs["Scale"].default_value = 0.2
     mr = N.new("ShaderNodeMapRange")
     mr.inputs[1].default_value, mr.inputs[2].default_value = 0.3, 0.6
-    mr.inputs[3].default_value, mr.inputs[4].default_value = 22, 50
+    dens_k = 0.5 if opts["vista"] == "corte" else 1.0  # vista aérea: la mitad de matas no se nota
+    mr.inputs[3].default_value, mr.inputs[4].default_value = 22 * dens_k, 50 * dens_k
     Lk.new(nz.outputs["Fac"], mr.inputs[0])
 
     def trampled(sock):
@@ -988,7 +989,7 @@ def build_grass(M, bq):
         z.inputs["Scale"].default_value = nscale
         r = N.new("ShaderNodeMapRange")
         r.inputs[1].default_value, r.inputs[2].default_value = lo, hi
-        r.inputs[3].default_value, r.inputs[4].default_value = 0.0, dens
+        r.inputs[3].default_value, r.inputs[4].default_value = 0.0, dens * dens_k
         Lk.new(z.outputs["Fac"], r.inputs[0])
         dens_out = trampled(r.outputs[0])
         if tall:
@@ -1730,6 +1731,197 @@ def materials():
     return M
 
 
+# ------------------------------------------------- video de corte (recintos)
+CORTE_N = 264                                  # 11 s de 3D; el paso a plano se arma en post
+Z_TECHO = FLOOR + RIDGE + 0.6                  # corte sobre la cumbrera (casa completa)
+Z_ALTO = 0.55 + 2.82 + 0.32 + 1.25             # 1,25 m sobre el piso del altillo
+Z_BAJO = FLOOR + 1.0                           # 1,0 m sobre el piso (bajo los muebles altos)
+# rótulos (coordenadas de la escena; recintos según la planta de arquitectura)
+ROTULOS = {
+    "alto": [("Dormitorio", (3.1, 4.4)), ("Baño", (3.1, 7.2)), ("Walk-in closet", (0.9, 7.3)),
+             ("Doble altura", (2.2, 1.7))],
+    "bajo": [("Living-comedor", (2.4, 2.3)), ("Cocina", (2.9, 5.3)), ("Lavadero", (3.0, 7.2)),
+             ("Hall", (0.7, 6.9)), ("Terraza", (2.2, -1.1)), ("Porch", (2.7, 9.2))],
+}
+
+
+def smooth(a, b, f, f0, f1):
+    t = max(0.0, min(1.0, (f - f0) / (f1 - f0)))
+    return a + (b - a) * (t * t * (3 - 2 * t))
+
+
+def corte_z(f):
+    """Altura del plano de corte en el cuadro f (0-based)."""
+    if f < 48:
+        return Z_TECHO
+    if f < 108:
+        return smooth(Z_TECHO, Z_ALTO, f, 48, 108)
+    if f < 156:
+        return Z_ALTO
+    return smooth(Z_ALTO, Z_BAJO, f, 156, 204)
+
+
+def corte_cam(f):
+    """Cámara: aérea en ángulo -> sube y gira hasta quedar cenital (planta)."""
+    th = smooth(-35.0, -12.0, f, 0, 156) if f < 156 else smooth(-12.0, 0.0, f, 156, CORTE_N - 1)
+    el = smooth(32.0, 58.0, f, 0, 156) if f < 156 else smooth(58.0, 89.5, f, 196, CORTE_N - 1)
+    dist = smooth(20.0, 17.5, f, 0, 156) if f < 156 else smooth(17.5, 15.5, f, 196, CORTE_N - 1)
+    tgt = Vector((DECK_X1 / 2, 3.9, 1.6))
+    th, el = math.radians(th), math.radians(el)
+    d = Vector((math.sin(th) * math.cos(el), -math.cos(th) * math.cos(el), math.sin(el)))
+    return tgt + d * dist, tgt
+
+
+def section_groups():
+    """Grupos de shader de corte: todo lo que queda sobre el plano se vuelve transparente;
+    con relleno ('cap') las caras interiores de los muros cortados se ven oscuras."""
+    groups = {}
+    for cap in (False, True):
+        ng = bpy.data.node_groups.new("Corte" + ("Relleno" if cap else ""), "ShaderNodeTree")
+        ng.interface.new_socket("Shader", in_out="INPUT", socket_type="NodeSocketShader")
+        ng.interface.new_socket("Shader", in_out="OUTPUT", socket_type="NodeSocketShader")
+        n, l = ng.nodes, ng.links
+        gi, go = n.new("NodeGroupInput"), n.new("NodeGroupOutput")
+        geo = n.new("ShaderNodeNewGeometry")
+        sep = n.new("ShaderNodeSeparateXYZ")
+        l.new(geo.outputs["Position"], sep.inputs[0])
+        val = n.new("ShaderNodeValue")
+        val.name = "AlturaCorte"
+        gt = n.new("ShaderNodeMath")
+        gt.operation = "GREATER_THAN"
+        l.new(sep.outputs["Z"], gt.inputs[0])
+        l.new(val.outputs[0], gt.inputs[1])
+        shader = gi.outputs[0]
+        if cap:
+            em = n.new("ShaderNodeEmission")
+            em.inputs["Color"].default_value = (0.03, 0.03, 0.03, 1)
+            em.inputs["Strength"].default_value = 1.0
+            mc = n.new("ShaderNodeMixShader")
+            l.new(geo.outputs["Backfacing"], mc.inputs[0])
+            l.new(gi.outputs[0], mc.inputs[1])
+            l.new(em.outputs[0], mc.inputs[2])
+            shader = mc.outputs[0]
+        tr = n.new("ShaderNodeBsdfTransparent")
+        mx = n.new("ShaderNodeMixShader")
+        l.new(gt.outputs[0], mx.inputs[0])
+        l.new(shader, mx.inputs[1])
+        l.new(tr.outputs[0], mx.inputs[2])
+        l.new(mx.outputs[0], go.inputs[0])
+        groups[cap] = ng
+    return groups
+
+
+def geo_cut(objs):
+    """Muebles del STL: borra (nodos de geometría) las caras que quedan enteras sobre el corte,
+    así no se apilan capas transparentes; las caras cortadas a medias las recorta el shader."""
+    ng = bpy.data.node_groups.new("CorteGeo", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, L = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    pos = N.new("GeometryNodeInputPosition")
+    sep = N.new("ShaderNodeSeparateXYZ")
+    L.new(pos.outputs[0], sep.inputs[0])
+    gt = N.new("FunctionNodeCompare")
+    gt.data_type = "FLOAT"
+    gt.operation = "GREATER_THAN"
+    zval = N.new("ShaderNodeValue")  # altura del corte (animada; compartida por todos los muebles)
+    L.new(sep.outputs["Z"], gt.inputs["A"])
+    L.new(zval.outputs[0], gt.inputs["B"])
+    ev = N.new("GeometryNodeFieldOnDomain")
+    ev.domain = "FACE"
+    ev.data_type = "BOOLEAN"
+    L.new(gt.outputs[0], ev.inputs[0])       # cara seleccionada sólo si todos sus vértices están arriba
+    dl = N.new("GeometryNodeDeleteGeometry")
+    dl.domain = "FACE"
+    L.new(gi.outputs["Geometry"], dl.inputs["Geometry"])
+    L.new(ev.outputs[0], dl.inputs["Selection"])
+    L.new(dl.outputs[0], go.inputs[0])
+    for o in objs:
+        o.modifiers.new("Corte", "NODES").node_group = ng
+    sock = zval.outputs[0]
+    for f in range(CORTE_N):
+        sock.default_value = corte_z(f)
+        sock.keyframe_insert("default_value", frame=f + 1)
+
+
+def apply_section(furniture):
+    """Inserta el corte en los materiales de la casa (no en el paisaje) y lo anima."""
+    groups = section_groups()
+    rect = lambda o: -0.6 < o.location.x < DECK_X1 + 1.0 and -2.6 < o.location.y < D + 1.8
+    objs = [o for o in bpy.context.scene.objects if o.type == "MESH" and
+            (o.users_collection[0].name in ("Casa", "Scene Collection") and rect(o) or o in furniture)]
+    capped = {"ChapaNegra", "NegroMarco", "MaderaRevest", "MaderaCielo", "IntMuroBlanco", "IntNegroMate",
+              "IntAltilloMadera"}
+    mats = {sl.material for o in objs for sl in o.material_slots if sl.material}
+    for m in mats:
+        out = next(nd for nd in m.node_tree.nodes if nd.bl_idname == "ShaderNodeOutputMaterial" and nd.is_active_output)
+        if not out.inputs["Surface"].links:
+            continue
+        lk = out.inputs["Surface"].links[0]
+        src = lk.from_socket
+        m.node_tree.links.remove(lk)
+        g = m.node_tree.nodes.new("ShaderNodeGroup")
+        g.node_tree = groups[m.name in capped]
+        m.node_tree.links.new(src, g.inputs[0])
+        m.node_tree.links.new(g.outputs[0], out.inputs["Surface"])
+    geo_cut(furniture)
+    for f in range(CORTE_N):
+        for ng in groups.values():
+            sock = ng.nodes["AlturaCorte"].outputs[0]
+            sock.default_value = corte_z(f)
+            sock.keyframe_insert("default_value", frame=f + 1)
+    for o in bpy.context.scene.objects:  # con el techo cortado entra el día: luces interiores suaves
+        if o.type == "LIGHT":
+            o.visible_camera = False
+            if o.data.type != "SUN":
+                o.data.energy *= 0.25
+
+
+def corte_setup(cam, furniture, out_dir):
+    """Modo 'corte': cámara nueva, sección animada y posiciones de rótulos para la post."""
+    import json
+    from bpy_extras.object_utils import world_to_camera_view
+    sc = bpy.context.scene
+    cam.animation_data_clear()
+    cam.data.lens = 30
+    for f in range(CORTE_N):
+        pos, tgt = corte_cam(f)
+        cam.location = pos
+        # al final (casi cenital, th = 0) el +Y de la casa queda hacia arriba, como en la planta
+        cam.rotation_euler = (tgt - pos).to_track_quat("-Z", "Y").to_euler()
+        cam.keyframe_insert("location", frame=f + 1)
+        cam.keyframe_insert("rotation_euler", frame=f + 1)
+    apply_section(furniture)
+    sc.render.use_motion_blur = False
+    # lo cortado se vuelve transparente y hay muchas capas apiladas (ropa de cama, clóset, cocina):
+    # con pocos rebotes transparentes el rayo se corta y aparecen manchas negras/grises
+    sc.cycles.transparent_max_bounces = int(opts.get("tb", "24"))
+    labels = []
+    for f in range(CORTE_N):
+        # sólo mueve la cámara (sin frame_set: no reevalúa el pasto en cada cuadro)
+        pos, tgt = corte_cam(f)
+        cam.location = pos
+        cam.rotation_euler = (tgt - pos).to_track_quat("-Z", "Y").to_euler()
+        bpy.context.view_layer.update()
+        row = {}
+        for nivel, z in (("alto", 0.55 + 2.82 + 0.32 + 0.05), ("bajo", FLOOR + 0.05)):
+            for name, (x, y) in ROTULOS[nivel]:
+                zz = 0.6 if name in ("Terraza", "Porch") else z
+                v = world_to_camera_view(sc, cam, Vector((x, y, zz)))
+                row[name] = [round(v.x, 4), round(1 - v.y, 4), nivel]
+        labels.append(row)
+    # esquinas del deck en el último cuadro (cenital): para calzar la planta en la post
+    deck = {}
+    for k, (x, y) in {"frente_izq": (-0.03, -2.03), "frente_der": (DECK_X1, -2.03),
+                      "fondo_izq": (-0.03, D + 1.28)}.items():
+        v = world_to_camera_view(sc, cam, Vector((x, y, FLOOR)))
+        deck[k] = [round(v.x, 5), round(1 - v.y, 5)]
+    os.makedirs(out_dir, exist_ok=True)
+    json.dump({"frames": labels, "n": CORTE_N, "deck": deck},
+              open(os.path.join(out_dir, "rotulos.json"), "w"))
+
+
 def main():
     reset()
     M = materials()
@@ -1757,12 +1949,16 @@ def main():
                   [(cam_pose(u)[0].xy, 8) for u in (0, 0.25, 0.5, 0.75, 1)])
     build_fences(M, trees)
     build_bales(M, trees)
-    build_grass(M, bq)
+    if opts.get("sinpasto") != "1":
+        build_grass(M, bq)
     build_world()
     setup_render()
     sc = bpy.context.scene
     f0, f1 = (int(v) for v in opts["frames"].split("-"))
     sc.frame_start, sc.frame_end = f0, f1
+    if opts["vista"] == "corte":
+        furn = [o for o in bpy.context.scene.objects if o.name.startswith(("Interior_", "Terraza_"))]
+        corte_setup(cam, furn, os.path.dirname(opts["out"]) or ".")
     if opts["vista"] == "interior":  # toma fija frente al ventanal para revisar el interior
         cam.animation_data_clear()
         cam.location = (W / 2 + 0.3, -4.2, FLOOR + 1.9)
