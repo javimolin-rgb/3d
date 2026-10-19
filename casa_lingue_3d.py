@@ -925,7 +925,8 @@ def build_grass(M, bq):
     nz.inputs["Scale"].default_value = 0.2
     mr = N.new("ShaderNodeMapRange")
     mr.inputs[1].default_value, mr.inputs[2].default_value = 0.3, 0.6
-    mr.inputs[3].default_value, mr.inputs[4].default_value = 22, 50
+    dens_k = 0.5 if opts["vista"] == "corte" else 1.0  # vista aérea: la mitad de matas no se nota
+    mr.inputs[3].default_value, mr.inputs[4].default_value = 22 * dens_k, 50 * dens_k
     Lk.new(nz.outputs["Fac"], mr.inputs[0])
 
     def trampled(sock):
@@ -988,7 +989,7 @@ def build_grass(M, bq):
         z.inputs["Scale"].default_value = nscale
         r = N.new("ShaderNodeMapRange")
         r.inputs[1].default_value, r.inputs[2].default_value = lo, hi
-        r.inputs[3].default_value, r.inputs[4].default_value = 0.0, dens
+        r.inputs[3].default_value, r.inputs[4].default_value = 0.0, dens * dens_k
         Lk.new(z.outputs["Fac"], r.inputs[0])
         dens_out = trampled(r.outputs[0])
         if tall:
@@ -1810,6 +1811,40 @@ def section_groups():
     return groups
 
 
+def geo_cut(objs):
+    """Muebles del STL: borra (nodos de geometría) las caras que quedan enteras sobre el corte,
+    así no se apilan capas transparentes; las caras cortadas a medias las recorta el shader."""
+    ng = bpy.data.node_groups.new("CorteGeo", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, L = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    pos = N.new("GeometryNodeInputPosition")
+    sep = N.new("ShaderNodeSeparateXYZ")
+    L.new(pos.outputs[0], sep.inputs[0])
+    gt = N.new("FunctionNodeCompare")
+    gt.data_type = "FLOAT"
+    gt.operation = "GREATER_THAN"
+    zval = N.new("ShaderNodeValue")  # altura del corte (animada; compartida por todos los muebles)
+    L.new(sep.outputs["Z"], gt.inputs["A"])
+    L.new(zval.outputs[0], gt.inputs["B"])
+    ev = N.new("GeometryNodeFieldOnDomain")
+    ev.domain = "FACE"
+    ev.data_type = "BOOLEAN"
+    L.new(gt.outputs[0], ev.inputs[0])       # cara seleccionada sólo si todos sus vértices están arriba
+    dl = N.new("GeometryNodeDeleteGeometry")
+    dl.domain = "FACE"
+    L.new(gi.outputs["Geometry"], dl.inputs["Geometry"])
+    L.new(ev.outputs[0], dl.inputs["Selection"])
+    L.new(dl.outputs[0], go.inputs[0])
+    for o in objs:
+        o.modifiers.new("Corte", "NODES").node_group = ng
+    sock = zval.outputs[0]
+    for f in range(CORTE_N):
+        sock.default_value = corte_z(f)
+        sock.keyframe_insert("default_value", frame=f + 1)
+
+
 def apply_section(furniture):
     """Inserta el corte en los materiales de la casa (no en el paisaje) y lo anima."""
     groups = section_groups()
@@ -1830,6 +1865,7 @@ def apply_section(furniture):
         g.node_tree = groups[m.name in capped]
         m.node_tree.links.new(src, g.inputs[0])
         m.node_tree.links.new(g.outputs[0], out.inputs["Surface"])
+    geo_cut(furniture)
     for f in range(CORTE_N):
         for ng in groups.values():
             sock = ng.nodes["AlturaCorte"].outputs[0]
@@ -1860,7 +1896,7 @@ def corte_setup(cam, furniture, out_dir):
     sc.render.use_motion_blur = False
     # lo cortado se vuelve transparente y hay muchas capas apiladas (ropa de cama, clóset, cocina):
     # con pocos rebotes transparentes el rayo se corta y aparecen manchas negras/grises
-    sc.cycles.transparent_max_bounces = 160
+    sc.cycles.transparent_max_bounces = int(opts.get("tb", "24"))
     labels = []
     for f in range(CORTE_N):
         # sólo mueve la cámara (sin frame_set: no reevalúa el pasto en cada cuadro)
@@ -1913,7 +1949,8 @@ def main():
                   [(cam_pose(u)[0].xy, 8) for u in (0, 0.25, 0.5, 0.75, 1)])
     build_fences(M, trees)
     build_bales(M, trees)
-    build_grass(M, bq)
+    if opts.get("sinpasto") != "1":
+        build_grass(M, bq)
     build_world()
     setup_render()
     sc = bpy.context.scene
