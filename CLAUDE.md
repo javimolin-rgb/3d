@@ -16,3 +16,6 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py` y `casa_li
   (se encuentra a sí mismo); usar `ps aux | grep "<patrón>" | grep -v grep` y mirar `uptime`
   (0 min = el contenedor se reinició y hay que relanzar).
 - Armar el MP4 con `tools/armar_video.sh` (`LOOK=dia` para Casa Lingue).
+- Video de recintos de Lingue: `casa_lingue_3d.py -- --vista corte --res 720x1280 --samples 20
+  --frames 1-264`, luego `tools/video_corte.py frames_recintos frames_recintos_post` y
+  `VIGNETA_HASTA=11 LOOK=dia tools/armar_video.sh frames_recintos_post output/casa_lingue_recintos.mp4 24`.
