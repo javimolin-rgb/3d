@@ -21,6 +21,13 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py` y `casa_li
   `VIGNETA_HASTA=11 LOOK=dia tools/armar_video.sh frames_recintos_post output/casa_lingue_recintos.mp4 24`.
   Versión sin rótulos ni textos (para editar el reel): `tools/video_corte.py frames_recintos
   frames_recintos_limpio --sin-textos` y armar `output/casa_lingue_recintos_limpio.mp4` igual.
+- Reel continuo de Lingue (una sola toma de dron, sin textos): conectores con
+  `PY=<python con bpy> setsid nohup tools/render_reel.sh c1 c3 c4 &` (casa_lingue_3d.py --vista reel;
+  avance legible en PROGRESO_RENDER.txt con `setsid nohup tools/progreso_render.sh &`), plano azul con
+  `tools/video_corte.py frames_recintos frames_reel/plano --sin-textos --papel azul --hold 48
+  --vuelta frames_reel/c3/f_0001.png`, luego `tools/reel_continuo.py frames_reel/continuo` y
+  `VIGNETA_EXPR='<la que imprime>' LOOK=dia tools/armar_video.sh frames_reel/continuo
+  output/casa_lingue_reel_continuo.mp4 24`.
 - Marca Neorigen en gráficas: Azul Origen #011E2F, Niebla #F1F4F3, Verde Pino #3C4A3E, Madera #A9764A
   (sin negro ni blanco puros); Fraunces / Work Sans / IBM Plex Mono desde `assets/fuentes/`
   (instancias con `tools/instanciar_fuentes.py`), logo en `assets/marca/`. Texto mínimo 22 px a 720x1280.
