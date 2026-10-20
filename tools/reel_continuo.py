@@ -32,6 +32,7 @@ OUT = sys.argv[1]
 A_INI, A_FIN, D_INI, D_FIN = 45, 125, 175, 240   # mismos A_FIN / D_INI que casa_lingue_3d.py
 N3D, OV = 264, 6                                 # cuadros 3D del corte; fundido c1 -> corte
 FPS = 24
+C3_LOSA = (22, 23, 24)                           # cuadros de c3 en que el corte cruza la losa
 C4_N = 120                                       # REEL_N["c4"] de casa_lingue_3d.py (luego la toma final)
 
 
@@ -112,8 +113,15 @@ tramo("P planta (fundido, lámina y vuelta)")
 for p in plano[N3D:]:
     put(p, curva=False)
 tramo("c3 conector desde la cenital")
-for p in c3[1:]:  # el primero ya está en el último cuadro de la vuelta del plano
-    put(p)
+# cuando el corte sube atraviesa el espesor de la losa del 2do piso y por un cuadro se ve su relleno
+# oscuro: esos cuadros se reemplazan por un fundido entre los vecinos (la cámara casi no se mueve ahí)
+a0, a1 = C3_LOSA[0] - 1, C3_LOSA[-1] + 1                  # cuadros sanos a cada lado (1-based)
+for i, p in enumerate(c3[1:], start=2):  # el primero ya está en el último cuadro de la vuelta del plano
+    if i in C3_LOSA:
+        k = (i - a0) / (a1 - a0)
+        put(Image.blend(render(c3[a0 - 1]), render(c3[a1 - 1]), k * k * (3 - 2 * k)))
+    else:
+        put(p)
 tramo("D vuelo fachada de acceso")
 for f in range(D_INI, D_FIN + 1):
     put(os.path.join(DRON, f"f_{f:04d}.png"))
