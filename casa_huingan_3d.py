@@ -30,9 +30,11 @@ random.seed(5)
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CASA = os.path.join(ROOT, "assets", "huingan", "casa.blend")
 CAMPO = os.path.join(ROOT, "assets", "campo", "pastos_botaniq.blend")
-ARBUSTO = os.path.join(ROOT, "assets", "playa", "shrub_03", "shrub_03_2k.blend")
-HDRI = os.path.join(ROOT, "assets", "cielo", "DaySkyHDRI065A_2K_HDR.exr")  # ambientCG, CC0
-HDRI_SUN_U = 0.4983          # columna del sol en el HDRI (0-1); elevación 59,5°
+PH = os.path.join(ROOT, "assets", "playa", "ph")   # recursos de Poly Haven (tools/get_assets_playa.sh)
+HDRI = os.path.join(PH, "hdri", "sundowner_overlook_2k.exr")   # tarde despejada de costa, CC0
+HDRI_SUN_U = 0.6001          # columna del sol en el HDRI (0-1)
+SUN_ELEV = 27.0              # elevación del sol en el HDRI
+SKY_GAIN = 0.06              # brillo del cielo físico (horizonte) para empatar con el HDRI
 SUN_AZ = 215.0               # sol desde adelante-izquierda (azimut desde +Y hacia +X)
 WB_TEMP = float(opts["wb"])
 L, D = 12.18, 9.24           # ancho y fondo total del casco (terraza + caja + porch)
@@ -245,8 +247,8 @@ def sand_mat():
     d = shore_d_nodes(N, sep)
     big = N.noise(tc.outputs["Object"], 0.08, 3)
     mid = N.noise(tc.outputs["Object"], 0.7, 6)
-    dry = N.mix(N.math("MULTIPLY_ADD", big, 1.6, -0.3), (0.4, 0.32, 0.22), (0.53, 0.43, 0.3))
-    dry = N.mix(N.math("MULTIPLY", mid, 0.35), dry, (0.33, 0.26, 0.18))
+    dry = N.mix(N.math("MULTIPLY_ADD", big, 1.6, -0.3), (0.33, 0.27, 0.19), (0.45, 0.37, 0.26))
+    dry = N.mix(N.math("MULTIPLY", mid, 0.35), dry, (0.27, 0.22, 0.15))
     wet = (0.22, 0.19, 0.14)
     wet_f = N.math("SUBTRACT", 1.0, N.smooth(d, 0.6, 4.5))
     col = N.mix(wet_f, dry, wet)
@@ -354,7 +356,7 @@ def hills_mat():
     tc = n.new("ShaderNodeTexCoord")
     f = N.noise(tc.outputs["Object"], 0.012, 6, 0.6)
     g = N.noise(tc.outputs["Object"], 0.15, 4)
-    col = N.mix(N.smooth(f, 0.32, 0.46), (0.22, 0.2, 0.11), (0.012, 0.03, 0.014))
+    col = N.mix(N.smooth(f, 0.3, 0.42), (0.16, 0.15, 0.08), (0.01, 0.025, 0.012))
     col = N.mix(N.math("MULTIPLY", g, 0.4), col, (0.02, 0.035, 0.02))
     l.new(col, b.inputs["Base Color"])
     b.inputs["Roughness"].default_value = 0.95
@@ -374,8 +376,8 @@ def scrub_mat():
     tc = n.new("ShaderNodeTexCoord")
     f = N.noise(tc.outputs["Object"], 0.08, 6, 0.65)
     g = N.noise(tc.outputs["Object"], 0.9, 4)
-    col = N.mix(N.smooth(f, 0.45, 0.6), (0.45, 0.39, 0.24), (0.12, 0.16, 0.07))
-    col = N.mix(N.math("MULTIPLY", g, 0.35), col, (0.06, 0.08, 0.04))
+    col = N.mix(N.smooth(f, 0.28, 0.45), (0.3, 0.27, 0.16), (0.05, 0.07, 0.03))
+    col = N.mix(N.math("MULTIPLY", g, 0.5), col, (0.03, 0.045, 0.02))
     l.new(col, b.inputs["Base Color"])
     b.inputs["Roughness"].default_value = 0.95
     bmp = n.new("ShaderNodeBump")
@@ -542,7 +544,7 @@ def build_landscape(M):
     sand = grid("Playa", *near, 0.75, M["arena"], coll)
     # lejos: playa y dunas hacia los costados + cerros (sin el hueco del terreno cercano)
     inside = lambda x, y: near[0] < x < near[1] and near[2] < y < near[3]  # noqa: E731
-    far = grid("Lejos", -900, 1000, -300, 1300, 10.0, M["arena"], coll, skip=inside)
+    far = grid("Lejos", -2100, 2100, -600, 2700, 15.0, M["arena"], coll, skip=inside)
     far.data.materials.append(M["matorral"])
     far.data.materials.append(M["cerros"])
     for p in far.data.polygons:
@@ -551,40 +553,88 @@ def build_landscape(M):
         elif shore_d(p.center.x, p.center.y) > BEACH + 4:
             p.material_index = 1
     fondo = principled("FondoMar", (0.008, 0.04, 0.05), 0.9)
-    mesh_obj("FondoMar", [(-3000, -3000, SEA - 6.5), (3000, -3000, SEA - 6.5), (3000, 3000, SEA - 6.5), (-3000, 3000, SEA - 6.5)],
+    mesh_obj("FondoMar", [(-40000, -40000, SEA - 6.5), (40000, -40000, SEA - 6.5), (40000, 40000, SEA - 6.5), (-40000, 40000, SEA - 6.5)],
              [(0, 1, 2, 3)], fondo, coll)
-    mesh_obj("Mar", [(-3000, -3000, SEA), (3000, -3000, SEA), (3000, 3000, SEA), (-3000, 3000, SEA)],
+    mesh_obj("Mar", [(-40000, -40000, SEA), (40000, -40000, SEA), (40000, 40000, SEA), (-40000, 40000, SEA)],
              [(0, 1, 2, 3)], M["mar"], coll)
     return sand
 
 
 # ---------------------------------------------------------------- vegetación
+def load_ph(lib, ident, lod="LOD1", tag=None):
+    """Variantes de un modelo de Poly Haven (una por letra), en el nivel de detalle pedido, como
+    colección para instanciar al azar. Se dejan en el origen."""
+    path = os.path.join(PH, ident, ident + ".blend")
+    with bpy.data.libraries.load(path) as (a, b):
+        names = [n for n in a.objects if n.endswith("_" + lod)] or [n for n in a.objects if "LOD" not in n]
+        if tag:
+            names = [n for n in names if tag in n]
+        b.objects = names
+    coll = bpy.data.collections.new("PH_" + ident)
+    lib.children.link(coll)
+    for o in b.objects:
+        coll.objects.link(o)
+        o.location = (0, 0, 0)
+        o.rotation_euler = (0, 0, 0)
+        o.parent = None
+    return coll
+
+
 def load_assets(M):
+    """Pastos Botaniq (tonos dorados de duna) y vegetación costera de Poly Haven: arbustos de
+    matorral, suculentas rastreras (como la doca), pastos y flores silvestres, rocas y troncos."""
     lib = bpy.data.collections.new("Biblioteca")
     bpy.context.scene.collection.children.link(lib)
     with bpy.data.libraries.load(CAMPO) as (a, b):
-        b.objects = a.objects
+        b.objects = [n for n in a.objects if n.startswith("Grass")]
     bq = {}
     for o in b.objects:
         lib.objects.link(o)
         for sl in o.material_slots:
-            sl.material = M["pastoDuna"] if o.name.startswith("Grass") else M["roca"]
+            sl.material = M["pastoDuna"]
         for md in o.modifiers:
             if md.type == "SUBSURF":
                 md.levels = md.render_levels = min(md.render_levels, 1)
         bq[o.name.split("_spring")[0]] = o
-    with bpy.data.libraries.load(ARBUSTO) as (a, b):
-        b.objects = [n for n in a.objects if n.endswith("LOD1")]
-    shrubs = []
-    for o in b.objects:
-        lib.objects.link(o)
-        o.location = (0, 0, 0)
-        shrubs.append(o)
+    ph = {
+        "searsia": load_ph(lib, "searsia_lucida"),
+        "didelta": load_ph(lib, "didelta_spinosa"),
+        "othonna": load_ph(lib, "othonna_cerarioides", "LOD2"),
+        "rooibos": load_ph(lib, "wild_rooibos_bush", "LOD1"),
+        "doca": load_ph(lib, "crystalline_iceplant", "LOD1"),
+        "cheiri": load_ph(lib, "cheiridopsis_succulent", "LOD2"),
+        "flor": load_ph(lib, "flower_heliophila", "LOD2"),
+        "roca": load_ph(lib, "namaqualand_boulder_02", "LOD2"),
+    }
     lib.hide_render = lib.hide_viewport = True
-    return bq, shrubs
+    return bq, ph
 
 
-def build_vegetation(sand, bq, shrubs):
+def place_props(coll_lib):
+    """Rocas de costa en la punta de la playa y troncos de deriva en la arena (ubicados a mano)."""
+    coll = bpy.data.collections.new("Rocas")
+    bpy.context.scene.collection.children.link(coll)
+    rk = load_ph(coll_lib, "coast_rocks_01", "LOD2")
+    src = rk.objects[0]
+    for x, rot, sc in ((-150.0, 0.5, 1.0), (175.0, 2.3, 0.8)):
+        o = src.copy()
+        coll.objects.link(o)
+        y = shore_y(x) - 6.0
+        o.location = (x, y, SEA - 1.2)
+        o.rotation_euler = (0, 0, rot)
+        o.scale = (sc, sc, sc * 1.4)
+    tr = load_ph(coll_lib, "dead_tree_trunk")
+    br = load_ph(coll_lib, "dry_branches_medium_01")
+    for k, (x, off, rot) in enumerate(((-24.0, 9.0, 0.4), (31.0, 7.5, 2.0), (-6.0, 11.0, 1.2))):
+        y = shore_y(x) + off
+        src = tr.objects[0] if k < 2 else br.objects[0]
+        o = src.copy()
+        coll.objects.link(o)
+        o.location = (x, y, terrain_h(x, y) + 0.05)
+        o.rotation_euler = (0, 0, rot)
+
+
+def build_vegetation(sand, bq, ph):
     """Pastos de duna y arbustos con nodos de geometría sobre el terreno cercano, según un
     atributo 'veg' (0 en la playa, la pasarela y bajo la casa; 1 en la duna)."""
     me = sand.data
@@ -631,8 +681,22 @@ def build_vegetation(sand, bq, shrubs):
         Lk.new(na.outputs["Attribute"], mul.inputs[1])
         Lk.new(mul.outputs[0], d.inputs["Density"])
         ins = N.new("GeometryNodeInstanceOnPoints")
-        oi = N.new("GeometryNodeObjectInfo")
-        oi.inputs[0].default_value = obj
+        if isinstance(obj, bpy.types.Collection):   # una variante al azar de la colección
+            oi = N.new("GeometryNodeCollectionInfo")
+            oi.inputs["Collection"].default_value = obj
+            oi.inputs["Separate Children"].default_value = True
+            oi.inputs["Reset Children"].default_value = True
+            ins.inputs["Pick Instance"].default_value = True
+            ri = N.new("FunctionNodeRandomValue")
+            ri.data_type = "INT"
+            for sk in ri.inputs:
+                if sk.type == "INT" and sk.name in ("Min", "Max"):
+                    sk.default_value = 0 if sk.name == "Min" else len(obj.objects) - 1
+            ri.inputs["Seed"].default_value = seed + 2
+            Lk.new(next(o for o in ri.outputs if o.type == "INT"), ins.inputs["Instance Index"])
+        else:
+            oi = N.new("GeometryNodeObjectInfo")
+            oi.inputs[0].default_value = obj
         rr = N.new("FunctionNodeRandomValue")
         rr.data_type = "FLOAT_VECTOR"
         rr.inputs["Max"].default_value = (tilt, tilt, 6.28)
@@ -645,20 +709,25 @@ def build_vegetation(sand, bq, shrubs):
         rs.inputs["Seed"].default_value = seed + 1
         Lk.new(gi.outputs[0], d.inputs["Mesh"])
         Lk.new(d.outputs["Points"], ins.inputs["Points"])
-        Lk.new(oi.outputs["Geometry"], ins.inputs["Instance"])
+        Lk.new(oi.outputs[0], ins.inputs["Instance"])
         Lk.new(rr.outputs[0], ins.inputs["Rotation"])
         Lk.new(next(o for o in rs.outputs if o.type == "VALUE"), ins.inputs["Scale"])
         Lk.new(ins.outputs[0], join.inputs[0])
 
-    scatter(bq["Grass_Tall_A"], 9.0, 0.9, 1.6, 21, 0.3, 0.55)
-    scatter(bq["Grass_Wild_B"], 4.0, 0.8, 1.3, 22, 0.35, 0.6)
-    scatter(bq["Grass_Wild_C"], 4.0, 0.8, 1.3, 23, 0.35, 0.6)
-    scatter(bq["Grass_Karl-foerster_B"], 0.9, 0.6, 1.0, 24, 0.45, 0.62, 0.3)
-    scatter(bq["Grass_Basic_A"], 2.5, 0.8, 1.3, 25, 0.4, 0.62)
-    for k, s in enumerate(shrubs):
-        scatter(s, 0.12, 2.5, 4.5, 30 + k, 0.45, 0.62, 0.08, 0.05)
-    for k, name in enumerate(("Rock_Granite-Photoscan_F", "Rock_Granite-Photoscan_E")):
-        scatter(bq[name], 0.006, 0.3, 0.8, 40 + k, 0.55, 0.62, 0.05, 0.4)
+    # pastos: dorados de duna (Botaniq) y verdes silvestres (Poly Haven), en manchones
+    # (sólo los pastos Botaniq de hojas modeladas: los de tarjeta vienen sin su textura de recorte)
+    scatter(bq["Grass_Tall_A"], 14.0, 1.6, 2.6, 21, 0.3, 0.55)
+    scatter(bq["Grass_Karl-foerster_B"], 1.6, 0.7, 1.1, 24, 0.38, 0.6, 0.25)
+    scatter(ph["flor"], 0.4, 0.8, 1.2, 27, 0.5, 0.62, 0.2)
+    # matorral costero: arbustos agrupados
+    scatter(ph["searsia"], 0.16, 0.9, 1.6, 31, 0.38, 0.58, 0.06, 0.06)
+    scatter(ph["didelta"], 0.06, 0.6, 1.1, 32, 0.42, 0.6, 0.05, 0.05)
+    scatter(ph["othonna"], 0.35, 1.0, 1.6, 34, 0.38, 0.6, 0.1, 0.06)
+    scatter(ph["rooibos"], 0.45, 1.5, 2.4, 35, 0.38, 0.6, 0.1, 0.06)
+    # rastreras tipo doca (alfombras) y suculentas en los bordes con arena
+    scatter(ph["doca"], 14.0, 2.0, 3.5, 36, 0.42, 0.56, 0.1, 0.02)
+    scatter(ph["cheiri"], 0.8, 0.9, 1.4, 37, 0.42, 0.62, 0.15, 0.03)
+    scatter(ph["roca"], 0.004, 0.4, 1.0, 40, 0.55, 0.62, 0.05, 0.4)
     Lk.new(join.outputs[0], go.inputs[0])
     md = sand.modifiers.new("Duna", "NODES")
     md.node_group = ng
@@ -680,7 +749,38 @@ def build_world():
     env.image = bpy.data.images.load(HDRI, check_existing=True)
     l.new(tc.outputs["Generated"], mp.inputs["Vector"])
     l.new(mp.outputs["Vector"], env.inputs["Vector"])
-    l.new(env.outputs["Color"], bg.inputs[0])
+    # la cámara ve el cielo del HDRI sólo en lo alto (nubes); cerca del horizonte, donde el HDRI
+    # trae su propio paisaje (árboles, una pérgola), ve un cielo físico con el sol en el mismo lugar
+    sky = n.new("ShaderNodeTexSky")
+    sky.sky_type = "MULTIPLE_SCATTERING"
+    sky.sun_disc = False
+    sky.sun_elevation = math.radians(SUN_ELEV)
+    sky.sun_rotation = math.radians(90.0 - SUN_AZ)
+    sky.aerosol_density = 2.0
+    gain = n.new("ShaderNodeMix")
+    gain.data_type = "RGBA"
+    gain.blend_type = "MULTIPLY"
+    gain.inputs[0].default_value = 1.0
+    gain.inputs[7].default_value = (SKY_GAIN, SKY_GAIN, SKY_GAIN, 1)
+    l.new(sky.outputs["Color"], gain.inputs[6])
+    sep = n.new("ShaderNodeSeparateXYZ")
+    l.new(tc.outputs["Generated"], sep.inputs[0])
+    hi = n.new("ShaderNodeMapRange")
+    hi.interpolation_type = "SMOOTHSTEP"
+    hi.inputs[1].default_value, hi.inputs[2].default_value = 0.3, 0.6   # seno de la elevación
+    l.new(sep.outputs["Z"], hi.inputs[0])
+    cam_sky = n.new("ShaderNodeMix")
+    cam_sky.data_type = "RGBA"
+    l.new(hi.outputs[0], cam_sky.inputs[0])
+    l.new(gain.outputs[2], cam_sky.inputs[6])
+    l.new(env.outputs["Color"], cam_sky.inputs[7])
+    lp = n.new("ShaderNodeLightPath")
+    pick = n.new("ShaderNodeMix")
+    pick.data_type = "RGBA"
+    l.new(lp.outputs["Is Camera Ray"], pick.inputs[0])
+    l.new(env.outputs["Color"], pick.inputs[6])
+    l.new(cam_sky.outputs[2], pick.inputs[7])
+    l.new(pick.outputs[2], bg.inputs[0])
     w.mist_settings.start = 80
     w.mist_settings.depth = 1600
     w.mist_settings.falloff = "LINEAR"
@@ -765,8 +865,9 @@ def main():
     M = materials()
     load_house(M)
     sand = build_landscape(M)
-    bq, shrubs = load_assets(M)
-    build_vegetation(sand, bq, shrubs)
+    bq, ph = load_assets(M)
+    build_vegetation(sand, bq, ph)
+    place_props(bpy.data.collections["Biblioteca"])
     build_world()
     setup_render()
     build_camera()
