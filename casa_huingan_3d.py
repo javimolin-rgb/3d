@@ -22,7 +22,7 @@ from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
-        "wb": "6300", "save": None}
+        "wb": "5900", "save": None}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
 
@@ -257,7 +257,7 @@ def sand_mat():
                   N.smooth(N.noise(tc.outputs["Object"], 1.3, 3), 0.55, 0.62))
     col = N.mix(N.math("MULTIPLY", tide, 0.7), col, (0.12, 0.1, 0.07))
     depth = N.math("MULTIPLY", d, -1.0)
-    col = N.mix(N.smooth(depth, 0.0, 4.0), col, (0.12, 0.22, 0.18))
+    col = N.mix(N.smooth(depth, 0.0, 4.0), col, (0.13, 0.2, 0.17))
     col = N.mix(N.smooth(depth, 3.0, 28.0), col, (0.012, 0.055, 0.065))
     at = n.new("ShaderNodeAttribute")
     at.attribute_name = "veg"
@@ -308,7 +308,7 @@ def water_mat():
     # + reflejo del cielo según Fresnel; el color del agua lo da el fondo (sand_mat)
     n.remove(b)
     tr = n.new("ShaderNodeBsdfTransparent")
-    tr.inputs["Color"].default_value = (0.82, 0.93, 0.9, 1)
+    tr.inputs["Color"].default_value = (0.86, 0.92, 0.9, 1)
     gl = n.new("ShaderNodeBsdfGlossy")
     gl.inputs["Roughness"].default_value = 0.05
     fr = n.new("ShaderNodeFresnel")
@@ -360,15 +360,23 @@ def water_mat():
 
 
 def hills_mat():
-    """Cerros costeros: bosque de pinos oscuro con claros de pasto seco."""
+    """Paisaje lejano en un solo material (sin corte entre duna y cerro): arena y matorral olivo
+    abajo, que con la altura se cubre de bosque de pinos y quebradas oscuras, con claros de
+    pasto seco. Los mismos tonos que la vegetación cercana."""
     m, n, l = new_mat("Cerros")
     N = Nodos(n, l)
     b = n["Principled BSDF"]
     tc = n.new("ShaderNodeTexCoord")
+    sep = n.new("ShaderNodeSeparateXYZ")
+    l.new(tc.outputs["Object"], sep.inputs[0])
     f = N.noise(tc.outputs["Object"], 0.012, 6, 0.6)
     g = N.noise(tc.outputs["Object"], 0.15, 4)
-    col = N.mix(N.smooth(f, 0.3, 0.42), (0.16, 0.15, 0.08), (0.01, 0.025, 0.012))
-    col = N.mix(N.math("MULTIPLY", g, 0.4), col, (0.02, 0.035, 0.02))
+    h = N.noise(tc.outputs["Object"], 0.05, 5, 0.6)
+    scrub = N.mix(N.smooth(h, 0.35, 0.55), (0.34, 0.29, 0.2), (0.12, 0.13, 0.065))
+    forest = N.mix(N.smooth(f, 0.32, 0.48), (0.2, 0.18, 0.1), (0.022, 0.035, 0.018))
+    up = N.math("MULTIPLY", N.smooth(sep.outputs["Z"], 2.0, 35.0), N.smooth(f, 0.25, 0.4))
+    col = N.mix(up, scrub, forest)
+    col = N.mix(N.math("MULTIPLY", g, 0.35), col, (0.03, 0.04, 0.022))
     l.new(col, b.inputs["Base Color"])
     b.inputs["Roughness"].default_value = 0.95
     bmp = n.new("ShaderNodeBump")
@@ -408,8 +416,8 @@ def dune_grass_mat():
     v = N.math("ADD", N.math("MULTIPLY", info.outputs["Random"], 0.7), N.math("MULTIPLY", N.noise(tc.outputs["Object"], 3), 0.3))
     ramp = n.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
-    e[0].color, e[1].color = (0.25, 0.3, 0.14, 1), (0.6, 0.48, 0.27, 1)
-    e.new(0.45).color = (0.47, 0.42, 0.22, 1)
+    e[0].color, e[1].color = (0.22, 0.24, 0.12, 1), (0.5, 0.42, 0.25, 1)
+    e.new(0.45).color = (0.38, 0.35, 0.19, 1)
     l.new(v, ramp.inputs["Fac"])
     l.new(ramp.outputs["Color"], b.inputs["Base Color"])
     b.inputs["Roughness"].default_value = 0.7
@@ -538,6 +546,8 @@ def terrain_h(x, y):
     flat = min(1.0, max(0.0, (house_dist(x, y) - 1.0) / 8.0))
     dn = noise.noise(Vector((x / 16.0, y / 12.0, 0.3))) + 0.4 * noise.noise(Vector((x / 5.0, y / 4.0, 1.7)))
     flat = min(flat, 0.3 + 0.7 * min(1.0, max(0.0, (pd - 1.0) / 4.0)))   # el sendero corta la duna
+    if 8 < y < 140:
+        flat = min(flat, 0.2 + 0.8 * min(1.0, max(0.0, (road_dist(x, y) - 2.5) / 6.0)))   # y el camino
     h += amp * flat * (0.4 + 0.7 * dn)
     if d > BEACH:                                           # huella levemente hundida
         h -= 0.07 * max(0.0, 1.0 - pd / 1.1)
@@ -545,7 +555,7 @@ def terrain_h(x, y):
     if y > 280:
         r = min(1.0, (y - 280) / 300.0)
         hn = 0.5 + 0.5 * noise.noise(Vector((x / 180.0, y / 140.0, 3.1)))
-        h += r * r * (30 + 90 * hn)
+        h += r * r * (30 + 90 * hn) * min(1.0, max(0.0, (d - 40.0) / 160.0))   # sin cerros pegados al mar
     return h + 0.02 * noise.noise(Vector((x * 1.3, y * 1.3, 9.0)))
 
 
@@ -572,12 +582,9 @@ def build_landscape(M):
     # lejos: playa y dunas hacia los costados + cerros (sin el hueco del terreno cercano)
     inside = lambda x, y: near[0] < x < near[1] and near[2] < y < near[3]  # noqa: E731
     far = grid("Lejos", -2100, 2100, -600, 2700, 15.0, M["arena"], coll, skip=inside)
-    far.data.materials.append(M["matorral"])
     far.data.materials.append(M["cerros"])
     for p in far.data.polygons:
-        if p.center.y > 290:
-            p.material_index = 2
-        elif shore_d(p.center.x, p.center.y) > BEACH + 4:
+        if shore_d(p.center.x, p.center.y) > BEACH + 4:
             p.material_index = 1
     fondo = principled("FondoMar", (0.008, 0.04, 0.05), 0.9)
     mesh_obj("FondoMar", [(-40000, -40000, SEA - 6.5), (40000, -40000, SEA - 6.5), (40000, 40000, SEA - 6.5), (-40000, 40000, SEA - 6.5)],
@@ -677,6 +684,8 @@ def build_vegetation(sand, bq, ph):
         # sendero de arena desde la escalera de la terraza hasta la playa
         pd = path_dist(x, y)
         w *= min(1.0, max(0.0, (pd - 0.9) / 1.3))
+        if 8 < y < 95:
+            w *= min(1.0, max(0.0, (road_dist(x, y) - 1.6) / 1.5))
         cam.append(min(1.0, max(0.0, 1.4 - pd / 0.9)) if d > BEACH - 3 else 0.0)
         w *= min(1.0, max(0.0, 0.55 + 1.3 * noise.noise(Vector((x / 7.0, y / 7.0, 2.2)))
                           + 0.4 * noise.noise(Vector((x / 2.5, y / 2.5, 4.1)))))
@@ -765,6 +774,267 @@ def build_vegetation(sand, bq, ph):
     md.node_group = ng
 
 
+
+# ---------------------------------------------------------------- contexto: camino, vecinos, árboles
+# camino de tierra que llega por detrás de la casa (porch de acceso) y sube hacia los cerros
+ROAD = [(8.7, 10.5), (12.0, 30.0), (18.0, 60.0), (8.0, 100.0), (-25.0, 150.0), (-70.0, 210.0),
+        (-110.0, 290.0), (-150.0, 380.0), (-210.0, 480.0), (-260.0, 620.0), (-300.0, 800.0)]
+
+
+def road_points(step=1.5):
+    """Puntos del eje del camino (Catmull-Rom por los nodos de ROAD)."""
+    pts = []
+    P = [ROAD[0]] + ROAD + [ROAD[-1]]
+    for i in range(1, len(P) - 2):
+        p0, p1, p2, p3 = (Vector(P[i - 1]), Vector(P[i]), Vector(P[i + 1]), Vector(P[i + 2]))
+        n = max(2, int((p2 - p1).length / step))
+        for k in range(n):
+            t = k / n
+            pts.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+                              + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    pts.append(Vector(ROAD[-1]))
+    return pts
+
+
+_ROAD_PTS = None
+
+
+def road_dist(x, y):
+    """Distancia (m) al eje del camino (sólo se usa cerca de la casa)."""
+    global _ROAD_PTS
+    if _ROAD_PTS is None:
+        _ROAD_PTS = road_points(1.0)
+    if y < 8 or y > 140:
+        return 99.0
+    return min(math.hypot(x - p.x, y - p.y) for p in _ROAD_PTS if abs(p.y - y) < 6)
+
+
+def road_mat():
+    """Huella de tierra: dos surcos de ruedas más oscuros y pasto en el centro y los bordes."""
+    m, n, l = new_mat("Camino")
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    uv = n.new("ShaderNodeUVMap")
+    sep = n.new("ShaderNodeSeparateXYZ")
+    l.new(uv.outputs["UV"], sep.inputs[0])
+    tc = n.new("ShaderNodeTexCoord")
+    v = sep.outputs["Y"]
+    rut = N.math("MAXIMUM", N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", v, 0.27)), 0.0, 0.12)),
+                 N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", v, 0.73)), 0.0, 0.12)))
+    mid = N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", v, 0.5)), 0.04, 0.12))
+    edge = N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", v, 0.5)), 0.38, 0.5)
+    nz = N.noise(tc.outputs["Object"], 1.2, 5)
+    col = N.mix(N.math("MULTIPLY", rut, 0.7), (0.4, 0.33, 0.24), (0.27, 0.22, 0.15))
+    grass = N.math("MULTIPLY", N.math("MAXIMUM", mid, edge), N.smooth(nz, 0.35, 0.6))
+    col = N.mix(grass, col, (0.16, 0.16, 0.08))
+    l.new(col, b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.95
+    # el borde se funde con el terreno
+    tr = n.new("ShaderNodeBsdfTransparent")
+    mx = n.new("ShaderNodeMixShader")
+    l.new(N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", v, 0.5)), 0.42, 0.5), mx.inputs["Fac"])
+    l.new(b.outputs[0], mx.inputs[1])
+    l.new(tr.outputs[0], mx.inputs[2])
+    l.new(mx.outputs[0], n["Material Output"].inputs["Surface"])
+    return m
+
+
+def build_road(coll):
+    pts = road_points(1.5)
+    verts, faces, uvs = [], [], []
+    half = 1.8
+    for i, p in enumerate(pts):
+        q = pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]
+        nrm = Vector((-q.y, q.x)).normalized()
+        lift = 0.04 if p.y < 85 else 0.35        # sobre el terreno lejano (malla gruesa) va más alto
+        for sgn in (-1, 1):
+            a = p + nrm * half * sgn
+            verts.append((a.x, a.y, terrain_h(a.x, a.y) + lift))
+    for i in range(len(pts) - 1):
+        faces.append((2 * i, 2 * i + 1, 2 * i + 3, 2 * i + 2))
+    o = mesh_obj("Camino", verts, faces, road_mat(), coll)
+    uvl = o.data.uv_layers.new(name="UVMap")
+    for poly in o.data.polygons:
+        for li in poly.loop_indices:
+            vi = o.data.loops[li].vertex_index
+            uvl.data[li].uv = ((vi // 2) * 1.5 / 4.0, float(vi % 2))
+    return o
+
+
+VECINOS = [  # x, y, giro (°), ancho, fondo, alto de muro, muro, techo
+    (55.0, 165.0, 20, 11, 7, 2.7, "blanco", "gris"), (-88.0, 245.0, -15, 9, 6, 2.6, "madera", "gris"),
+    (-120.0, 262.0, 5, 12, 7, 2.8, "blanco", "teja"), (95.0, 330.0, 35, 10, 7, 2.6, "negro", "gris"),
+    (-185.0, 420.0, -25, 9, 6, 2.6, "madera", "teja"), (170.0, 470.0, 10, 13, 8, 3.0, "blanco", "gris"),
+    (-265.0, 530.0, 0, 10, 7, 2.7, "blanco", "teja"), (265.0, 395.0, -40, 9, 6, 2.6, "madera", "gris"),
+    (-35.0, 590.0, 15, 11, 7, 2.7, "negro", "gris"), (-330.0, 650.0, 30, 10, 6, 2.6, "blanco", "teja"),
+    (330.0, 560.0, -10, 12, 7, 2.8, "blanco", "gris"),
+]
+
+
+def build_neighbors(coll):
+    """Casas vecinas lejanas (volúmenes simples a dos aguas): dan contexto sin quitar calma."""
+    mats = {"blanco": principled("VecMuroBlanco", (0.62, 0.6, 0.56), 0.8),
+            "madera": principled("VecMuroMadera", (0.32, 0.22, 0.14), 0.7),
+            "negro": principled("VecMuroNegro", (0.03, 0.03, 0.03), 0.6),
+            "gris": principled("VecTechoGris", (0.08, 0.08, 0.085), 0.5),
+            "teja": principled("VecTechoTeja", (0.22, 0.09, 0.05), 0.7),
+            "vidrio": principled("VecVentana", (0.02, 0.025, 0.03), 0.1)}
+    for k, (x, y, rot, w, d, h, wall, roof) in enumerate(VECINOS):
+        z = min(terrain_h(x + dx, y + dy) for dx in (-w / 2, w / 2) for dy in (-d / 2, d / 2)) - 0.3
+        r = h + w * 0.28
+        verts = [(-w / 2, -d / 2, 0), (w / 2, -d / 2, 0), (w / 2, d / 2, 0), (-w / 2, d / 2, 0),
+                 (-w / 2, -d / 2, h), (w / 2, -d / 2, h), (w / 2, d / 2, h), (-w / 2, d / 2, h),
+                 (0, -d / 2, r), (0, d / 2, r)]
+        faces = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 8), (6, 7, 9)]
+        o = mesh_obj(f"Vecino{k}", verts, faces, mats[wall], coll)
+        roof_v = [(-w / 2 - 0.4, -d / 2 - 0.4, h - 0.2), (0, -d / 2 - 0.4, r), (0, d / 2 + 0.4, r),
+                  (-w / 2 - 0.4, d / 2 + 0.4, h - 0.2), (w / 2 + 0.4, -d / 2 - 0.4, h - 0.2), (w / 2 + 0.4, d / 2 + 0.4, h - 0.2)]
+        t = mesh_obj(f"VecinoTecho{k}", roof_v, [(0, 1, 2, 3), (1, 4, 5, 2)], mats[roof], coll)
+        sol = t.modifiers.new("e", "SOLIDIFY")
+        sol.thickness = 0.15
+        win = mesh_obj(f"VecinoVentana{k}", [(-w * 0.3, -d / 2 - 0.02, 0.9), (w * 0.3, -d / 2 - 0.02, 0.9),
+                                             (w * 0.3, -d / 2 - 0.02, h - 0.4), (-w * 0.3, -d / 2 - 0.02, h - 0.4)],
+                       [(0, 1, 2, 3)], mats["vidrio"], coll)
+        for ob in (o, t, win):
+            ob.location = (x, y, z)
+            ob.rotation_euler = (0, 0, math.radians(rot))
+
+
+def foliage_mat(name, c1, c2):
+    m, n, l = new_mat(name)
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    info = n.new("ShaderNodeObjectInfo")
+    tc = n.new("ShaderNodeTexCoord")
+    v = N.math("ADD", N.math("MULTIPLY", info.outputs["Random"], 0.6), N.math("MULTIPLY", N.noise(tc.outputs["Object"], 3.0, 4), 0.4))
+    l.new(N.mix(v, c1, c2), b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.85
+    bmp = n.new("ShaderNodeBump")
+    bmp.inputs["Strength"].default_value = 0.8
+    l.new(N.noise(tc.outputs["Object"], 4.0, 4), bmp.inputs["Height"])
+    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
+def make_trees(lib):
+    """Pinos y cipreses macrocarpa simples (sólo se ven a lo lejos): tronco + copas irregulares."""
+    bark = principled("Corteza", (0.08, 0.06, 0.045), 0.9)
+    pino = foliage_mat("CopaPino", (0.018, 0.03, 0.016), (0.045, 0.06, 0.03))
+    cipres = foliage_mat("CopaCipres", (0.022, 0.036, 0.018), (0.055, 0.07, 0.033))
+    out = []
+    rnd = random.Random(3)
+    for k in range(4):
+        parts = []
+        h = rnd.uniform(9, 15)
+        bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=0.22, depth=h, location=(0, 0, h / 2))
+        parts.append(bpy.context.object)
+        parts[-1].data.materials.append(bark)
+        cyp = k >= 2
+        for j in range(5 if cyp else 4):
+            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1.0)
+            c = bpy.context.object
+            if cyp:   # macrocarpa: copa ancha y aplanada, en capas
+                c.location = (rnd.uniform(-1.5, 1.5), rnd.uniform(-1.5, 1.5), h * rnd.uniform(0.55, 0.95))
+                c.scale = (rnd.uniform(2.5, 3.5), rnd.uniform(2.5, 3.5), rnd.uniform(1.3, 1.9))
+            else:     # pino: copa alta y redondeada
+                c.location = (rnd.uniform(-0.8, 0.8), rnd.uniform(-0.8, 0.8), h * (0.72 + 0.08 * j))
+                c.scale = (rnd.uniform(1.8, 2.6), rnd.uniform(1.8, 2.6), rnd.uniform(0.9, 1.3))
+            dsp = c.modifiers.new("d", "DISPLACE")
+            tex = bpy.data.textures.new(f"copa{k}{j}", "CLOUDS")
+            tex.noise_scale = 0.6
+            dsp.texture, dsp.strength = tex, 0.6
+            c.data.materials.append(cipres if cyp else pino)
+            parts.append(c)
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in parts:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = parts[0]
+        bpy.ops.object.convert(target="MESH")
+        bpy.ops.object.join()
+        t = bpy.context.object
+        t.name = f"Arbol{k}"
+        for c in t.users_collection:
+            c.objects.unlink(t)
+        lib.objects.link(t)
+        out.append(t)
+    return out
+
+
+def build_far_trees(far, trees):
+    """Arboledas en el paisaje lejano: en manchones, más en los cerros y junto a las casas
+    vecinas; nunca en la playa ni cerca de la casa (atributo 'bosque')."""
+    me = far.data
+    w = []
+    for v in me.vertices:
+        x, y = v.co.x, v.co.y
+        d = shore_d(x, y)
+        a = min(1.0, max(0.0, (d - BEACH - 25) / 40.0)) * min(1.0, max(0.0, (math.hypot(x - 6, y - 4) - 110) / 80.0))
+        clump = 0.5 + 0.5 * noise.noise(Vector((x / 140.0, y / 140.0, 7.7)))
+        near_house = max((max(0.0, 1.0 - math.hypot(x - vx, y - vy) / 45.0) for vx, vy, *_ in VECINOS), default=0)
+        hill = min(1.0, max(0.0, (y - 250) / 250.0))
+        w.append(a * min(1.0, max(0.0, (clump - 0.45) * 3.0 + 0.6 * hill + 0.8 * near_house)))
+    at = me.attributes.new("bosque", "FLOAT", "POINT")
+    at.data.foreach_set("value", w)
+    lib_c = bpy.data.collections.new("Arboles")
+    bpy.data.collections["Biblioteca"].children.link(lib_c)
+    for t in trees:
+        for c in t.users_collection:
+            c.objects.unlink(t)
+        lib_c.objects.link(t)
+    ng = bpy.data.node_groups.new("Arboleda", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, Lk = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    dist = N.new("GeometryNodeDistributePointsOnFaces")
+    dist.distribute_method = "POISSON"
+    dist.inputs["Distance Min"].default_value = 5.0
+    dist.inputs["Density Max"].default_value = 0.012
+    na = N.new("GeometryNodeInputNamedAttribute")
+    na.data_type = "FLOAT"
+    na.inputs["Name"].default_value = "bosque"
+    Lk.new(na.outputs["Attribute"], dist.inputs["Density Factor"])
+    Lk.new(gi.outputs[0], dist.inputs["Mesh"])
+    ins = N.new("GeometryNodeInstanceOnPoints")
+    ci = N.new("GeometryNodeCollectionInfo")
+    ci.inputs["Collection"].default_value = lib_c
+    ci.inputs["Separate Children"].default_value = True
+    ci.inputs["Reset Children"].default_value = True
+    ins.inputs["Pick Instance"].default_value = True
+    ri = N.new("FunctionNodeRandomValue")
+    ri.data_type = "INT"
+    for sk in ri.inputs:
+        if sk.type == "INT" and sk.name in ("Min", "Max"):
+            sk.default_value = 0 if sk.name == "Min" else len(trees) - 1
+    rr = N.new("FunctionNodeRandomValue")
+    rr.data_type = "FLOAT_VECTOR"
+    rr.inputs["Max"].default_value = (0.05, 0.05, 6.28)
+    rs = N.new("FunctionNodeRandomValue")
+    rs.data_type = "FLOAT"
+    for sk in rs.inputs:
+        if sk.type == "VALUE" and sk.name in ("Min", "Max"):
+            sk.default_value = 0.7 if sk.name == "Min" else 1.3
+    Lk.new(dist.outputs["Points"], ins.inputs["Points"])
+    Lk.new(ci.outputs[0], ins.inputs["Instance"])
+    Lk.new(next(o for o in ri.outputs if o.type == "INT"), ins.inputs["Instance Index"])
+    Lk.new(rr.outputs[0], ins.inputs["Rotation"])
+    Lk.new(next(o for o in rs.outputs if o.type == "VALUE"), ins.inputs["Scale"])
+    join = N.new("GeometryNodeJoinGeometry")
+    Lk.new(gi.outputs[0], join.inputs[0])
+    Lk.new(ins.outputs[0], join.inputs[0])
+    Lk.new(join.outputs[0], go.inputs[0])
+    md = far.modifiers.new("Arboleda", "NODES")
+    md.node_group = ng
+
+
+def build_context(M):
+    coll = bpy.data.collections.new("Contexto")
+    bpy.context.scene.collection.children.link(coll)
+    build_road(coll)
+    build_neighbors(coll)
+    build_far_trees(bpy.data.objects["Lejos"], make_trees(bpy.data.collections["Biblioteca"]))
+
+
 # ---------------------------------------------------------------- cielo, render y cámara
 def build_world():
     sc = bpy.context.scene
@@ -817,8 +1087,8 @@ def build_world():
     l.new(env.outputs["Color"], pick.inputs[6])
     l.new(cam_sky.outputs[2], pick.inputs[7])
     l.new(pick.outputs[2], bg.inputs[0])
-    w.mist_settings.start = 80
-    w.mist_settings.depth = 1600
+    w.mist_settings.start = 60
+    w.mist_settings.depth = 1400
     w.mist_settings.falloff = "LINEAR"
 
 
@@ -862,10 +1132,10 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    lt, pw, amt, mul = mnode("LESS_THAN", 0.999), mnode("POWER", 0.9), mnode("MULTIPLY", 0.4), mnode("MULTIPLY", 1.0)
+    lt, pw, amt, mul = mnode("LESS_THAN", 0.999), mnode("POWER", 0.9), mnode("MULTIPLY", 0.62), mnode("MULTIPLY", 1.0)
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
-    mix.inputs[7].default_value = (0.72, 0.8, 0.88, 1)
+    mix.inputs[7].default_value = (0.66, 0.72, 0.78, 1)
     nt.links.new(rl.outputs["Mist"], lt.inputs[0])
     nt.links.new(rl.outputs["Mist"], pw.inputs[0])
     nt.links.new(pw.outputs[0], mul.inputs[0])
@@ -904,6 +1174,7 @@ def main():
     bq, ph = load_assets(M)
     build_vegetation(sand, bq, ph)
     place_props(bpy.data.collections["Biblioteca"])
+    build_context(M)
     build_world()
     setup_render()
     build_camera()
