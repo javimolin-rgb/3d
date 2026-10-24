@@ -38,8 +38,10 @@ WB_TEMP = float(opts["wb"])
 L, D = 12.18, 9.24           # ancho y fondo total del casco (terraza + caja + porch)
 HC = Vector((L / 2, 4.6))    # centro de la casa en planta
 GROUND = -0.31               # terreno bajo la casa
-SEA = -2.0                   # nivel del mar
-SHORE_Y = -24.0              # línea media de la orilla
+SEA = -7.0                   # nivel del mar (la casa está en una meseta de duna sobre la playa)
+SHORE_Y = -45.0              # orilla frente a la casa: la punta de la península
+SHORE_K = 420.0              # la orilla se abre hacia +Y a ambos lados: y = SHORE_Y + (x - XC)² / K
+XC = 6.0
 FPS = 24
 
 
@@ -130,16 +132,26 @@ class Nodos:
 
 
 def shore_y(x):
-    """Línea de la orilla (y) en función de x: una bahía suave."""
-    return SHORE_Y + 5.0 * math.sin(x / 45.0 + 0.6) + 2.0 * math.sin(x / 17.0 + 1.3)
+    """Línea de la orilla (y) en función de x: la casa está en una punta (península suave) con
+    el mar al frente y, más lejos, a ambos costados; así el mar se ve de fondo en las tomas."""
+    return SHORE_Y + (x - XC) ** 2 / SHORE_K + 2.0 * math.sin(x / 17.0 + 1.3)
+
+
+def shore_d(x, y):
+    """Distancia aproximada (m) a la orilla, positiva tierra adentro."""
+    slope = 2 * (x - XC) / SHORE_K
+    return (y - shore_y(x)) / math.sqrt(1 + slope * slope)
 
 
 def shore_d_nodes(N, sep):
-    """Mismo shore_y(x) en nodos: devuelve d = y - orilla (m, positivo tierra adentro)."""
-    s1 = N.math("SINE", N.math("ADD", N.math("DIVIDE", sep.outputs["X"], 45.0), 0.6))
+    """Mismo shore_d(x, y) en nodos."""
+    dx = N.math("SUBTRACT", sep.outputs["X"], XC)
     s2 = N.math("SINE", N.math("ADD", N.math("DIVIDE", sep.outputs["X"], 17.0), 1.3))
-    ys = N.math("ADD", N.math("ADD", N.math("MULTIPLY", s1, 5.0), N.math("MULTIPLY", s2, 2.0)), SHORE_Y)
-    return N.math("SUBTRACT", sep.outputs["Y"], ys)
+    ys = N.math("ADD", N.math("ADD", N.math("DIVIDE", N.math("MULTIPLY", dx, dx), SHORE_K),
+                                  N.math("MULTIPLY", s2, 2.0)), SHORE_Y)
+    slope = N.math("MULTIPLY", dx, 2.0 / SHORE_K)
+    norm = N.math("SQRT", N.math("ADD", N.math("MULTIPLY", slope, slope), 1.0))
+    return N.math("DIVIDE", N.math("SUBTRACT", sep.outputs["Y"], ys), norm)
 
 
 # ---------------------------------------------------------------- materiales
@@ -475,33 +487,36 @@ def house_dist(x, y):
     return math.hypot(dx, dy)
 
 
+BEACH = 14.0     # ancho de la playa (m)
+SLOPE_W = 26.0   # ancho de la ladera de la duna que sube desde la playa hasta la meseta
+
+
 def terrain_base(x, y):
-    """Perfil playa-duna sin ondulaciones: mar < orilla < playa < pie de duna < terraza de la casa."""
-    d = y - shore_y(x)
+    """Perfil sin ondulaciones: fondo marino < playa < ladera de duna < meseta de la casa."""
+    d = shore_d(x, y)
     if d < 0:
-        return SEA + max(d * 0.045, -4.0)
-    if d < 15:
-        return SEA + d * 0.045                       # playa
-    t = min(1.0, (d - 15) / 9.0)
+        return SEA + max(d * 0.05, -6.0)
+    if d < BEACH:
+        return SEA + d * 0.04
+    t = min(1.0, (d - BEACH) / SLOPE_W)
     t = t * t * (3 - 2 * t)
-    return SEA + 15 * 0.045 + t * (GROUND - (SEA + 15 * 0.045))   # pie de duna hasta la casa
+    top = SEA + BEACH * 0.04
+    return top + t * (GROUND - top)
 
 
 def terrain_h(x, y):
     h = terrain_base(x, y)
-    d = y - shore_y(x)
-    # dunas: crecen tierra adentro y se aplanan junto a la casa y a la pasarela
-    amp = min(1.0, max(0.0, (d - 17) / 10.0)) * (0.8 + min(1.0, max(0.0, (y - 14) / 25.0)) * 2.6)
-    flat = min(1.0, max(0.0, (house_dist(x, y) - 1.0) / 7.0))
-    if 0 < x < 1.8 and y < 0:
-        flat = min(flat, 0.3)
-    dn = noise.noise(Vector((x / 14.0, y / 11.0, 0.3))) + 0.4 * noise.noise(Vector((x / 5.0, y / 4.0, 1.7)))
-    h += amp * flat * (0.5 + 0.6 * dn)
-    # cerros costeros al fondo
-    if y > 160:
-        r = min(1.0, (y - 160) / 260.0)
+    d = shore_d(x, y)
+    # dunas suaves en la meseta y en la ladera; se aplanan junto a la casa
+    amp = min(1.0, max(0.0, (d - BEACH - 3) / 12.0)) * (0.9 + min(1.0, max(0.0, (d - 60) / 60.0)) * 1.8)
+    flat = min(1.0, max(0.0, (house_dist(x, y) - 1.0) / 8.0))
+    dn = noise.noise(Vector((x / 16.0, y / 12.0, 0.3))) + 0.4 * noise.noise(Vector((x / 5.0, y / 4.0, 1.7)))
+    h += amp * flat * (0.4 + 0.7 * dn)
+    # cerros costeros al fondo, tierra adentro
+    if y > 280:
+        r = min(1.0, (y - 280) / 300.0)
         hn = 0.5 + 0.5 * noise.noise(Vector((x / 180.0, y / 140.0, 3.1)))
-        h += r * r * (25 + 75 * hn)
+        h += r * r * (30 + 90 * hn)
     return h + 0.02 * noise.noise(Vector((x * 1.3, y * 1.3, 9.0)))
 
 
@@ -523,7 +538,7 @@ def grid(name, x0, x1, y0, y1, step, mat, coll=None, skip=None):
 def build_landscape(M):
     coll = bpy.data.collections.new("Paisaje")
     bpy.context.scene.collection.children.link(coll)
-    near = (-80, 100, -75, 70)
+    near = (-90, 110, -70, 90)
     sand = grid("Playa", *near, 0.75, M["arena"], coll)
     # lejos: playa y dunas hacia los costados + cerros (sin el hueco del terreno cercano)
     inside = lambda x, y: near[0] < x < near[1] and near[2] < y < near[3]  # noqa: E731
@@ -531,14 +546,14 @@ def build_landscape(M):
     far.data.materials.append(M["matorral"])
     far.data.materials.append(M["cerros"])
     for p in far.data.polygons:
-        if p.center.y > 165:
+        if p.center.y > 290:
             p.material_index = 2
-        elif p.center.y - shore_y(p.center.x) > 26:
+        elif shore_d(p.center.x, p.center.y) > BEACH + 4:
             p.material_index = 1
     fondo = principled("FondoMar", (0.008, 0.04, 0.05), 0.9)
-    mesh_obj("FondoMar", [(-3000, -3000, SEA - 6), (3000, -3000, SEA - 6), (3000, -290, SEA - 6), (-3000, -290, SEA - 6)],
+    mesh_obj("FondoMar", [(-3000, -3000, SEA - 6.5), (3000, -3000, SEA - 6.5), (3000, 3000, SEA - 6.5), (-3000, 3000, SEA - 6.5)],
              [(0, 1, 2, 3)], fondo, coll)
-    mesh_obj("Mar", [(-3000, -3000, SEA), (3000, -3000, SEA), (3000, 60, SEA), (-3000, 60, SEA)],
+    mesh_obj("Mar", [(-3000, -3000, SEA), (3000, -3000, SEA), (3000, 3000, SEA), (-3000, 3000, SEA)],
              [(0, 1, 2, 3)], M["mar"], coll)
     return sand
 
@@ -576,11 +591,13 @@ def build_vegetation(sand, bq, shrubs):
     veg = []
     for v in me.vertices:
         x, y = v.co.x, v.co.y
-        d = y - shore_y(x)
-        w = min(1.0, max(0.0, (d - 15.5) / 4.0))
+        d = shore_d(x, y)
+        w = min(1.0, max(0.0, (d - BEACH - 1.5) / 5.0))
         w *= min(1.0, max(0.0, (house_dist(x, y) - 0.2) / 1.5))
-        if -0.3 < x < 2.1 and -13.5 < y < 0.5:
-            w = 0.0                                       # pasarela
+        # sendero de arena desde la escalera de la terraza hasta la playa
+        px = 1.0 + 3.0 * math.sin(y / 9.0)
+        if y < 0.5:
+            w *= min(1.0, max(0.0, (abs(x - px) - 0.5) / 1.2))
         w *= min(1.0, max(0.0, 0.55 + 1.3 * noise.noise(Vector((x / 7.0, y / 7.0, 2.2)))
                           + 0.4 * noise.noise(Vector((x / 2.5, y / 2.5, 4.1)))))
         veg.append(max(0.0, min(1.0, w)))
@@ -726,8 +743,8 @@ def setup_render():
 # tomas fijas de dron desde el mar, a cada lado del frente (más abiertas que en Lingue, para
 # poder reencuadrar y desenfocar en la edición)
 VISTAS = {
-    "izq": ((-19.0, -44.0, 11.0), (6.6, 1.0, 0.0), 30),
-    "der": ((31.5, -44.0, 11.0), (5.6, 1.0, 0.0), 30),
+    "izq": ((-30.0, -26.0, 17.0), (6.6, 3.0, 0.5), 30),
+    "der": ((42.0, -26.0, 17.0), (5.6, 3.0, 0.5), 30),
 }
 
 
@@ -748,7 +765,6 @@ def main():
     M = materials()
     load_house(M)
     sand = build_landscape(M)
-    build_boardwalk(M)
     bq, shrubs = load_assets(M)
     build_vegetation(sand, bq, shrubs)
     build_world()
