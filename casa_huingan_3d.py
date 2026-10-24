@@ -367,16 +367,18 @@ def water_mat():
     # borde: una línea fina de espuma donde el agua toca la arena, y detrás encaje que se abre
     edge = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.25, 0.7)), white)
     edge = N.math("MULTIPLY", edge, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.3)), 0.35, 0.5))
-    lace_s = N.math("SUBTRACT", 1.0, N.smooth(vor.outputs["Distance"], 0.0, 0.06))
-    behind = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.6, 4.0)), N.math("MULTIPLY", lace_s, 0.8))
+    ms = n.new("ShaderNodeMapping")
+    ms.inputs["Scale"].default_value = (0.15, 1.0, 1.0)
+    l.new(tc.outputs["Object"], ms.inputs["Vector"])
+    streak = N.smooth(N.noise(ms.outputs["Vector"], 2.5, 10, 0.7, 0.5), 0.55, 0.72)   # vetas de espuma
+    behind = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.5, 4.5)), N.math("MULTIPLY", streak, 0.75))
     surf = N.math("MAXIMUM", edge, N.math("MULTIPLY", behind, white))
     lines = 0
     for c, wdt in ((7.0, 0.4), (15.0, 0.55)):
         band = N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", d, c)), 0.0, wdt))
         lines = band if lines == 0 else N.math("MAXIMUM", lines, band)
-    lines = N.math("MULTIPLY", lines, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.5)), 0.62, 0.8))
-    trail = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 2.0, 12.0)), N.math("MULTIPLY", lace, 0.35))
-    foam = N.math("MAXIMUM", N.math("MAXIMUM", surf, lines), N.math("MULTIPLY", trail, white))
+    lines = N.math("MULTIPLY", lines, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.5)), 0.66, 0.84))
+    foam = N.math("MAXIMUM", surf, lines)
     foam = N.math("MINIMUM", foam, 1.0)
     fb = n.new("ShaderNodeBsdfPrincipled")
     fb.inputs["Base Color"].default_value = (0.85, 0.87, 0.86, 1)
