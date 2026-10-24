@@ -310,7 +310,7 @@ def water_mat():
     tr = n.new("ShaderNodeBsdfTransparent")
     tr.inputs["Color"].default_value = (0.86, 0.92, 0.9, 1)
     gl = n.new("ShaderNodeBsdfGlossy")
-    gl.inputs["Roughness"].default_value = 0.05
+    gl.inputs["Roughness"].default_value = 0.08
     fr = n.new("ShaderNodeFresnel")
     fr.inputs["IOR"].default_value = 1.333
     wat = n.new("ShaderNodeMixShader")
@@ -323,31 +323,56 @@ def water_mat():
     l.new(fac, wat.inputs["Fac"])
     l.new(tr.outputs[0], wat.inputs[1])
     l.new(gl.outputs[0], wat.inputs[2])
-    # olas: paralelas a la orilla, con ruido
-    mp = n.new("ShaderNodeMapping")
-    mp.inputs["Scale"].default_value = (0.35, 1.0, 1.0)
-    l.new(tc.outputs["Object"], mp.inputs["Vector"])
-    w1 = N.noise(mp.outputs["Vector"], 0.35, 7, 0.6)
-    w2 = N.noise(tc.outputs["Object"], 1.6, 5, 0.55)
-    bmp = n.new("ShaderNodeBump")
-    bmp.inputs["Strength"].default_value = 0.45
-    bmp.inputs["Distance"].default_value = 0.5
-    l.new(N.math("ADD", w1, N.math("MULTIPLY", w2, 0.3)), bmp.inputs["Height"])
-    l.new(bmp.outputs["Normal"], gl.inputs["Normal"])
-    # espuma: borde de la orilla + dos líneas de rompiente, rotas por ruido
+    # olas en tres escalas: marejada larga paralela a la orilla, olas medianas y rizos finos
+    def bump_layer(scale, stretch, strength, dist, normal=None, detail=6):
+        mp = n.new("ShaderNodeMapping")
+        mp.inputs["Scale"].default_value = stretch
+        l.new(tc.outputs["Object"], mp.inputs["Vector"])
+        bp = n.new("ShaderNodeBump")
+        bp.inputs["Strength"].default_value = strength
+        bp.inputs["Distance"].default_value = dist
+        l.new(N.noise(mp.outputs["Vector"], scale, detail, 0.55, 0.3), bp.inputs["Height"])
+        if normal is not None:
+            l.new(normal, bp.inputs["Normal"])
+        return bp.outputs["Normal"]
+
+    nrm = bump_layer(0.05, (0.2, 1.0, 1.0), 0.5, 1.2)           # marejada
+    nrm = bump_layer(0.35, (0.5, 1.0, 1.0), 0.35, 0.35, nrm)    # olas
+    nrm = bump_layer(3.0, (1.0, 1.0, 1.0), 0.15, 0.04, nrm, 4)  # rizos
+    l.new(nrm, gl.inputs["Normal"])
+    # espuma: rompiente junto a la orilla (agua blanca con encaje), dos líneas de ola rompiendo
+    # más afuera, cortadas y desflecadas, y restos de espuma en encaje sobre el agua baja
     mf = n.new("ShaderNodeMapping")
-    mf.inputs["Scale"].default_value = (0.12, 1.0, 1.0)
+    mf.inputs["Scale"].default_value = (0.08, 1.0, 1.0)
     l.new(tc.outputs["Object"], mf.inputs["Vector"])
-    brk = N.noise(mf.outputs["Vector"], 1.2, 6, 0.65, 0.8)
-    lace = N.noise(tc.outputs["Object"], 3.0, 8, 0.7, 2.0)
-    edge = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.3, 0.9)), N.smooth(d, 0.0, 0.25))
+    brk = N.noise(mf.outputs["Vector"], 1.0, 6, 0.65, 0.6)
+    vor = n.new("ShaderNodeTexVoronoi")
+    vor.feature = "DISTANCE_TO_EDGE"
+    vor.inputs["Scale"].default_value = 1.6
+    vor.inputs["Randomness"].default_value = 1.0
+    mv = n.new("ShaderNodeMapping")
+    mv.inputs["Scale"].default_value = (0.6, 1.0, 1.0)
+    l.new(tc.outputs["Object"], mv.inputs["Vector"])
+    warp = N.noise(tc.outputs["Object"], 0.8, 3, 0.5, 1.5)
+    wv = N.math("ADD", N.math("MULTIPLY", warp, 1.5), 0.0)
+    vec = n.new("ShaderNodeVectorMath")
+    vec.operation = "ADD"
+    l.new(mv.outputs["Vector"], vec.inputs[0])
+    l.new(wv, vec.inputs[1])
+    l.new(vec.outputs[0], vor.inputs["Vector"])
+    lace = N.math("SUBTRACT", 1.0, N.smooth(vor.outputs["Distance"], 0.0, 0.09))   # bordes de celda
+    grain = N.noise(tc.outputs["Object"], 6.0, 6, 0.7)
+    white = N.smooth(N.math("SUBTRACT", d, 0.0), 0.0, 0.6)                          # nace en la orilla
+    surf = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 2.0, 6.0)), white)
+    surf = N.math("MULTIPLY", surf, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.3)), 0.45, 0.62))
     lines = 0
-    for c, wdt in ((6.0, 0.7), (14.0, 1.0), (24.0, 1.2)):
+    for c, wdt in ((8.0, 0.9), (17.0, 1.2)):
         band = N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", d, c)), 0.0, wdt))
         lines = band if lines == 0 else N.math("MAXIMUM", lines, band)
-    foam = N.math("MAXIMUM", N.math("MULTIPLY", edge, N.smooth(brk, 0.4, 0.55)),
-                  N.math("MULTIPLY", lines, N.smooth(brk, 0.48, 0.62)))
-    foam = N.math("MULTIPLY", foam, N.smooth(lace, 0.35, 0.6))
+    lines = N.math("MULTIPLY", lines, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.35)), 0.55, 0.7))
+    trail = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 4.0, 22.0)), N.math("MULTIPLY", lace, 0.55))
+    foam = N.math("MAXIMUM", N.math("MAXIMUM", surf, lines), N.math("MULTIPLY", trail, white))
+    foam = N.math("MINIMUM", foam, 1.0)
     fb = n.new("ShaderNodeBsdfPrincipled")
     fb.inputs["Base Color"].default_value = (0.85, 0.87, 0.86, 1)
     fb.inputs["Roughness"].default_value = 0.8
@@ -1151,6 +1176,9 @@ def setup_render():
 VISTAS = {
     "izq": ((-22.0, -60.0, 17.0), (5.0, -8.0, -1.5), 30),
     "der": ((34.0, -60.0, 17.0), (7.0, -8.0, -1.5), 30),
+    # opuestas: desde atrás (acceso y camino), mirando hacia el mar
+    "izq_atras": ((36.0, 58.0, 16.0), (4.0, -6.0, -2.0), 30),
+    "der_atras": ((-24.0, 58.0, 16.0), (8.0, -6.0, -2.0), 30),
 }
 
 
