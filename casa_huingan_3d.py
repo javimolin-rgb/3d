@@ -40,8 +40,8 @@ WB_TEMP = float(opts["wb"])
 L, D = 12.18, 9.24           # ancho y fondo total del casco (terraza + caja + porch)
 HC = Vector((L / 2, 4.6))    # centro de la casa en planta
 GROUND = -0.31               # terreno bajo la casa
-SEA = -7.0                   # nivel del mar (la casa está en una meseta de duna sobre la playa)
-SHORE_Y = -45.0              # orilla frente a la casa: la punta de la península
+SEA = -5.0                   # nivel del mar (la casa está en una meseta de duna sobre la playa)
+SHORE_Y = -33.0              # orilla frente a la casa: la punta de la península
 SHORE_K = 420.0              # la orilla se abre hacia +Y a ambos lados: y = SHORE_Y + (x - XC)² / K
 XC = 6.0
 FPS = 24
@@ -257,12 +257,18 @@ def sand_mat():
                   N.smooth(N.noise(tc.outputs["Object"], 1.3, 3), 0.55, 0.62))
     col = N.mix(N.math("MULTIPLY", tide, 0.7), col, (0.12, 0.1, 0.07))
     depth = N.math("MULTIPLY", d, -1.0)
-    col = N.mix(N.smooth(depth, 0.0, 7.0), col, (0.14, 0.24, 0.19))
-    col = N.mix(N.smooth(depth, 5.0, 45.0), col, (0.015, 0.07, 0.075))
+    col = N.mix(N.smooth(depth, 0.0, 4.0), col, (0.12, 0.22, 0.18))
+    col = N.mix(N.smooth(depth, 3.0, 28.0), col, (0.012, 0.055, 0.065))
     at = n.new("ShaderNodeAttribute")
     at.attribute_name = "veg"
     soil = N.mix(N.smooth(N.noise(tc.outputs["Object"], 2.0, 5), 0.35, 0.6), (0.2, 0.17, 0.11), (0.1, 0.11, 0.06))
     col = N.mix(N.math("MULTIPLY", at.outputs["Fac"], 0.75), col, soil)
+    # sendero: arena pisada, algo más oscura y con huellas
+    cm = n.new("ShaderNodeAttribute")
+    cm.attribute_name = "camino"
+    steps = N.smooth(N.noise(tc.outputs["Object"], 5.0, 3), 0.5, 0.7)
+    col = N.mix(N.math("MULTIPLY", cm.outputs["Fac"], N.math("ADD", 0.6, N.math("MULTIPLY", steps, 0.3))), col,
+                (0.2, 0.16, 0.11))
     l.new(col, b.inputs["Base Color"])
     l.new(N.math("ADD", 0.9, N.math("MULTIPLY", wet_f, -0.6)), b.inputs["Roughness"])
     # ondas de viento: bandas distorsionadas sólo en arena seca
@@ -308,7 +314,13 @@ def water_mat():
     fr = n.new("ShaderNodeFresnel")
     fr.inputs["IOR"].default_value = 1.333
     wat = n.new("ShaderNodeMixShader")
-    l.new(fr.outputs["Fac"], wat.inputs["Fac"])
+    # el reflejo sólo por arriba y nunca para las sombras: visto desde el fondo, el Fresnel daría
+    # reflexión total y la arena sumergida quedaría a oscuras
+    geo = n.new("ShaderNodeNewGeometry")
+    lpw = n.new("ShaderNodeLightPath")
+    fac = N.math("MULTIPLY", fr.outputs["Fac"], N.math("SUBTRACT", 1.0, geo.outputs["Backfacing"]))
+    fac = N.math("MULTIPLY", fac, N.math("SUBTRACT", 1.0, lpw.outputs["Is Shadow Ray"]))
+    l.new(fac, wat.inputs["Fac"])
     l.new(tr.outputs[0], wat.inputs[1])
     l.new(gl.outputs[0], wat.inputs[2])
     # olas: paralelas a la orilla, con ruido
@@ -318,11 +330,10 @@ def water_mat():
     w1 = N.noise(mp.outputs["Vector"], 0.35, 7, 0.6)
     w2 = N.noise(tc.outputs["Object"], 1.6, 5, 0.55)
     bmp = n.new("ShaderNodeBump")
-    bmp.inputs["Strength"].default_value = 0.6
-    bmp.inputs["Distance"].default_value = 0.6
+    bmp.inputs["Strength"].default_value = 0.45
+    bmp.inputs["Distance"].default_value = 0.5
     l.new(N.math("ADD", w1, N.math("MULTIPLY", w2, 0.3)), bmp.inputs["Height"])
     l.new(bmp.outputs["Normal"], gl.inputs["Normal"])
-    l.new(bmp.outputs["Normal"], fr.inputs["Normal"])
     # espuma: borde de la orilla + dos líneas de rompiente, rotas por ruido
     mf = n.new("ShaderNodeMapping")
     mf.inputs["Scale"].default_value = (0.12, 1.0, 1.0)
@@ -331,11 +342,11 @@ def water_mat():
     lace = N.noise(tc.outputs["Object"], 3.0, 8, 0.7, 2.0)
     edge = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.3, 0.9)), N.smooth(d, 0.0, 0.25))
     lines = 0
-    for c, wdt in ((7.0, 0.9), (15.0, 1.3), (26.0, 1.6)):
+    for c, wdt in ((6.0, 0.7), (14.0, 1.0), (24.0, 1.2)):
         band = N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", d, c)), 0.0, wdt))
         lines = band if lines == 0 else N.math("MAXIMUM", lines, band)
     foam = N.math("MAXIMUM", N.math("MULTIPLY", edge, N.smooth(brk, 0.4, 0.55)),
-                  N.math("MULTIPLY", lines, N.smooth(brk, 0.45, 0.6)))
+                  N.math("MULTIPLY", lines, N.smooth(brk, 0.48, 0.62)))
     foam = N.math("MULTIPLY", foam, N.smooth(lace, 0.35, 0.6))
     fb = n.new("ShaderNodeBsdfPrincipled")
     fb.inputs["Base Color"].default_value = (0.85, 0.87, 0.86, 1)
@@ -489,8 +500,8 @@ def house_dist(x, y):
     return math.hypot(dx, dy)
 
 
-BEACH = 14.0     # ancho de la playa (m)
-SLOPE_W = 26.0   # ancho de la ladera de la duna que sube desde la playa hasta la meseta
+BEACH = 13.0     # ancho de la playa (m)
+SLOPE_W = 16.0   # ancho de la ladera de la duna que sube desde la playa hasta la meseta
 
 
 def terrain_base(x, y):
@@ -506,14 +517,30 @@ def terrain_base(x, y):
     return top + t * (GROUND - top)
 
 
+def path_x(y):
+    """Eje del sendero (x) que baja serpenteando desde la escalera de la terraza a la playa."""
+    return 1.0 + 3.0 * math.sin(y / 9.0) - 0.04 * min(0.0, y) * math.sin(y / 23.0)
+
+
+def path_dist(x, y):
+    """Distancia (m) al eje del sendero; lejos en la meseta detrás de la escalera."""
+    if y > -0.6:
+        return math.hypot(x - path_x(-0.6), y + 0.6)
+    return abs(x - path_x(y))
+
+
 def terrain_h(x, y):
     h = terrain_base(x, y)
     d = shore_d(x, y)
+    pd = path_dist(x, y)
     # dunas suaves en la meseta y en la ladera; se aplanan junto a la casa
     amp = min(1.0, max(0.0, (d - BEACH - 3) / 12.0)) * (0.9 + min(1.0, max(0.0, (d - 60) / 60.0)) * 1.8)
     flat = min(1.0, max(0.0, (house_dist(x, y) - 1.0) / 8.0))
     dn = noise.noise(Vector((x / 16.0, y / 12.0, 0.3))) + 0.4 * noise.noise(Vector((x / 5.0, y / 4.0, 1.7)))
+    flat = min(flat, 0.3 + 0.7 * min(1.0, max(0.0, (pd - 1.0) / 4.0)))   # el sendero corta la duna
     h += amp * flat * (0.4 + 0.7 * dn)
+    if d > BEACH:                                           # huella levemente hundida
+        h -= 0.07 * max(0.0, 1.0 - pd / 1.1)
     # cerros costeros al fondo, tierra adentro
     if y > 280:
         r = min(1.0, (y - 280) / 300.0)
@@ -541,7 +568,7 @@ def build_landscape(M):
     coll = bpy.data.collections.new("Paisaje")
     bpy.context.scene.collection.children.link(coll)
     near = (-90, 110, -70, 90)
-    sand = grid("Playa", *near, 0.75, M["arena"], coll)
+    sand = grid("Playa", *near, 0.5, M["arena"], coll)
     # lejos: playa y dunas hacia los costados + cerros (sin el hueco del terreno cercano)
     inside = lambda x, y: near[0] < x < near[1] and near[2] < y < near[3]  # noqa: E731
     far = grid("Lejos", -2100, 2100, -600, 2700, 15.0, M["arena"], coll, skip=inside)
@@ -557,6 +584,9 @@ def build_landscape(M):
              [(0, 1, 2, 3)], fondo, coll)
     mesh_obj("Mar", [(-40000, -40000, SEA), (40000, -40000, SEA), (40000, 40000, SEA), (-40000, 40000, SEA)],
              [(0, 1, 2, 3)], M["mar"], coll)
+    mar = bpy.data.objects["Mar"]
+    if mar.data.polygons[0].normal.z < 0:   # normal hacia arriba: si no, el Fresnel ve el agua desde abajo
+        mar.data.flip_normals()
     return sand
 
 
@@ -638,21 +668,23 @@ def build_vegetation(sand, bq, ph):
     """Pastos de duna y arbustos con nodos de geometría sobre el terreno cercano, según un
     atributo 'veg' (0 en la playa, la pasarela y bajo la casa; 1 en la duna)."""
     me = sand.data
-    veg = []
+    veg, cam = [], []
     for v in me.vertices:
         x, y = v.co.x, v.co.y
         d = shore_d(x, y)
         w = min(1.0, max(0.0, (d - BEACH - 1.5) / 5.0))
         w *= min(1.0, max(0.0, (house_dist(x, y) - 0.2) / 1.5))
         # sendero de arena desde la escalera de la terraza hasta la playa
-        px = 1.0 + 3.0 * math.sin(y / 9.0)
-        if y < 0.5:
-            w *= min(1.0, max(0.0, (abs(x - px) - 0.5) / 1.2))
+        pd = path_dist(x, y)
+        w *= min(1.0, max(0.0, (pd - 0.9) / 1.3))
+        cam.append(min(1.0, max(0.0, 1.4 - pd / 0.9)) if d > BEACH - 3 else 0.0)
         w *= min(1.0, max(0.0, 0.55 + 1.3 * noise.noise(Vector((x / 7.0, y / 7.0, 2.2)))
                           + 0.4 * noise.noise(Vector((x / 2.5, y / 2.5, 4.1)))))
         veg.append(max(0.0, min(1.0, w)))
     at = me.attributes.new("veg", "FLOAT", "POINT")
     at.data.foreach_set("value", veg)
+    at = me.attributes.new("camino", "FLOAT", "POINT")
+    at.data.foreach_set("value", cam)
     ng = bpy.data.node_groups.new("Duna", "GeometryNodeTree")
     ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
     ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
@@ -777,7 +809,11 @@ def build_world():
     lp = n.new("ShaderNodeLightPath")
     pick = n.new("ShaderNodeMix")
     pick.data_type = "RGBA"
-    l.new(lp.outputs["Is Camera Ray"], pick.inputs[0])
+    seen = n.new("ShaderNodeMath")          # cámara o reflejos (mar, vidrios) ven el cielo limpio
+    seen.operation = "MAXIMUM"
+    l.new(lp.outputs["Is Camera Ray"], seen.inputs[0])
+    l.new(lp.outputs["Is Glossy Ray"], seen.inputs[1])
+    l.new(seen.outputs[0], pick.inputs[0])
     l.new(env.outputs["Color"], pick.inputs[6])
     l.new(cam_sky.outputs[2], pick.inputs[7])
     l.new(pick.outputs[2], bg.inputs[0])
@@ -843,8 +879,8 @@ def setup_render():
 # tomas fijas de dron desde el mar, a cada lado del frente (más abiertas que en Lingue, para
 # poder reencuadrar y desenfocar en la edición)
 VISTAS = {
-    "izq": ((-30.0, -26.0, 17.0), (6.6, 3.0, 0.5), 30),
-    "der": ((42.0, -26.0, 17.0), (5.6, 3.0, 0.5), 30),
+    "izq": ((-22.0, -60.0, 17.0), (5.0, -8.0, -1.5), 30),
+    "der": ((34.0, -60.0, 17.0), (7.0, -8.0, -1.5), 30),
 }
 
 
