@@ -360,17 +360,22 @@ def water_mat():
     l.new(mv.outputs["Vector"], vec.inputs[0])
     l.new(wv, vec.inputs[1])
     l.new(vec.outputs[0], vor.inputs["Vector"])
-    lace = N.math("SUBTRACT", 1.0, N.smooth(vor.outputs["Distance"], 0.0, 0.09))   # bordes de celda
+    lace = N.math("SUBTRACT", 1.0, N.smooth(vor.outputs["Distance"], 0.0, 0.035))  # bordes de celda
+    lace = N.math("MULTIPLY", lace, N.smooth(N.noise(tc.outputs["Object"], 0.25, 4), 0.5, 0.65))  # sólo en manchones
     grain = N.noise(tc.outputs["Object"], 6.0, 6, 0.7)
     white = N.smooth(N.math("SUBTRACT", d, 0.0), 0.0, 0.6)                          # nace en la orilla
-    surf = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 2.0, 6.0)), white)
-    surf = N.math("MULTIPLY", surf, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.3)), 0.45, 0.62))
+    # borde: una línea fina de espuma donde el agua toca la arena, y detrás encaje que se abre
+    edge = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.25, 0.7)), white)
+    edge = N.math("MULTIPLY", edge, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.3)), 0.35, 0.5))
+    lace_s = N.math("SUBTRACT", 1.0, N.smooth(vor.outputs["Distance"], 0.0, 0.06))
+    behind = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.6, 4.0)), N.math("MULTIPLY", lace_s, 0.8))
+    surf = N.math("MAXIMUM", edge, N.math("MULTIPLY", behind, white))
     lines = 0
-    for c, wdt in ((8.0, 0.9), (17.0, 1.2)):
+    for c, wdt in ((7.0, 0.4), (15.0, 0.55)):
         band = N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", d, c)), 0.0, wdt))
         lines = band if lines == 0 else N.math("MAXIMUM", lines, band)
-    lines = N.math("MULTIPLY", lines, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.35)), 0.55, 0.7))
-    trail = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 4.0, 22.0)), N.math("MULTIPLY", lace, 0.55))
+    lines = N.math("MULTIPLY", lines, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.5)), 0.62, 0.8))
+    trail = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 2.0, 12.0)), N.math("MULTIPLY", lace, 0.35))
     foam = N.math("MAXIMUM", N.math("MAXIMUM", surf, lines), N.math("MULTIPLY", trail, white))
     foam = N.math("MINIMUM", foam, 1.0)
     fb = n.new("ShaderNodeBsdfPrincipled")
