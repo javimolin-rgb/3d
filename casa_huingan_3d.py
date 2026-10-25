@@ -250,10 +250,10 @@ def sand_mat():
     dry = N.mix(N.math("MULTIPLY_ADD", big, 1.6, -0.3), (0.33, 0.27, 0.19), (0.45, 0.37, 0.26))
     dry = N.mix(N.math("MULTIPLY", mid, 0.35), dry, (0.27, 0.22, 0.15))
     wet = (0.22, 0.19, 0.14)
-    wet_f = N.math("SUBTRACT", 1.0, N.smooth(d, 0.6, 4.5))
+    wet_f = N.math("SUBTRACT", 1.0, N.smooth(d, 2.5, 6.5))
     col = N.mix(wet_f, dry, wet)
     # línea de marea: restos oscuros discontinuos
-    tide = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", d, 5.5)), 0.0, 0.6)),
+    tide = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", d, 7.5)), 0.0, 0.6)),
                   N.smooth(N.noise(tc.outputs["Object"], 1.3, 3), 0.55, 0.62))
     col = N.mix(N.math("MULTIPLY", tide, 0.7), col, (0.12, 0.1, 0.07))
     depth = N.math("MULTIPLY", d, -1.0)
@@ -300,9 +300,9 @@ def water_mat():
     N = Nodos(n, l)
     b = n["Principled BSDF"]
     out = n["Material Output"]
-    tc = n.new("ShaderNodeTexCoord")
+    tc = n.new("ShaderNodeNewGeometry")   # posición de mundo: sirve igual para el oleaje y el plano lejano
     sep = n.new("ShaderNodeSeparateXYZ")
-    l.new(tc.outputs["Object"], sep.inputs[0])
+    l.new(tc.outputs["Position"], sep.inputs[0])
     d = N.math("MULTIPLY", shore_d_nodes(N, sep), -1.0)  # distancia mar adentro (m)
     # superficie: transparente (deja pasar el sol, así el fondo de arena se ilumina sin cáusticas)
     # + reflejo del cielo según Fresnel; el color del agua lo da el fondo (sand_mat)
@@ -310,7 +310,7 @@ def water_mat():
     tr = n.new("ShaderNodeBsdfTransparent")
     tr.inputs["Color"].default_value = (0.86, 0.92, 0.9, 1)
     gl = n.new("ShaderNodeBsdfGlossy")
-    gl.inputs["Roughness"].default_value = 0.08
+    gl.inputs["Roughness"].default_value = 0.04
     fr = n.new("ShaderNodeFresnel")
     fr.inputs["IOR"].default_value = 1.333
     wat = n.new("ShaderNodeMixShader")
@@ -327,7 +327,7 @@ def water_mat():
     def bump_layer(scale, stretch, strength, dist, normal=None, detail=6):
         mp = n.new("ShaderNodeMapping")
         mp.inputs["Scale"].default_value = stretch
-        l.new(tc.outputs["Object"], mp.inputs["Vector"])
+        l.new(tc.outputs["Position"], mp.inputs["Vector"])
         bp = n.new("ShaderNodeBump")
         bp.inputs["Strength"].default_value = strength
         bp.inputs["Distance"].default_value = dist
@@ -336,49 +336,38 @@ def water_mat():
             l.new(normal, bp.inputs["Normal"])
         return bp.outputs["Normal"]
 
-    nrm = bump_layer(0.05, (0.2, 1.0, 1.0), 0.5, 1.2)           # marejada
-    nrm = bump_layer(0.35, (0.5, 1.0, 1.0), 0.35, 0.35, nrm)    # olas
+    nrm = bump_layer(0.05, (0.2, 1.0, 1.0), 0.25, 1.2)          # marejada (lejos, donde no hay oleaje)
+    nrm = bump_layer(0.35, (0.5, 1.0, 1.0), 0.3, 0.35, nrm)     # olas
     nrm = bump_layer(3.0, (1.0, 1.0, 1.0), 0.15, 0.04, nrm, 4)  # rizos
     l.new(nrm, gl.inputs["Normal"])
     # espuma: rompiente junto a la orilla (agua blanca con encaje), dos líneas de ola rompiendo
     # más afuera, cortadas y desflecadas, y restos de espuma en encaje sobre el agua baja
     mf = n.new("ShaderNodeMapping")
     mf.inputs["Scale"].default_value = (0.08, 1.0, 1.0)
-    l.new(tc.outputs["Object"], mf.inputs["Vector"])
+    l.new(tc.outputs["Position"], mf.inputs["Vector"])
     brk = N.noise(mf.outputs["Vector"], 1.0, 6, 0.65, 0.6)
-    vor = n.new("ShaderNodeTexVoronoi")
-    vor.feature = "DISTANCE_TO_EDGE"
-    vor.inputs["Scale"].default_value = 1.6
-    vor.inputs["Randomness"].default_value = 1.0
-    mv = n.new("ShaderNodeMapping")
-    mv.inputs["Scale"].default_value = (0.6, 1.0, 1.0)
-    l.new(tc.outputs["Object"], mv.inputs["Vector"])
-    warp = N.noise(tc.outputs["Object"], 0.8, 3, 0.5, 1.5)
-    wv = N.math("ADD", N.math("MULTIPLY", warp, 1.5), 0.0)
-    vec = n.new("ShaderNodeVectorMath")
-    vec.operation = "ADD"
-    l.new(mv.outputs["Vector"], vec.inputs[0])
-    l.new(wv, vec.inputs[1])
-    l.new(vec.outputs[0], vor.inputs["Vector"])
-    lace = N.math("SUBTRACT", 1.0, N.smooth(vor.outputs["Distance"], 0.0, 0.035))  # bordes de celda
-    lace = N.math("MULTIPLY", lace, N.smooth(N.noise(tc.outputs["Object"], 0.25, 4), 0.5, 0.65))  # sólo en manchones
-    grain = N.noise(tc.outputs["Object"], 6.0, 6, 0.7)
-    white = N.smooth(N.math("SUBTRACT", d, 0.0), 0.0, 0.6)                          # nace en la orilla
-    # borde: una línea fina de espuma donde el agua toca la arena, y detrás encaje que se abre
-    edge = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.25, 0.7)), white)
-    edge = N.math("MULTIPLY", edge, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.3)), 0.35, 0.5))
+    grain = N.noise(tc.outputs["Position"], 6.0, 6, 0.7)
+    # profundidad del agua bajo cada punto de la superficie (con la ola): el fondo baja ~4,5 cm
+    # por metro mar adentro, y la superficie sube y baja con el oleaje
+    zrel = N.math("SUBTRACT", sep.outputs["Z"], SEA)
+    depth = N.math("ADD", zrel, N.math("MULTIPLY", d, FORE))
     ms = n.new("ShaderNodeMapping")
     ms.inputs["Scale"].default_value = (0.15, 1.0, 1.0)
-    l.new(tc.outputs["Object"], ms.inputs["Vector"])
-    streak = N.smooth(N.noise(ms.outputs["Vector"], 2.5, 10, 0.7, 0.5), 0.55, 0.72)   # vetas de espuma
-    behind = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 0.5, 4.5)), N.math("MULTIPLY", streak, 0.75))
-    surf = N.math("MAXIMUM", edge, N.math("MULTIPLY", behind, white))
-    lines = 0
-    for c, wdt in ((7.0, 0.4), (15.0, 0.55)):
-        band = N.math("SUBTRACT", 1.0, N.smooth(N.math("ABSOLUTE", N.math("SUBTRACT", d, c)), 0.0, wdt))
-        lines = band if lines == 0 else N.math("MAXIMUM", lines, band)
-    lines = N.math("MULTIPLY", lines, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.5)), 0.66, 0.84))
-    foam = N.math("MAXIMUM", surf, lines)
+    l.new(tc.outputs["Position"], ms.inputs["Vector"])
+    streak = N.smooth(N.noise(ms.outputs["Vector"], 2.5, 10, 0.7, 0.5), 0.5, 0.7)    # vetas de espuma
+    # 1) línea fina donde el agua toca la arena
+    edge = N.math("SUBTRACT", 1.0, N.smooth(depth, 0.01, 0.07))
+    edge = N.math("MULTIPLY", edge, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.5)), 0.4, 0.6))
+    # 2) agua blanca donde la ola rompe: cresta (sobre el nivel medio) en agua baja
+    brkz = N.math("MULTIPLY", N.smooth(zrel, 0.05, 0.3), N.math("SUBTRACT", 1.0, N.smooth(depth, 0.5, 1.3)))
+    brkz = N.math("MULTIPLY", brkz, N.smooth(N.math("ADD", streak, N.math("MULTIPLY", grain, 0.4)), 0.35, 0.6))
+    # 3) espuma que queda en vetas sobre el agua muy baja, detrás de la ola
+    swash = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(depth, 0.05, 0.35)), N.math("MULTIPLY", streak, 0.4))
+    surf = N.math("MAXIMUM", N.math("MAXIMUM", edge, brkz), swash)
+    caps = n.new("ShaderNodeAttribute")
+    caps.attribute_name = "espuma"
+    whitecap = N.math("MULTIPLY", N.smooth(caps.outputs["Fac"], 0.55, 0.95), N.smooth(grain, 0.4, 0.65))
+    foam = N.math("MAXIMUM", surf, N.math("MULTIPLY", whitecap, 0.6))
     foam = N.math("MINIMUM", foam, 1.0)
     fb = n.new("ShaderNodeBsdfPrincipled")
     fb.inputs["Base Color"].default_value = (0.85, 0.87, 0.86, 1)
@@ -540,6 +529,7 @@ def house_dist(x, y):
     return math.hypot(dx, dy)
 
 
+FORE = 0.08     # pendiente de la orilla (bajo el agua y donde rompe la ola)
 BEACH = 13.0     # ancho de la playa (m)
 SLOPE_W = 16.0   # ancho de la ladera de la duna que sube desde la playa hasta la meseta
 
@@ -548,12 +538,14 @@ def terrain_base(x, y):
     """Perfil sin ondulaciones: fondo marino < playa < ladera de duna < meseta de la casa."""
     d = shore_d(x, y)
     if d < 0:
-        return SEA + max(d * 0.05, -6.0)
+        return SEA + max(d * FORE, -6.0)
+    if d < 6.0:
+        return SEA + d * FORE                      # orilla: pendiente fuerte, donde llega la ola
     if d < BEACH:
-        return SEA + d * 0.04
+        return SEA + 6.0 * FORE + (d - 6.0) * 0.03
     t = min(1.0, (d - BEACH) / SLOPE_W)
     t = t * t * (3 - 2 * t)
-    top = SEA + BEACH * 0.04
+    top = SEA + 6.0 * FORE + (BEACH - 6.0) * 0.03
     return top + t * (GROUND - top)
 
 
@@ -606,6 +598,53 @@ def grid(name, x0, x1, y0, y1, step, mat, coll=None, skip=None):
     return o
 
 
+OCEAN_X, OCEAN_Y, OCEAN_TILE, OCEAN_REP = -330.0, -620.0, 150.0, 5   # oleaje real: 750 x 750 m
+
+
+def build_ocean(M, coll):
+    """Mar: frente a la playa, una malla con oleaje real (modificador Ocean: espectro de olas,
+    crestas con espuma en el atributo 'espuma'); el oleaje corta la arena de forma irregular como
+    una orilla de verdad. Alrededor, hasta el horizonte, un plano con olas de bump."""
+    bpy.ops.mesh.primitive_plane_add(size=2)
+    o = bpy.context.object
+    o.name = "MarOleaje"
+    for c in o.users_collection:
+        c.objects.unlink(o)
+    coll.objects.link(o)
+    md = o.modifiers.new("Oleaje", "OCEAN")
+    md.geometry_mode = "GENERATE"
+    md.spatial_size = int(OCEAN_TILE)
+    md.repeat_x = md.repeat_y = OCEAN_REP
+    md.resolution = md.viewport_resolution = 18
+    md.wave_scale = 0.55          # olas de ~1 m
+    md.wind_velocity = 9.0
+    md.choppiness = 1.0
+    md.wave_alignment = 0.55
+    md.wave_direction = math.radians(90.0)   # avanzan hacia la costa (+Y)
+    md.damping = 0.3
+    md.use_normals = True
+    md.use_foam = True
+    md.foam_coverage = 0.12
+    md.foam_layer_name = "espuma"
+    md.time = float(opts.get("t_mar", "3.0"))
+    # el modificador genera la malla desde (-tile/2, -tile/2) hacia +X/+Y
+    o.location = (OCEAN_X + OCEAN_TILE / 2, OCEAN_Y + OCEAN_TILE / 2, SEA)
+    o.data.materials.append(M["mar"])
+    x0, y0 = OCEAN_X, OCEAN_Y
+    x1, y1 = x0 + OCEAN_TILE * OCEAN_REP, y0 + OCEAN_TILE * OCEAN_REP
+    R = 40000
+    verts = [(-R, -R, SEA), (R, -R, SEA), (R, R, SEA), (-R, R, SEA),
+             (x0, y0, SEA - 0.02), (x1, y0, SEA - 0.02), (x1, y1, SEA - 0.02), (x0, y1, SEA - 0.02)]
+    faces = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]   # marco alrededor del oleaje
+    mar = mesh_obj("Mar", verts, faces, M["mar"], coll)
+    for poly in mar.data.polygons:
+        if poly.normal.z < 0:   # normal hacia arriba: si no, el Fresnel ve el agua desde abajo
+            mar.data.flip_normals()
+            break
+    return o
+
+
+
 def build_landscape(M):
     coll = bpy.data.collections.new("Paisaje")
     bpy.context.scene.collection.children.link(coll)
@@ -621,11 +660,7 @@ def build_landscape(M):
     fondo = principled("FondoMar", (0.008, 0.04, 0.05), 0.9)
     mesh_obj("FondoMar", [(-40000, -40000, SEA - 6.5), (40000, -40000, SEA - 6.5), (40000, 40000, SEA - 6.5), (-40000, 40000, SEA - 6.5)],
              [(0, 1, 2, 3)], fondo, coll)
-    mesh_obj("Mar", [(-40000, -40000, SEA), (40000, -40000, SEA), (40000, 40000, SEA), (-40000, 40000, SEA)],
-             [(0, 1, 2, 3)], M["mar"], coll)
-    mar = bpy.data.objects["Mar"]
-    if mar.data.polygons[0].normal.z < 0:   # normal hacia arriba: si no, el Fresnel ve el agua desde abajo
-        mar.data.flip_normals()
+    build_ocean(M, coll)
     return sand
 
 
