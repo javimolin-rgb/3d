@@ -2,7 +2,10 @@
 
 Uso:
   python casa_huingan_3d.py -- --vista izq --still 1 --out cuadro.png [--res 720x1280] [--samples 32]
-  (vistas: izq / der = tomas fijas de dron desde el mar, a cada lado del frente)
+  (vistas: izq / der = tomas fijas de dron desde el mar, a cada lado del frente;
+   izq_atras / der_atras = desde el acceso mirando al mar)
+  python casa_huingan_3d.py -- --vista dron --tramo s1 --out frames_huingan/s1/f_ [--cuadro 80]
+  (recorrido de dron por secciones, ver SECCIONES; --cuadro N renderiza sólo ese cuadro)
 
 La casa sale del modelo STL de Neorigen (assets/huingan/casa.blend, generado con
 tools/extraer_huingan_stl.py): 12,18 m de ancho, terraza de 2 m hacia -Y (el mar), porch de acceso
@@ -1291,6 +1294,100 @@ def build_camera():
     return cam
 
 
+# ---------------------------------------------------------------- recorrido de dron (por secciones)
+# El reel se divide en secciones que se renderizan por separado (--vista dron --tramo sN) y se unen
+# en la edición. Cada una empalma con la siguiente (la última pose de una es la primera de la otra).
+#   s1  frente: arco de dron de la diagonal izquierda a la derecha, pasando por el frente   7 s
+#   s2  sube a la vista aérea y el techo se corta para mostrar los recintos             8 s
+#   s3  cenital: recintos uno a uno (dormitorios en suite, estar-comedor-cocina)          6 s
+#   s4  baja por el costado sobre los pilotes y gira hacia el acceso y el camino           7 s
+#   s5  se aleja hacia el mar con la casa y la costa al atardecer (toma final)            6 s
+SECCIONES = {"s1": 168}
+CASA_BOX = (0.0, L, -0.75, D + 0.75, GROUND, 4.8)   # caja de la casa (con escaleras) para encuadrar
+CASA_C = Vector((L / 2, D / 2, 1.4))                 # punto al que mira el dron
+FIT = 0.74                                           # ancho de pantalla que ocupa la casa
+
+
+def ease(t):
+    t = min(max(t, 0.0), 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def fit_distance(direc, target, lens, aspect, fit=FIT):
+    """Distancia a la que la caja de la casa ocupa `fit` del ancho de pantalla, mirando a `target`
+    desde la dirección `direc` (vector unitario desde el objetivo hacia la cámara). De frente la
+    casa muestra todo su largo y la cámara queda más lejos; en diagonal, más cerca."""
+    fwd = -direc
+    right = fwd.cross(Vector((0, 0, 1))).normalized()
+    up = right.cross(fwd)
+    half_w = (36.0 * aspect / 2) / lens          # sensor ajustado al alto (vertical): tan(fov_h/2)
+    half_h = (36.0 / 2) / lens
+    x0, x1, y0, y1, z0, z1 = CASA_BOX
+    corners = [Vector((x, y, z)) for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)]
+    lo, hi = 5.0, 200.0
+    for _ in range(40):
+        dist = (lo + hi) / 2
+        cam = target + direc * dist
+        ok = True
+        for c in corners:
+            v = c - cam
+            depth = v.dot(fwd)
+            if depth <= 0.1 or abs(v.dot(right) / depth) > half_w * fit or abs(v.dot(up) / depth) > half_h * 0.9:
+                ok = False
+                break
+        lo, hi = (dist, hi) if not ok else (lo, dist)
+    return hi
+
+
+def pose_s1(f, n):
+    """Arco frontal: de la diagonal izquierda (-50°) a la derecha (+50°), bajando un poco."""
+    u = ease(f / (n - 1))
+    az = math.radians(-50 + 100 * u)             # 0 = de frente (la cámara hacia -Y)
+    el = math.radians(19 - 5 * u)
+    direc = Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
+    return direc, CASA_C
+
+
+POSES = {"s1": pose_s1}
+
+
+def build_drone(cam):
+    """Anima la cámara cuadro a cuadro según la sección pedida y el oleaje en el tiempo."""
+    sc = bpy.context.scene
+    tramo = opts["tramo"]
+    n = SECCIONES[tramo]
+    sc.frame_start, sc.frame_end = 1, n
+    w, h = (int(v) for v in opts["res"].split("x"))
+    lens = 30.0
+    cam.data.lens = lens
+    for f in range(n):
+        direc, tgt = POSES[tramo](f, n)
+        dist = fit_distance(direc, tgt, lens, w / h)
+        cam.location = tgt + direc * dist
+        cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
+        cam.keyframe_insert("location", frame=f + 1)
+        cam.keyframe_insert("rotation_euler", frame=f + 1)
+    # oleaje: el tiempo del océano avanza con el video (cada sección sigue donde quedó la anterior)
+    md = bpy.data.objects["MarOleaje"].modifiers["Oleaje"]
+    t0 = float(opts.get("t_mar", "3.0")) + sum(SECCIONES[k] for k in sorted(SECCIONES) if k < tramo) / FPS
+    for f, t in ((1, t0), (n, t0 + (n - 1) / FPS)):
+        md.time = t
+        md.keyframe_insert("time", frame=f)
+    for fc in list(cam.animation_data.action.fcurves if hasattr(cam.animation_data.action, "fcurves") else []):
+        for kp in fc.keyframe_points:
+            kp.interpolation = "LINEAR"
+    act = bpy.data.objects["MarOleaje"].animation_data.action
+    for fc in getattr(act, "fcurves", []):
+        for kp in fc.keyframe_points:
+            kp.interpolation = "LINEAR"
+    sc.render.use_overwrite = False      # reanudable: no vuelve a renderizar cuadros guardados
+    sc.render.use_placeholder = True
+    sc.render.use_persistent_data = True
+    sc.render.use_motion_blur = True
+    sc.render.motion_blur_shutter = 0.35
+
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     M = materials()
@@ -1302,13 +1399,22 @@ def main():
     build_context(M)
     build_world()
     setup_render()
-    build_camera()
     sc = bpy.context.scene
+    if opts["vista"] == "dron":
+        cam = link(bpy.data.objects.new("Camara", bpy.data.cameras.new("Camara")))
+        cam.data.clip_end = 5000
+        sc.camera = cam
+        build_drone(cam)
+    else:
+        build_camera()
     if opts["save"]:
         bpy.ops.wm.save_as_mainfile(filepath=opts["save"])
-    sc.frame_set(int(opts["still"]))
     sc.render.filepath = opts["out"]
-    bpy.ops.render.render(write_still=True)
+    if opts["vista"] == "dron" and not opts.get("cuadro"):
+        bpy.ops.render.render(animation=True)
+    else:
+        sc.frame_set(int(opts.get("cuadro") or opts["still"]))
+        bpy.ops.render.render(write_still=True)
 
 
 main()

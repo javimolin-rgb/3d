@@ -31,3 +31,7 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py` y `casa_li
 - Marca Neorigen en gráficas: Azul Origen #011E2F, Niebla #F1F4F3, Verde Pino #3C4A3E, Madera #A9764A
   (sin negro ni blanco puros); Fraunces / Work Sans / IBM Plex Mono desde `assets/fuentes/`
   (instancias con `tools/instanciar_fuentes.py`), logo en `assets/marca/`. Texto mínimo 22 px a 720x1280.
+- Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
+  Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
+  `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
+  PROGRESO_RENDER.txt). El dron se aleja o acerca solo para que la casa ocupe siempre el mismo ancho de pantalla.
