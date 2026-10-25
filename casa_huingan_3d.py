@@ -583,13 +583,20 @@ def terrain_h(x, y):
     return h + 0.02 * noise.noise(Vector((x * 1.3, y * 1.3, 9.0)))
 
 
-def grid(name, x0, x1, y0, y1, step, mat, coll=None, skip=None):
+def grid(name, x0, x1, y0, y1, step, mat, coll=None, skip=None, sink=None):
+    """Malla de terreno. skip(x, y): se omite el cuadro si sus cuatro esquinas caen dentro (así
+    traslapa con la malla vecina en vez de dejar una rendija); sink(x, y): esas esquinas se hunden
+    0,5 m para quedar bajo la malla fina."""
     nx, ny = int(round((x1 - x0) / step)) + 1, int(round((y1 - y0) / step)) + 1
-    verts = [(x0 + i * step, y0 + j * step, terrain_h(x0 + i * step, y0 + j * step)) for j in range(ny) for i in range(nx)]
+    verts = []
+    for j in range(ny):
+        for i in range(nx):
+            x, y = x0 + i * step, y0 + j * step
+            verts.append((x, y, terrain_h(x, y) - (0.5 if sink and sink(x, y) else 0.0)))
     faces = []
     for j in range(ny - 1):
         for i in range(nx - 1):
-            if skip and skip(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step):
+            if skip and all(skip(x0 + (i + a) * step, y0 + (j + b) * step) for a in (0, 1) for b in (0, 1)):
                 continue
             faces.append((j * nx + i, j * nx + i + 1, (j + 1) * nx + i + 1, (j + 1) * nx + i))
     o = mesh_obj(name, verts, faces, mat, coll)
@@ -599,6 +606,53 @@ def grid(name, x0, x1, y0, y1, step, mat, coll=None, skip=None):
 
 
 OCEAN_X, OCEAN_Y, OCEAN_TILE, OCEAN_REP = -330.0, -620.0, 150.0, 5   # oleaje real: 750 x 750 m
+
+
+def fade_ocean_edges(o, width=120.0):
+    """Las olas se aplanan hacia el borde de la malla (nodos de geometría después del Ocean),
+    para que empalme sin costura con el plano del mar lejano."""
+    half = OCEAN_TILE / 2
+    lo, hi = -half, -half + OCEAN_TILE * OCEAN_REP          # extensión local de la malla
+    ng = bpy.data.node_groups.new("BordeOleaje", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, Lk = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    pos = N.new("GeometryNodeInputPosition")
+    sep = N.new("ShaderNodeSeparateXYZ")
+    Lk.new(pos.outputs[0], sep.inputs[0])
+
+    def mth(op, a, b=None):
+        nd = N.new("ShaderNodeMath")
+        nd.operation = op
+        for k, v in ((0, a), (1, b)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                nd.inputs[k].default_value = v
+            else:
+                Lk.new(v, nd.inputs[k])
+        return nd.outputs[0]
+
+    def ramp(v):   # 0 en el borde, 1 a `width` metros hacia adentro
+        e = mth("MINIMUM", mth("SUBTRACT", v, lo), mth("SUBTRACT", hi, v))
+        mr = N.new("ShaderNodeMapRange")
+        mr.interpolation_type = "SMOOTHSTEP"
+        mr.inputs[1].default_value, mr.inputs[2].default_value = 0.0, width
+        Lk.new(e, mr.inputs[0])
+        return mr.outputs[0]
+
+    f = mth("MULTIPLY", ramp(sep.outputs["X"]), ramp(sep.outputs["Y"]))
+    cmb = N.new("ShaderNodeCombineXYZ")
+    Lk.new(sep.outputs["X"], cmb.inputs[0])
+    Lk.new(sep.outputs["Y"], cmb.inputs[1])
+    Lk.new(mth("MULTIPLY", sep.outputs["Z"], f), cmb.inputs[2])
+    sp = N.new("GeometryNodeSetPosition")
+    Lk.new(gi.outputs[0], sp.inputs["Geometry"])
+    Lk.new(cmb.outputs[0], sp.inputs["Position"])
+    Lk.new(sp.outputs[0], go.inputs[0])
+    md = o.modifiers.new("BordeOleaje", "NODES")
+    md.node_group = ng
 
 
 def build_ocean(M, coll):
@@ -630,11 +684,12 @@ def build_ocean(M, coll):
     # el modificador genera la malla desde (-tile/2, -tile/2) hacia +X/+Y
     o.location = (OCEAN_X + OCEAN_TILE / 2, OCEAN_Y + OCEAN_TILE / 2, SEA)
     o.data.materials.append(M["mar"])
+    fade_ocean_edges(o)
     x0, y0 = OCEAN_X, OCEAN_Y
     x1, y1 = x0 + OCEAN_TILE * OCEAN_REP, y0 + OCEAN_TILE * OCEAN_REP
     R = 40000
     verts = [(-R, -R, SEA), (R, -R, SEA), (R, R, SEA), (-R, R, SEA),
-             (x0, y0, SEA - 0.02), (x1, y0, SEA - 0.02), (x1, y1, SEA - 0.02), (x0, y1, SEA - 0.02)]
+             (x0, y0, SEA), (x1, y0, SEA), (x1, y1, SEA), (x0, y1, SEA)]
     faces = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]   # marco alrededor del oleaje
     mar = mesh_obj("Mar", verts, faces, M["mar"], coll)
     for poly in mar.data.polygons:
@@ -652,7 +707,7 @@ def build_landscape(M):
     sand = grid("Playa", *near, 0.5, M["arena"], coll)
     # lejos: playa y dunas hacia los costados + cerros (sin el hueco del terreno cercano)
     inside = lambda x, y: near[0] < x < near[1] and near[2] < y < near[3]  # noqa: E731
-    far = grid("Lejos", -2100, 2100, -600, 2700, 15.0, M["arena"], coll, skip=inside)
+    far = grid("Lejos", -2100, 2100, -600, 2700, 15.0, M["arena"], coll, skip=inside, sink=inside)
     far.data.materials.append(M["cerros"])
     for p in far.data.polygons:
         if shore_d(p.center.x, p.center.y) > BEACH + 4:
