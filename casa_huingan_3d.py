@@ -1350,7 +1350,8 @@ def build_camera():
 #   s6  sube, cruza al frente con luz de atardecer y se aleja (toma final)
 # Un dron no hace zoom: la distancia cambia de forma continua y suave (nunca "respira" con el giro);
 # el encuadre adaptable sólo fija la distancia final para que la casa quepa en pantalla.
-SECCIONES = {"s1": 240}
+SECCIONES = {"s1": 240, "s2": 192, "s3": 240, "s5": 192}
+INICIO = {"s2": 0, "s3": 192, "s5": 432}      # cuadro de inicio de cada sección en la ruta continua s2..s5
 CASA_BOX = (0.0, L, -0.75, D + 0.75, GROUND, 4.8)   # caja de la casa (con escaleras) para encuadrar
 CASA_C = Vector((L / 2, D / 2, 1.4))                 # punto al que mira el dron
 FIT = 0.74                                           # ancho de pantalla que ocupa la casa
@@ -1422,8 +1423,177 @@ def s1_setup(w, h, lens):
     S1_END_D[0] = fit_distance(direc, CASA_C, lens, w / h)
 
 
+# ------------------------------------------- ruta continua s2 -> s3 -> s5 (spline por claves)
+CUT_TOP, CUT_LOW = 5.2, 1.6      # altura del corte: sobre el techo (casa entera) / a media altura (planta 3D)
+# claves: (cuadro global, azimut°, elevación°, distancia, altura de corte, parar)
+#   distancia: número (m) o ("fit", factor): la del encuadre adaptable en esa dirección
+#   parar=True: la cámara llega quieta a esa clave (fin de s3, antes del paso a la planta)
+RUTA = [
+    (0, S1_AZ[1], S1_EL[1], ("fit", 1.0), CUT_TOP, True),     # = último cuadro de s1
+    (90, 5.0, 16.0, ("frente", 1.0), CUT_TOP, False),
+    (192, 68.0, 15.0, ("frente", 1.0), CUT_TOP, False),       # fin s2: costado derecho, sobre los pilotes
+    (262, 80.0, 42.0, ("fit", 1.05), CUT_TOP, False),
+    (352, 88.0, 78.0, ("fit", 1.0), CUT_LOW, False),
+    (432, 90.0, 89.5, ("fit", 1.0), CUT_LOW, True),           # fin s3: cenital, casa a lo largo de la pantalla
+    (500, 118.0, 55.0, ("fit", 1.15), CUT_TOP, False),
+    (624, 152.0, 16.0, ("fit", 1.0), CUT_TOP, True),          # fin s5: fachada de acceso y el camino
+]
+CUT_KEYS = [(0, CUT_TOP), (250, CUT_TOP), (370, CUT_LOW), (432, CUT_LOW), (460, CUT_LOW), (540, CUT_TOP), (624, CUT_TOP)]
+
+
+def _dir(az, el):
+    az, el = math.radians(az), math.radians(el)
+    return Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
+
+
+def _hermite_channel(keys, f):
+    """Interpolación cúbica de Hermite con tangentes de Catmull-Rom (0 en claves 'parar' y extremos)."""
+    ts = [k[0] for k in keys]
+    if f <= ts[0]:
+        return keys[0][1]
+    if f >= ts[-1]:
+        return keys[-1][1]
+    i = max(j for j in range(len(ts) - 1) if ts[j] <= f)
+
+    def tan(j):
+        if j == 0 or j == len(keys) - 1 or keys[j][2]:
+            return 0.0
+        return (keys[j + 1][1] - keys[j - 1][1]) / (ts[j + 1] - ts[j - 1])
+
+    h = ts[i + 1] - ts[i]
+    t = (f - ts[i]) / h
+    p0, p1, m0, m1 = keys[i][1], keys[i + 1][1], tan(i) * h, tan(i + 1) * h
+    t2, t3 = t * t, t * t * t
+    return (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1
+
+
+_RUTA_D = {}
+
+
+def ruta_setup(w, h, lens):
+    """Resuelve las distancias de la ruta: 'fit' en la dirección de la clave; 'frente' = el mayor
+    encuadre del arco frontal (así el dron no se acerca y aleja mientras rodea la casa)."""
+    s1_setup(w, h, lens)
+    frente = max(fit_distance(_dir(a, 16.0), CASA_C, lens, w / h) for a in range(-45, 75, 5))
+    for k in RUTA:
+        kind, fac = k[3]
+        d = frente if kind == "frente" else fit_distance(_dir(k[1], k[2]), CASA_C, lens, w / h)
+        _RUTA_D[k[0]] = d * fac
+    _RUTA_D[0] = S1_END_D[0]
+
+
+def ruta_pose(g):
+    """Pose en el cuadro global g de la ruta continua s2..s5 (distancia en escala logarítmica)."""
+    az = _hermite_channel([(k[0], k[1], k[5]) for k in RUTA], g)
+    el = _hermite_channel([(k[0], k[2], k[5]) for k in RUTA], g)
+    ld = _hermite_channel([(k[0], math.log(_RUTA_D[k[0]]), k[5]) for k in RUTA], g)
+    return _dir(az, min(el, 89.5)), CASA_C, math.exp(ld)
+
+
+def cut_z(g):
+    return _hermite_channel([(k[0], k[1], True) for k in CUT_KEYS], g)
+
+
+def section_groups():
+    """Grupos de shader de corte (como en Casa Lingue): lo que queda sobre el plano de corte se
+    vuelve transparente; en muros y techo ('relleno') las caras interiores cortadas se ven oscuras."""
+    groups = {}
+    for cap in (False, True):
+        ng = bpy.data.node_groups.new("Corte" + ("Relleno" if cap else ""), "ShaderNodeTree")
+        ng.interface.new_socket("Shader", in_out="INPUT", socket_type="NodeSocketShader")
+        ng.interface.new_socket("Shader", in_out="OUTPUT", socket_type="NodeSocketShader")
+        n, l = ng.nodes, ng.links
+        gi, go = n.new("NodeGroupInput"), n.new("NodeGroupOutput")
+        geo = n.new("ShaderNodeNewGeometry")
+        sep = n.new("ShaderNodeSeparateXYZ")
+        l.new(geo.outputs["Position"], sep.inputs[0])
+        val = n.new("ShaderNodeValue")
+        val.name = "AlturaCorte"
+        gt = n.new("ShaderNodeMath")
+        gt.operation = "GREATER_THAN"
+        l.new(sep.outputs["Z"], gt.inputs[0])
+        l.new(val.outputs[0], gt.inputs[1])
+        shader = gi.outputs[0]
+        if cap:
+            em = n.new("ShaderNodeEmission")
+            em.inputs["Color"].default_value = (0.03, 0.03, 0.03, 1)
+            mc = n.new("ShaderNodeMixShader")
+            l.new(geo.outputs["Backfacing"], mc.inputs[0])
+            l.new(gi.outputs[0], mc.inputs[1])
+            l.new(em.outputs[0], mc.inputs[2])
+            shader = mc.outputs[0]
+        tr = n.new("ShaderNodeBsdfTransparent")
+        mx = n.new("ShaderNodeMixShader")
+        l.new(gt.outputs[0], mx.inputs[0])
+        l.new(shader, mx.inputs[1])
+        l.new(tr.outputs[0], mx.inputs[2])
+        l.new(mx.outputs[0], go.inputs[0])
+        groups[cap] = ng
+    return groups
+
+
+def apply_section(frames, g0):
+    """Corte animado de la casa: shader en sus materiales (no en el paisaje) y, en las piezas, se
+    borran con nodos de geometría las caras enteras sobre el corte (no se apilan transparencias)."""
+    house = list(bpy.data.collections["Casa"].objects)
+    groups = section_groups()
+    capped = {"ChapaNegra", "MaderaFachada", "MaderaCielo", "MuroInterior", "Hg_MarcoNegro", "Hg_PuertaMadera"}
+    mats = {sl.material for o in house for sl in o.material_slots if sl.material}
+    for m in mats:
+        out = next(nd for nd in m.node_tree.nodes if nd.bl_idname == "ShaderNodeOutputMaterial" and nd.is_active_output)
+        if not out.inputs["Surface"].links:
+            continue
+        lk = out.inputs["Surface"].links[0]
+        src = lk.from_socket
+        m.node_tree.links.remove(lk)
+        g = m.node_tree.nodes.new("ShaderNodeGroup")
+        g.node_tree = groups[m.name in capped]
+        m.node_tree.links.new(src, g.inputs[0])
+        m.node_tree.links.new(g.outputs[0], out.inputs["Surface"])
+    ng = bpy.data.node_groups.new("CorteGeo", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, Lk = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    pos = N.new("GeometryNodeInputPosition")
+    sep = N.new("ShaderNodeSeparateXYZ")
+    Lk.new(pos.outputs[0], sep.inputs[0])
+    cmp_ = N.new("FunctionNodeCompare")
+    cmp_.data_type = "FLOAT"
+    cmp_.operation = "GREATER_THAN"
+    zval = N.new("ShaderNodeValue")
+    Lk.new(sep.outputs["Z"], cmp_.inputs["A"])
+    Lk.new(zval.outputs[0], cmp_.inputs["B"])
+    ev = N.new("GeometryNodeFieldOnDomain")
+    ev.domain = "FACE"
+    ev.data_type = "BOOLEAN"
+    Lk.new(cmp_.outputs[0], ev.inputs[0])
+    dl = N.new("GeometryNodeDeleteGeometry")
+    dl.domain = "FACE"
+    Lk.new(gi.outputs[0], dl.inputs["Geometry"])
+    Lk.new(ev.outputs[0], dl.inputs["Selection"])
+    Lk.new(dl.outputs[0], go.inputs[0])
+    for o in house:
+        if o.type == "MESH" and o.name != "Huingan_Casco":
+            o.modifiers.new("Corte", "NODES").node_group = ng
+    socks = [zval.outputs[0]] + [g.nodes["AlturaCorte"].outputs[0] for g in groups.values()]
+    for f in range(frames):
+        for sk in socks:
+            sk.default_value = cut_z(g0 + f)
+            sk.keyframe_insert("default_value", frame=f + 1)
+    for o in house:   # con el techo abierto entra el día: luces interiores suaves
+        if o.type == "LIGHT":
+            o.visible_camera = False
+            o.data.energy *= 0.3
+    bpy.context.scene.cycles.transparent_max_bounces = 24
+
+
+
 POSES = {"s1": pose_s1}
 SETUP = {"s1": s1_setup}
+for _t in ("s2", "s3", "s5"):
+    POSES[_t] = (lambda t: lambda f, n: ruta_pose(INICIO[t] + f))(_t)
+    SETUP[_t] = ruta_setup
 
 
 def build_drone(cam):
@@ -1459,6 +1629,8 @@ def build_drone(cam):
     for fc in getattr(act, "fcurves", []):
         for kp in fc.keyframe_points:
             kp.interpolation = "LINEAR"
+    if tramo in ("s3", "s5"):
+        apply_section(n, INICIO[tramo])
     sc.render.use_overwrite = False      # reanudable: no vuelve a renderizar cuadros guardados
     sc.render.use_placeholder = True
     sc.render.use_persistent_data = True
