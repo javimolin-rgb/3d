@@ -1296,13 +1296,18 @@ def build_camera():
 
 # ---------------------------------------------------------------- recorrido de dron (por secciones)
 # El reel se divide en secciones que se renderizan por separado (--vista dron --tramo sN) y se unen
-# en la edición. Cada una empalma con la siguiente (la última pose de una es la primera de la otra).
-#   s1  frente: arco de dron de la diagonal izquierda a la derecha, pasando por el frente   7 s
-#   s2  sube a la vista aérea y el techo se corta para mostrar los recintos             8 s
-#   s3  cenital: recintos uno a uno (dormitorios en suite, estar-comedor-cocina)          6 s
-#   s4  baja por el costado sobre los pilotes y gira hacia el acceso y el camino           7 s
-#   s5  se aleja hacia el mar con la casa y la costa al atardecer (toma final)            6 s
-SECCIONES = {"s1": 168}
+# en la edición como una sola toma de dron (la última pose de una es la primera de la siguiente),
+# con la misma lógica del reel de Casa Lingue:
+#   s1  aproximación: parte lejos y alto sobre la playa y se acerca en espiral, desacelerando,
+#       hasta la diagonal frontal izquierda                                                10 s
+#   s2  vuelo lento rodeando el frente hacia el costado, a distancia casi constante
+#   s3  sube a la vista aérea y el techo se corta: recintos hasta la cenital
+#   s4  paso a la planta y la lámina (post 2D, como tools/video_corte.py en Lingue)
+#   s5  baja en espiral hacia la fachada de acceso y el camino
+#   s6  sube, cruza al frente con luz de atardecer y se aleja (toma final)
+# Un dron no hace zoom: la distancia cambia de forma continua y suave (nunca "respira" con el giro);
+# el encuadre adaptable sólo fija la distancia final para que la casa quepa en pantalla.
+SECCIONES = {"s1": 240}
 CASA_BOX = (0.0, L, -0.75, D + 0.75, GROUND, 4.8)   # caja de la casa (con escaleras) para encuadrar
 CASA_C = Vector((L / 2, D / 2, 1.4))                 # punto al que mira el dron
 FIT = 0.74                                           # ancho de pantalla que ocupa la casa
@@ -1339,16 +1344,43 @@ def fit_distance(direc, target, lens, aspect, fit=FIT):
     return hi
 
 
+def smootherstep(t):
+    t = min(max(t, 0.0), 1.0)
+    return t * t * t * (t * (t * 6 - 15) + 10)
+
+
+S1_AZ = (-118.0, -42.0)      # azimut (0 = de frente, la cámara hacia -Y; negativo = lado izquierdo)
+S1_EL = (24.0, 17.0)         # elevación (°)
+S1_D0 = 165.0                # distancia inicial (m)
+
+
 def pose_s1(f, n):
-    """Arco frontal: de la diagonal izquierda (-50°) a la derecha (+50°), bajando un poco."""
-    u = ease(f / (n - 1))
-    az = math.radians(-50 + 100 * u)             # 0 = de frente (la cámara hacia -Y)
-    el = math.radians(19 - 5 * u)
+    """Aproximación en espiral: el giro avanza parejo y la distancia cae en escala logarítmica con
+    salida suave (el dron frena al llegar). El punto de mira pasa de la playa a la casa."""
+    u = f / (n - 1)
+    ua = u * u * (3 - 2 * u)
+    az = math.radians(S1_AZ[0] + (S1_AZ[1] - S1_AZ[0]) * ua)
+    el = math.radians(S1_EL[0] + (S1_EL[1] - S1_EL[0]) * ua)
     direc = Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
-    return direc, CASA_C
+    ud = 1 - (1 - u) ** 2.2                          # rápido al comienzo, frena al final
+    tgt = Vector((L / 2, -14.0, -2.0)).lerp(CASA_C, smootherstep(min(1.0, u * 1.25)))
+    d_end = S1_END_D[0]
+    dist = S1_D0 * (d_end / S1_D0) ** ud
+    return direc, tgt, dist
+
+
+S1_END_D = [None]
+
+
+def s1_setup(w, h, lens):
+    """Distancia final de s1: la que deja la casa en el encuadre adaptable en la diagonal final."""
+    az, el = math.radians(S1_AZ[1]), math.radians(S1_EL[1])
+    direc = Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
+    S1_END_D[0] = fit_distance(direc, CASA_C, lens, w / h)
 
 
 POSES = {"s1": pose_s1}
+SETUP = {"s1": s1_setup}
 
 
 def build_drone(cam):
@@ -1357,12 +1389,16 @@ def build_drone(cam):
     tramo = opts["tramo"]
     n = SECCIONES[tramo]
     sc.frame_start, sc.frame_end = 1, n
+    sc.frame_step = int(opts.get("step", "1"))   # >1 para previsualizaciones rápidas
     w, h = (int(v) for v in opts["res"].split("x"))
     lens = 30.0
     cam.data.lens = lens
+    if tramo in SETUP:
+        SETUP[tramo](w, h, lens)
     for f in range(n):
-        direc, tgt = POSES[tramo](f, n)
-        dist = fit_distance(direc, tgt, lens, w / h)
+        pose = POSES[tramo](f, n)
+        direc, tgt = pose[0], pose[1]
+        dist = pose[2] if len(pose) > 2 else fit_distance(direc, tgt, lens, w / h)
         cam.location = tgt + direc * dist
         cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
         cam.keyframe_insert("location", frame=f + 1)
