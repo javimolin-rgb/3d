@@ -690,7 +690,7 @@ def build_ocean(M, coll):
     fade_ocean_edges(o)
     x0, y0 = OCEAN_X, OCEAN_Y
     x1, y1 = x0 + OCEAN_TILE * OCEAN_REP, y0 + OCEAN_TILE * OCEAN_REP
-    R = 40000
+    R = 400000   # hasta más allá del horizonte (si no, queda una línea del cielo bajo el horizonte)
     verts = [(-R, -R, SEA), (R, -R, SEA), (R, R, SEA), (-R, R, SEA),
              (x0, y0, SEA), (x1, y0, SEA), (x1, y1, SEA), (x0, y1, SEA)]
     faces = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]   # marco alrededor del oleaje
@@ -706,8 +706,8 @@ def build_ocean(M, coll):
 def build_landscape(M):
     coll = bpy.data.collections.new("Paisaje")
     bpy.context.scene.collection.children.link(coll)
-    near = (-90, 110, -70, 90)
-    sand = grid("Playa", *near, 0.5, M["arena"], coll)
+    near = (-160, 110, -70, 90)
+    sand = grid("Playa", *near, 0.6, M["arena"], coll)
     # lejos: playa y dunas hacia los costados + cerros (sin el hueco del terreno cercano)
     inside = lambda x, y: near[0] < x < near[1] and near[2] < y < near[3]  # noqa: E731
     far = grid("Lejos", -2100, 2100, -600, 2700, 15.0, M["arena"], coll, skip=inside, sink=inside)
@@ -1184,6 +1184,18 @@ def build_world():
     sky.sun_elevation = math.radians(SUN_ELEV)
     sky.sun_rotation = math.radians(90.0 - SUN_AZ)
     sky.aerosol_density = 2.0
+    # bajo el horizonte el cielo físico es "suelo" oscuro: los reflejos rasantes del mar lo verían
+    # como una línea oscura en el horizonte. Se usa el cielo en espejo (z -> |z|).
+    sxyz = n.new("ShaderNodeSeparateXYZ")
+    l.new(tc.outputs["Generated"], sxyz.inputs[0])
+    az_ = n.new("ShaderNodeMath")
+    az_.operation = "ABSOLUTE"
+    l.new(sxyz.outputs["Z"], az_.inputs[0])
+    cxyz = n.new("ShaderNodeCombineXYZ")
+    l.new(sxyz.outputs["X"], cxyz.inputs[0])
+    l.new(sxyz.outputs["Y"], cxyz.inputs[1])
+    l.new(az_.outputs[0], cxyz.inputs[2])
+    l.new(cxyz.outputs[0], sky.inputs["Vector"])
     gain = n.new("ShaderNodeMix")
     gain.data_type = "RGBA"
     gain.blend_type = "MULTIPLY"
@@ -1257,16 +1269,47 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    lt, pw, amt, mul = mnode("LESS_THAN", 0.999), mnode("POWER", 0.9), mnode("MULTIPLY", 0.62), mnode("MULTIPLY", 1.0)
+    # bruma = 0,62 · (1 − e^(−(z − 60) / 900)), sobre todo lo que no es cielo (z < 10 km de cámara
+    # para el cielo no hay superficie: su profundidad es enorme). Crece sin corte hasta el horizonte.
+    sc.view_layers[0].use_pass_z = True
+    zrel = mnode("SUBTRACT", 60.0)
+    pos = mnode("MAXIMUM", 0.0)
+    sc_ = mnode("DIVIDE", -900.0)
+    ex = mnode("EXPONENT", 0.0)
+    one = mnode("SUBTRACT", 1.0)
+    sky = mnode("LESS_THAN", 1.0e7)
+    mul = mnode("MULTIPLY", 1.0)
+    amt = mnode("MULTIPLY", 0.62)
+    one.inputs[0].default_value = 1.0
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
     mix.inputs[7].default_value = (0.66, 0.72, 0.78, 1)
-    nt.links.new(rl.outputs["Mist"], lt.inputs[0])
-    nt.links.new(rl.outputs["Mist"], pw.inputs[0])
-    nt.links.new(pw.outputs[0], mul.inputs[0])
-    nt.links.new(lt.outputs[0], mul.inputs[1])
+    nt.links.new(rl.outputs["Depth"], zrel.inputs[0])
+    nt.links.new(zrel.outputs[0], pos.inputs[0])
+    nt.links.new(pos.outputs[0], sc_.inputs[0])
+    nt.links.new(sc_.outputs[0], ex.inputs[0])
+    nt.links.new(ex.outputs[0], one.inputs[1])
+    nt.links.new(rl.outputs["Depth"], sky.inputs[0])
+    nt.links.new(one.outputs[0], mul.inputs[0])
+    nt.links.new(sky.outputs[0], mul.inputs[1])
     nt.links.new(mul.outputs[0], amt.inputs[0])
-    nt.links.new(amt.outputs[0], mix.inputs[0])
+    # + una bruma de lejanía que funde el mar con el cielo en el horizonte: 0,33 · (1 − e^(−z / 6000))
+    far_s = mnode("DIVIDE", -6000.0)
+    far_e = mnode("EXPONENT", 0.0)
+    far_1 = mnode("SUBTRACT", 1.0)
+    far_1.inputs[0].default_value = 1.0
+    far_a = mnode("MULTIPLY", 0.33)
+    far_m = mnode("MULTIPLY", 1.0)
+    tot = mnode("ADD", 0.0)
+    nt.links.new(pos.outputs[0], far_s.inputs[0])
+    nt.links.new(far_s.outputs[0], far_e.inputs[0])
+    nt.links.new(far_e.outputs[0], far_1.inputs[1])
+    nt.links.new(far_1.outputs[0], far_a.inputs[0])
+    nt.links.new(far_a.outputs[0], far_m.inputs[0])
+    nt.links.new(sky.outputs[0], far_m.inputs[1])
+    nt.links.new(amt.outputs[0], tot.inputs[0])
+    nt.links.new(far_m.outputs[0], tot.inputs[1])
+    nt.links.new(tot.outputs[0], mix.inputs[0])
     nt.links.new(rl.outputs["Image"], mix.inputs[6])
     nt.links.new(mix.outputs[2], go.inputs[0])
 
