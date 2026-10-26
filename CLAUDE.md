@@ -35,3 +35,5 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py` y `casa_li
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
   PROGRESO_RENDER.txt). El dron se aleja o acerca solo para que la casa ocupe siempre el mismo ancho de pantalla.
+  Orden: s1 (aproximación) → s2 → s3 (corte, cenital) → s4 = `tools/plano_huingan.py` (planta sobre la cenital,
+  post 2D desde el último cuadro de s3) → s5; MP4 de cada sección con `LOOK=dia tools/armar_video.sh`.

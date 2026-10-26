@@ -1631,6 +1631,20 @@ def build_drone(cam):
             kp.interpolation = "LINEAR"
     if tramo in ("s3", "s5"):
         apply_section(n, INICIO[tramo])
+    if tramo == "s3":   # dónde cae la casa en la cenital final: para calzar la planta (tools/plano_huingan.py)
+        import json
+        from bpy_extras.object_utils import world_to_camera_view
+        direc, tgt, dist = ruta_pose(INICIO["s3"] + n - 1)
+        cam.location = tgt + direc * dist
+        cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
+        bpy.context.view_layer.update()
+        pts = {}
+        for k, (x, y) in {"o": (0.0, 0.0), "x": (L, 0.0), "y": (0.0, D)}.items():
+            v = world_to_camera_view(sc, cam, Vector((x, y, 0.3)))
+            pts[k] = [v.x * w, (1 - v.y) * h]
+        out_dir = os.path.dirname(opts["out"])
+        os.makedirs(out_dir, exist_ok=True)
+        json.dump({"pts": pts, "res": [w, h]}, open(os.path.join(out_dir, "plano.json"), "w"))
     sc.render.use_overwrite = False      # reanudable: no vuelve a renderizar cuadros guardados
     sc.render.use_placeholder = True
     sc.render.use_persistent_data = True
