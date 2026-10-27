@@ -37,3 +37,19 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py` y `casa_li
   PROGRESO_RENDER.txt). El dron se aleja o acerca solo para que la casa ocupe siempre el mismo ancho de pantalla.
   Orden: s1 (aproximación) → s2 → s3 (corte, cenital) → s4 = `tools/plano_huingan.py` (planta sobre la cenital,
   post 2D desde el último cuadro de s3) → s5; MP4 de cada sección con `LOOK=dia tools/armar_video.sh`.
+
+## Entorno en un contenedor nuevo
+
+Los contenedores son efímeros: al empezar una sesión en uno nuevo hay que rearmar esto antes de
+renderizar (nada de ello va al repo, son ~650 MB).
+
+- Blender: instalar el módulo `bpy` en un venv. `pip install bpy` se cuelga resolviendo
+  dependencias; bajar la rueda directo y darle el nombre canónico (pip rechaza otro):
+  `curl -sSL -C - -o bpy-5.2.3-cp313-cp313-manylinux_2_28_x86_64.whl <url de pypi.org/pypi/bpy/json>`
+  y `python3 -m venv /opt/bpyvenv && /opt/bpyvenv/bin/pip install <la rueda>`. Luego usar
+  `PY=/opt/bpyvenv/bin/python` en los scripts de render.
+- Librerías gráficas: `bpy` aborta con SIGABRT sin ellas, aunque Cycles renderice en CPU.
+  `apt-get install -y libegl1 libgl1 libglx-mesa0 libgl1-mesa-dri libxi6 libxrender1 libxxf86vm1
+  libxfixes3 libsm6 libice6 libxkbcommon0 libwayland-client0`. Los avisos `EGL_BAD_MATCH` que
+  quedan son inofensivos (no hay pantalla): el render igual se guarda.
+- Recursos de Poly Haven de Huingan (251 MB, en .gitignore): `tools/get_assets_playa.sh`.
