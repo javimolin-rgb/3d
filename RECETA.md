@@ -179,27 +179,89 @@ rendereada: acelerar más de 2x deja la imagen algo nítida de más.
 
 ## 5. Emplazamientos
 
-Cada casa pertenece a un emplazamiento, que define HDRI, balance de blancos, exposición,
-vegetación y contexto. **Partir copiando el script del emplazamiento que corresponda.**
+Cada casa tiene un emplazamiento fijo, que define HDRI, balance de blancos, exposición,
+vegetación, terreno y contexto. **Partir copiando el script de la familia que corresponda** y
+cambiar solo lo que el lugar pide; la receta del §3 no se toca.
 
-| Emplazamiento | Script base | HDRI | WB | Exposición | `LOOK` |
-|---|---|---|---|---|---|
-| **Playa** (costa, zona central) | `casa_huingan_3d.py` | `sundowner_overlook_2k.exr` (Poly Haven) | 5900 | −0.35 | `dia` |
-| **Campo** | `casa_lingue_3d.py` | `DaySkyHDRI065A_2K_HDR.exr` (ambientCG) | 6500 | 0.0 | `dia` |
-| **Atardecer cálido** | `casa_cipres_3d.py` | — | — | −0.05 | (por defecto) |
-| **Bosque** | _por definir_ | | | | |
+| Casa | Emplazamiento | Familia | Script base | Estado |
+|---|---|---|---|---|
+| **Lingue** | Campo | Campo | `casa_lingue_3d.py` | ✅ hecho |
+| **Huingán** | Playa | Playa | `casa_huingan_3d.py` | ✅ hecho |
+| **Coihue** | Campo, *que se note el trigo* | Campo | `casa_lingue_3d.py` | pendiente |
+| **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
+| **Ciprés** | Playa del norte (más seco) | Playa | `casa_huingan_3d.py` ⚠️ | pendiente |
+| **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
+| **Boldo** | Lago | Lago | `casa_huingan_3d.py` | pendiente |
+| **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | pendiente |
+| **Roble** | Nieve tipo centro de ski | Nieve | `casa_lingue_3d.py` | pendiente |
 
-Casas asignadas:
+> ⚠️ **Ciprés**: el script `casa_cipres_3d.py` que ya existe es una escena de **campo al
+> atardecer** y no corresponde a su emplazamiento. Hay que rehacerla partiendo de Huingán, no de
+> su propio script viejo. El antiguo queda como referencia de grado cálido nada más.
 
-| Casa | Emplazamiento |
-|---|---|
-| Huingán | Playa |
-| Lingue | Campo |
-| Ciprés | Campo / atardecer |
+### HDRI disponibles
 
-> El usuario irá indicando el emplazamiento de cada casa nueva. Si pide una casa que no está en
-> esta tabla y no dice dónde va, **preguntar el emplazamiento antes de empezar** — es lo único
-> que no se puede deducir del STL, y equivocarse cuesta horas de render.
+Ya descargados por `tools/get_assets_playa.sh` en `assets/playa/ph/hdri/` (Poly Haven, CC0):
+`sundowner_overlook` (tarde de costa), `secluded_beach`, `cape_hill`, `white_cliff_top`,
+`flamingo_pan` (seco, árido). En `assets/cielo/`: `DaySkyHDRI065A_2K_HDR.exr` (ambientCG, día).
+
+**No hay HDRI de nieve ni de lago**: hay que agregarlos al script de descarga cuando se encare
+esa familia. Al elegir uno, medir su `HDRI_SUN_U` (columna del sol, 0-1) y su elevación, porque
+el cielo físico debe calzar con el sol del HDRI (§3).
+
+### Qué cambia en cada familia
+
+**Campo** — base ya resuelta en Lingue: potreros, álamos, cerros. WB 6500, exposición 0.0.
+*Coihue* pide que **el trigo sea protagonista**: campo dorado maduro como masa principal, no como
+fondo. Esparcirlo con la misma lógica de atributo del §3 (que respete camino y entorno de la
+casa), con variación de altura y de tono, y **animarlo con viento** — un trigal quieto se ve
+muerto. Las espigas en contraluz con el sol bajo son lo que da el efecto.
+
+**Playa** — base resuelta en Huingán: duna, matorral costero, pasarela, mar con oleaje y espuma.
+- *Mañío* (**urbanizada**): el mar y la arena se reutilizan tal cual; lo que cambia es el
+  contexto y la vegetación. Más casas vecinas y más cerca, costanera o calle pavimentada en vez
+  de camino de tierra, postes y muros de contención, vegetación **domesticada** (césped, palmeras
+  o especies ornamentales) en vez de matorral silvestre. La duna deja de ser salvaje.
+- *Ciprés* (**norte, seco**): mismo mar, clima opuesto. Casi nada de verde — arena y roca
+  desnudas, alguna mata rala y aislada. Luz más dura y vertical: subir `SUN_ELEV`, bajar
+  `aerosol_density` del cielo físico y **reducir la bruma** (`mist_settings.depth` más corto),
+  porque el aire seco del norte deja ver lejos con nitidez. Sombras más marcadas y contrastadas.
+  `flamingo_pan` es el HDRI más cercano a ese carácter árido. Arena más clara y amarilla.
+
+**Costa rocosa** (*Maitén*, "mar roca") — lo más cercano a Huingán: se hereda el océano completo
+(oleaje en tres escalas, espuma por profundidad). Lo que cambia es la orilla: en vez de la
+parábola suave de arena, una costa de **roca**. La firma visual es el **oleaje reventando contra
+la piedra**: concentrar la espuma donde el agua golpea la roca y agregar salpicadura. Paleta más
+oscura y fría que Huingán, roca húmeda con brillo especular en la zona de rompiente.
+`cape_hill` y `white_cliff_top` calzan con ese carácter.
+
+**Lago** (*Boldo*) — se hereda el material de agua pero **no el oleaje de mar**: un lago está
+casi quieto. Bajar muchísimo la escala y la fuerza del modificador Ocean, hasta dejar una
+superficie casi espejo con ondulación mínima. Eso cambia el protagonista: en el mar manda la
+espuma, en el lago mandan **los reflejos**. Hay que construir la **orilla opuesta** (cerros,
+bosque) porque es lo que se ve reflejado, y el reflejo es la mitad de la imagen. Mantener la
+bruma entre la ribera lejana y la cámara.
+
+**Nieve** (*Peumo* y *Roble*) — familia nueva, sin base hecha. Tres cosas que deciden si la nieve
+se ve real o de plástico:
+1. **Subsurface scattering en el material de nieve.** Es lo más importante. Sin translucidez la
+   nieve se lee como yeso blanco. Con SSS leve aparece el brillo interno que la delata como nieve.
+2. **Sombras azules.** La nieve en sombra está iluminada solo por el cielo, así que vira a azul.
+   Sale gratis si el cielo físico y el HDRI están bien calzados (§3), pero hay que verificarlo en
+   las fotos de aprobación: si las sombras salen grises, algo está mal.
+3. **Rebotes.** La nieve tiene albedo altísimo y rebota muchísima luz. Acá conviene subir
+   `diffuse_bounces` de 2 a 3; es la única excepción a los ajustes del §3.
+   Además, cuidado con la exposición: una escena casi toda blanca se quema fácil con AgX.
+- *Peumo* (**bosque nevado**): nieve cargada sobre las ramas, no solo en el suelo. Bosque cerrado
+  y oscuro que contrasta con el blanco, bruma entre los troncos, luz difusa de día nublado.
+- *Roble* (**centro de ski**): lo opuesto — ladera abierta, amplia y luminosa, huellas y marcas
+  en la nieve, y contexto de montaña a lo lejos (pistas, andariveles). Más cielo en cuadro.
+
+### Marca
+
+Azul Origen `#011E2F`, Niebla `#F1F4F3`, Verde Pino `#3C4A3E`, Madera `#A9764A` (sin negro ni
+blanco puros). Fuentes Fraunces / Work Sans / IBM Plex Mono en `assets/fuentes/`, logo en
+`assets/marca/`. Texto mínimo 22 px a 720x1280.
 
 Marca Neorigen para cualquier gráfica: Azul Origen `#011E2F`, Niebla `#F1F4F3`, Verde Pino
 `#3C4A3E`, Madera `#A9764A` (sin negro ni blanco puros). Fuentes Fraunces / Work Sans /

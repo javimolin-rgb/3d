@@ -7,7 +7,20 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py`, `casa_lin
 
 **Leer `RECETA.md` antes de empezar.** Tiene el flujo completo (STL → escena → 5 secciones de
 dron → secuencia de 42 s), la receta de realismo que se afinó en Casa Huingán, cómo funciona el
-recorrido de dron y la tabla de emplazamientos (playa / campo / bosque) con sus predefinidos.
+recorrido de dron y el emplazamiento de cada casa con lo que hay que cambiar en cada una.
+
+Emplazamientos (detalle y script base de cada uno en `RECETA.md` §5):
+
+| Casa | Emplazamiento | | Casa | Emplazamiento |
+|---|---|---|---|---|
+| Lingue | campo ✅ | | Maitén | mar roca |
+| Huingán | playa ✅ | | Boldo | lago |
+| Coihue | campo, se note el trigo | | Peumo | nieve en el bosque |
+| Mañío | playa urbanizada | | Roble | nieve tipo centro de ski |
+| Ciprés | playa del norte (más seco) ⚠️ | | | |
+
+⚠️ `casa_cipres_3d.py` es una escena de campo al atardecer y **no** corresponde a su
+emplazamiento: Ciprés se rehace partiendo de Huingán.
 
 **Nunca renderizar video de entrada.** Primero mandar fotos fijas desde varios ángulos (~10 min)
 y esperar el visto bueno del usuario; recién ahí lanzar el render largo (~17 h). Los ajustes de
