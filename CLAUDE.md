@@ -31,6 +31,10 @@ ya se bajan con `tools/get_assets_hdri.sh`.
 Los STL de SketchUp traen **restos sueltos y el origen desplazado**, que rompen el encuadre
 adaptable: correr `python3 tools/medir_stl.py stl/*.stl` antes de escribir cualquier extractor.
 
+**`ENGANCHES.md`** tiene el gancho narrativo de cada casa (qué la hace distinta: la mariposa de
+Huingán, el testero vidriado de Peumo, la pendiente de Roble). El enganche decide qué mira el
+dron, así que conviene leerlo antes de ajustar el recorrido.
+
 **Nunca renderizar video de entrada.** Primero mandar fotos fijas desde varios ángulos (~10 min)
 y esperar el visto bueno del usuario; recién ahí lanzar el render largo (~17 h). Los ajustes de
 luz, materiales o vegetación se hacen sobre las fotos, no sobre el video.
