@@ -183,17 +183,19 @@ Cada casa tiene un emplazamiento fijo, que define HDRI, balance de blancos, expo
 vegetación, terreno y contexto. **Partir copiando el script de la familia que corresponda** y
 cambiar solo lo que el lugar pide; la receta del §3 no se toca.
 
-| Casa | Emplazamiento | Familia | Script base | Estado |
-|---|---|---|---|---|
-| **Lingue** | Campo | Campo | `casa_lingue_3d.py` | ✅ hecho |
-| **Huingán** | Playa | Playa | `casa_huingan_3d.py` | ✅ hecho |
-| **Coihue** | Campo, *que se note el trigo* | Campo | `casa_lingue_3d.py` | pendiente |
-| **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
-| **Ciprés** | Playa del norte (más seco) | Playa | `casa_huingan_3d.py` ⚠️ | pendiente |
-| **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
-| **Boldo** | Lago | Lago | `casa_huingan_3d.py` | pendiente |
-| **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | pendiente |
-| **Roble** | Nieve tipo centro de ski | Nieve | `casa_lingue_3d.py` | pendiente |
+En **orden de trabajo** (el acordado con el usuario; `PENDIENTES.md` dice qué falta para cada una):
+
+| # | Casa | Emplazamiento | Familia | Script base | Estado |
+|---|---|---|---|---|---|
+| 1 | **Lingue** | Campo | Campo | `casa_lingue_3d.py` | ✅ hecho |
+| 2 | **Huingán** | Playa | Playa | `casa_huingan_3d.py` | ✅ hecho |
+| 3 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | ← **la que viene** |
+| 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | pendiente |
+| 5 | **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
+| 6 | **Roble** | Nieve tipo centro de ski | Nieve | hereda de Peumo | pendiente |
+| 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
+| 8 | **Coihue** | Campo, *que se note el trigo* | Campo | `casa_lingue_3d.py` | pendiente |
+| 9 | **Ciprés** | Playa del norte (más seco) | Playa | `casa_huingan_3d.py` ⚠️ | pendiente |
 
 > ⚠️ **Ciprés**: el primer intento del proyecto fue una escena de **campo al atardecer**, que no
 > corresponde a su emplazamiento. Está archivado en `archivo/cipres_v1/` (ver el README de esa
@@ -204,13 +206,24 @@ cambiar solo lo que el lugar pide; la receta del §3 no se toca.
 
 ### HDRI disponibles
 
-Ya descargados por `tools/get_assets_playa.sh` en `assets/playa/ph/hdri/` (Poly Haven, CC0):
-`sundowner_overlook` (tarde de costa), `secluded_beach`, `cape_hill`, `white_cliff_top`,
-`flamingo_pan` (seco, árido). En `assets/cielo/`: `DaySkyHDRI065A_2K_HDR.exr` (ambientCG, día).
+Todos CC0. Ninguno va al repo (pesan ~20 MB cada uno); se bajan con su script.
 
-**No hay HDRI de nieve ni de lago**: hay que agregarlos al script de descarga cuando se encare
-esa familia. Al elegir uno, medir su `HDRI_SUN_U` (columna del sol, 0-1) y su elevación, porque
-el cielo físico debe calzar con el sol del HDRI (§3).
+- **Costa** — `tools/get_assets_playa.sh` → `assets/playa/ph/hdri/`: `sundowner_overlook`
+  (tarde de costa, el de Huingán), `secluded_beach`, `cape_hill`, `white_cliff_top`,
+  `flamingo_pan` (seco, árido).
+- **Nieve y lago** — `tools/get_assets_hdri.sh [nieve] [lago]` → `assets/hdri/<familia>/`.
+- **Día de campo** — `assets/cielo/DaySkyHDRI065A_2K_HDR.exr` (ambientCG), el de Lingue.
+
+Cada HDRI necesita dos números para que el cielo físico calce con su sol (§3): **`HDRI_SUN_U`**
+(columna del sol, 0-1) y **`SUN_ELEV`** (elevación en grados). Se miden solos:
+
+```bash
+/opt/bpyvenv/bin/python tools/medir_sol_hdri.py assets/hdri/nieve/*.exr
+```
+
+Avisa además cuándo el cielo es **nublado** (sin sol direccional): ahí no hay que buscarle
+posición al sol, la luz es difusa. Los valores ya medidos de cada familia están en
+`PENDIENTES.md`.
 
 ### Qué cambia en cada familia
 

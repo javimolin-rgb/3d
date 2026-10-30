@@ -3,6 +3,67 @@
 Lo que hay que conseguir **antes** de poder empezar. Complemento de `RECETA.md`, que dice cómo
 hacerlo; esto dice qué falta para poder hacerlo.
 
+## Orden de trabajo
+
+El acordado con el usuario. No es por costo: Peumo y Boldo son de las familias más caras y van
+primero.
+
+1. ~~Lingue~~ ✅ campo
+2. ~~Huingán~~ ✅ playa
+3. **Peumo** — nieve en el bosque ← **la que viene**
+4. **Boldo** — lago
+5. **Mañío** — playa urbanizada
+6. **Roble** — nieve tipo centro de ski
+7. **Maitén** — mar roca
+8. **Coihue** — campo, que se note el trigo
+9. **Ciprés** — playa del norte (más seco)
+
+Conviene que Peumo deje resuelto el material de nieve y Boldo el agua calma: Roble y Maitén
+después heredan de ellos, igual que Mañío y Ciprés heredan de Huingán.
+
+---
+
+## La que viene: Peumo (nieve en el bosque)
+
+### Lo único que falta y no puedo conseguir yo
+
+🔴 **El STL de la casa.** Es el bloqueante. Con eso arranco el mismo día: extraigo la casa,
+armo la escena y mando las cuatro fotos de aprobación.
+
+Junto con él conviene: las **cotas** (ancho, fondo, piso terminado, cumbrera, dónde el frente
+vidriado y dónde el acceso) y la **planta sin cotas en PDF** para la sección 4.
+
+### Lo que ya dejé listo
+
+- ✅ **HDRI bajados y medidos.** `tools/get_assets_hdri.sh nieve` trae cinco; para un bosque
+  nevado los candidatos son:
+
+  | HDRI | `HDRI_SUN_U` | `SUN_ELEV` | Carácter |
+  |---|---|---|---|
+  | `snowy_forest_path_01` | 0.6010 | 20.6 | **Nublado**, luz difusa pareja — el más fiel a un bosque nevado |
+  | `snowy_forest` | 0.6836 | 38.4 | Sol suave alto, algo de dirección |
+  | `snowy_hillside` | 0.6004 | 19.9 | Sol marcado y bajo, bosque abierto |
+
+  Mi recomendación es **`snowy_forest_path_01`**: en un bosque cerrado la luz llega rebotada y
+  difusa, y eso además perdona mucho más el ruido a 32 samples que un sol duro entre troncos.
+  Si se quiere que entren rayos de sol entre los árboles, `snowy_hillside`.
+- ✅ **`tools/medir_sol_hdri.py`** — mide `HDRI_SUN_U` y `SUN_ELEV` de cualquier HDRI, que antes
+  era un paso manual. Avisa cuándo el cielo es nublado (sin sol direccional).
+
+### Lo que hay que construir, en orden
+
+1. 🔴 **Material de nieve con subsurface scattering.** Lo primero y lo más determinante. Sin
+   translucidez la nieve se lee como yeso. Hay que resolverlo y mirarlo en una foto antes de
+   seguir con todo lo demás.
+2. 🟡 **Nieve sobre las ramas.** No alcanza con el suelo blanco: si los árboles están verdes y
+   limpios, la escena se cae. Es geometría, no solo material.
+3. 🟡 **Bosque sureño.** `vegetacion.py` genera árboles con Sapling Tree Gen y es el punto de
+   partida, pero hay que ajustar especies y densidad, y sumar bruma entre los troncos.
+4. 🟡 **Ajustes de render**: `diffuse_bounces` de 2 a 3 por el albedo alto de la nieve, y vigilar
+   la exposición para que no se queme con AgX. Única excepción a los ajustes de `RECETA.md` §3.
+5. ✔️ **Verificar en las fotos que las sombras salgan azules**, no grises. Si salen grises, el
+   cielo físico y el HDRI no están calzados.
+
 ---
 
 ## Lo que hace falta para cualquier casa
@@ -91,11 +152,17 @@ el carácter.
 
 ### Lago — para **Boldo**
 
-**Ya está:** el material de agua de Huingán como punto de partida.
+**Ya está:** el material de agua de Huingán como punto de partida, y los HDRI bajados y medidos
+con `tools/get_assets_hdri.sh lago`:
+
+| HDRI | `HDRI_SUN_U` | `SUN_ELEV` | Carácter |
+|---|---|---|---|
+| `lakeside` | 0.6001 | 31.8 | Sol claro de día, orilla con roca y árboles |
+| `lakeside_sunrise` | 0.6003 | 5.3 | Sol muy bajo, contraluz sobre el agua |
+| `montorfano` | 0.6035 | 17.5 | Nublado, lago alpino entre montañas |
+| `shudu_lake` | 0.6101 | 9.7 | Nublado, montaña |
 
 **Falta:**
-- 🔴 **HDRI de lago o montaña.** No hay ninguno. Hay que elegirlo en Poly Haven y agregarlo a
-  `tools/get_assets_playa.sh`.
 - 🟡 **Agua calma.** Bajar muchísimo escala y fuerza del modificador Ocean hasta dejarla casi
   espejo. Es sacar, no agregar.
 - 🟡 **Orilla opuesta.** Es lo más importante y no existe en ninguna escena: cerros y bosque al
@@ -106,11 +173,14 @@ el carácter.
 
 La familia **más cara**: no hay nada hecho.
 
+**Ya está:** los HDRI, bajados y medidos con `tools/get_assets_hdri.sh nieve`. Para Peumo ver el
+bloque de arriba; para **Roble** (ladera abierta, sol) el indicado es **`horn-koppe_snow`**
+(`HDRI_SUN_U = 0.6000`, `SUN_ELEV = 28.2`), alpino y con sol marcado. `snow_field_2` es nublado
+con huellas en la nieve, útil si se quiere un día plano.
+
 **Falta:**
-- 🔴 **HDRI de nieve.** Ninguno. Para Peumo conviene uno nublado y difuso; para Roble, uno
-  despejado de montaña. Agregarlos a `tools/get_assets_playa.sh`.
 - 🔴 **Material de nieve con subsurface scattering.** Es lo que decide si se ve nieve o yeso
-  blanco. No existe nada parecido en el repo.
+  blanco. No existe nada parecido en el repo. **Lo resuelve Peumo y Roble lo hereda.**
 - 🟡 **Nieve sobre la vegetación** (Peumo): no alcanza con el suelo blanco, tiene que haber carga
   de nieve en las ramas. Es trabajo de geometría, no solo de material.
 - 🟡 **Árboles de bosque sureño nevado** (Peumo) y **contexto de montaña** (Roble: pistas,
@@ -121,18 +191,18 @@ La familia **más cara**: no hay nada hecho.
 
 ---
 
-## Resumen de prioridad
+## Resumen
 
-| | Casa | Lo que bloquea |
+Los HDRI ya **no bloquean a nadie**: están bajados y medidos para las tres familias que faltaban.
+Lo que bloquea de verdad, en el orden de trabajo acordado:
+
+| # | Casa | Lo que bloquea |
 |---|---|---|
-| 🔴 | todas | **El STL** — sin eso no se empieza ninguna |
-| 🟢 | **Ciprés** | Nada que descargar; es parametrizar Huingán |
-| 🟢 | **Mañío** | Nada que descargar; cambiar contexto y vegetación |
-| 🟡 | **Maitén** | Reescribir la orilla y la espuma |
-| 🟡 | **Coihue** | Conseguir trigo y resolver viento |
-| 🔴 | **Boldo** | Falta HDRI + construir orilla opuesta |
-| 🔴 | **Peumo / Roble** | Falta HDRI + material de nieve desde cero |
-
-Si da lo mismo el orden, conviene **Ciprés o Mañío primero**: heredan casi todo de Huingán, se
-llega rápido a fotos de aprobación y sirven para validar que la receta se traspasa bien a otra
-casa antes de meterse en las familias caras.
+| — | todas | 🔴 **El STL** — sin eso no se empieza ninguna |
+| 3 | **Peumo** | Material de nieve con SSS + nieve en las ramas |
+| 4 | **Boldo** | Agua calma + construir la orilla opuesta |
+| 5 | **Mañío** | Contexto urbano y vegetación ornamental |
+| 6 | **Roble** | Hereda la nieve de Peumo; falta contexto de montaña |
+| 7 | **Maitén** | Reescribir la orilla rocosa y la espuma contra la piedra |
+| 8 | **Coihue** | Conseguir trigo y resolver viento |
+| 9 | **Ciprés** | Solo parametrizar Huingán: es la más barata de todas |

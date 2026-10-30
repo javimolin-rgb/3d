@@ -9,15 +9,17 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py`, `casa_lin
 dron → secuencia de 42 s), la receta de realismo que se afinó en Casa Huingán, cómo funciona el
 recorrido de dron y el emplazamiento de cada casa con lo que hay que cambiar en cada una.
 
-Emplazamientos (detalle y script base de cada uno en `RECETA.md` §5):
+Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 
-| Casa | Emplazamiento | | Casa | Emplazamiento |
-|---|---|---|---|---|
-| Lingue | campo ✅ | | Maitén | mar roca |
-| Huingán | playa ✅ | | Boldo | lago |
-| Coihue | campo, se note el trigo | | Peumo | nieve en el bosque |
-| Mañío | playa urbanizada | | Roble | nieve tipo centro de ski |
-| Ciprés | playa del norte (más seco) ⚠️ | | | |
+1. Lingue — campo ✅
+2. Huingán — playa ✅
+3. **Peumo — nieve en el bosque** ← la que viene
+4. Boldo — lago
+5. Mañío — playa urbanizada
+6. Roble — nieve tipo centro de ski
+7. Maitén — mar roca
+8. Coihue — campo, que se note el trigo
+9. Ciprés — playa del norte (más seco) ⚠️
 
 ⚠️ El primer Ciprés (campo al atardecer) **no** corresponde a su emplazamiento y está archivado
 en `archivo/cipres_v1/`: no partir de ahí, Ciprés se rehace desde Huingán.
