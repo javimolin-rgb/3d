@@ -1,6 +1,16 @@
 # Renders 3D Neorigen
 
-Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py` y `casa_lingue_3d.py`.
+Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py`, `casa_lingue_3d.py` y
+`casa_huingan_3d.py`.
+
+## Si piden "hacer el modelo de Casa X"
+
+**Leer `RECETA.md` antes de empezar.** Tiene el flujo completo (STL → escena → 5 secciones de
+dron → secuencia de 42 s), la receta de realismo que se afinó en Casa Huingán, cómo funciona el
+recorrido de dron y la tabla de emplazamientos (playa / campo / bosque) con sus predefinidos.
+
+Si la casa pedida no está en esa tabla y no dicen dónde va, **preguntar el emplazamiento antes de
+renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
 
 ## Renders de video (largos)
 
