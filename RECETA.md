@@ -55,11 +55,22 @@ contenedor; los MP4 son el entregable duradero.
 
 ## 2. Flujo
 
-1. **Modelo** → el usuario entrega un STL (exportado de SketchUp, en mm).
+1. **Modelo** → el usuario entrega un STL (exportado de SketchUp, en mm), en `stl/`.
    `tools/extraer_<nombre>_stl.py` lo convierte en `assets/<nombre>/casa.blend` con materiales:
    el casco es una sola pieza y sus caras se pintan según normal y posición; el resto se separa
    en piezas y se clasifica por forma y zona de la planta. Las piezas densas se simplifican con
-   Decimate (`MAX_FACES = 2500`). El STL original **no** va al repo; el `.blend` sí.
+   Decimate (`MAX_FACES = 2500`). El `.blend` sí va al repo.
+
+   ⚠️ **Los STL de SketchUp traen basura.** Antes de usar las medidas hay que limpiarlos, porque
+   dos cosas rompen el encuadre adaptable:
+   - **Restos sueltos** — esquirlas de geometría a decenas de metros de la casa, que inflan la
+     caja envolvente. En Roble la caja bruta dice 31 × 39 m cuando la casa mide 8,8 × 16,8.
+     Se detectan descartando los triángulos fuera del percentil 0,5–99,5 de los centroides.
+   - **Origen desplazado** — el modelo no viene centrado (Roble arranca en x = −31,5, y = +21,4).
+     Hay que recentrarlo antes de calcular `CASA_BOX`.
+
+   `tools/medir_stl.py` reporta dimensiones reales, origen y cuántos restos tiene cada archivo.
+   **Correrlo siempre antes de escribir el extractor.**
 2. **Escena** → `casa_<nombre>_3d.py`, copiado del script del emplazamiento que corresponda
    (ver §5) y ajustado al terreno real.
 3. **Fotos de aprobación** → el paso del §0. Cuatro ángulos, entregados y aprobados por el

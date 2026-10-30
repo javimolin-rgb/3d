@@ -10,7 +10,7 @@ DEST=assets/hdri
 UA="neorigen-render/1.0"
 
 # Peumo: bosque nevado, luz difusa. Roble: ladera abierta de montaña, sol.
-nieve="snowy_forest snowy_forest_path_01 snowy_hillside horn-koppe_snow snow_field_2"
+nieve="snowy_forest snowy_forest_path_01 snowy_hillside horn-koppe_snow snow_field_2 snowy_field"
 # Boldo: lago con orilla opuesta visible (es lo que se refleja).
 lago="lakeside lakeside_sunrise montorfano shudu_lake"
 

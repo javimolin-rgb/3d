@@ -25,17 +25,19 @@ después heredan de ellos, igual que Mañío y Ciprés heredan de Huingán.
 
 ## La que viene: Peumo (nieve en el bosque)
 
-### Lo único que falta y no puedo conseguir yo
+### Lo que falta decidir
 
-🔴 **El STL de la casa.** Es el bloqueante. Con eso arranco el mismo día: extraigo la casa,
-armo la escena y mando las cuatro fotos de aprobación.
+- 🟡 **Cuál de los dos ventanales.** `Modelo Casa Peumo.stl` y
+  `Modelo Casa Peumo (Ventanal Grande) .stl` son la misma casa (9,49 × 13,04 × 6,54 m en las
+  dos); difieren solo en el ventanal. Hay que elegir uno.
+- 🟡 **La planta sin cotas en PDF**, para la sección 4. Sin ella el recorrido queda en cuatro
+  secciones.
+- 🟡 **Cotas que el STL no dice**: piso terminado, cumbrera, frente vidriado y acceso.
 
-Junto con él conviene: las **cotas** (ancho, fondo, piso terminado, cumbrera, dónde el frente
-vidriado y dónde el acceso) y la **planta sin cotas en PDF** para la sección 4.
+### Lo que ya está listo
 
-### Lo que ya dejé listo
-
-- ✅ **HDRI bajados y medidos.** `tools/get_assets_hdri.sh nieve` trae cinco; para un bosque
+- ✅ **El STL**, medido y verificado (ver tabla arriba).
+- ✅ **HDRI bajados y medidos.** `tools/get_assets_hdri.sh nieve` trae seis; para un bosque
   nevado los candidatos son:
 
   | HDRI | `HDRI_SUN_U` | `SUN_ELEV` | Carácter |
@@ -43,12 +45,14 @@ vidriado y dónde el acceso) y la **planta sin cotas en PDF** para la sección 4
   | `snowy_forest_path_01` | 0.6010 | 20.6 | **Nublado**, luz difusa pareja — el más fiel a un bosque nevado |
   | `snowy_forest` | 0.6836 | 38.4 | Sol suave alto, algo de dirección |
   | `snowy_hillside` | 0.6004 | 19.9 | Sol marcado y bajo, bosque abierto |
+  | `snowy_field` | 0.5999 | 22.0 | Sol fuerte, campo abierto con huellas |
 
   Mi recomendación es **`snowy_forest_path_01`**: en un bosque cerrado la luz llega rebotada y
   difusa, y eso además perdona mucho más el ruido a 32 samples que un sol duro entre troncos.
   Si se quiere que entren rayos de sol entre los árboles, `snowy_hillside`.
 - ✅ **`tools/medir_sol_hdri.py`** — mide `HDRI_SUN_U` y `SUN_ELEV` de cualquier HDRI, que antes
   era un paso manual. Avisa cuándo el cielo es nublado (sin sol direccional).
+- ✅ **`tools/medir_stl.py`** — dimensiones reales, origen y restos sueltos de cada STL.
 
 ### Lo que hay que construir, en orden
 
@@ -70,21 +74,36 @@ vidriado y dónde el acceso) y la **planta sin cotas en PDF** para la sección 4
 
 Estas tres cosas las necesita **toda** casa nueva, sin excepción. Sin la primera no se empieza.
 
-### 1. El STL del modelo — lo tiene que entregar el usuario 🔴
+### 1. El STL del modelo — lo entrega el usuario ✅ (casi todos recibidos)
 
-Exportado de SketchUp (ImageToStl sirve), en mm. Es el único insumo que **no se puede conseguir
-solo**: todo lo demás se baja o se programa. Hoy solo existe el de Huingán, y ni siquiera: el STL
-está en `.gitignore`, lo que sobrevivió es `assets/huingan/casa.blend` ya procesado.
+Exportados de SketchUp, en mm, en la carpeta `stl/` del repo. Medidos con
+`python3 tools/medir_stl.py stl/*.stl`:
 
-Al recibirlo, va en `assets/<nombre>/modelo_<nombre>.stl` (no se commitea) y se convierte con
-`tools/extraer_<nombre>_stl.py` en `assets/<nombre>/casa.blend` (eso sí se commitea).
+| Casa | Casa real (m) | Triángulos | Restos sueltos |
+|---|---|---|---|
+| Peumo | 9,49 × 13,04 × 6,54 | 1.291.109 | 12 |
+| Peumo (Ventanal Grande) | 9,49 × 13,04 × 6,54 | 1.270.894 | 1.224 |
+| Boldo | 7,49 × 14,33 × 6,55 | 1.529.068 | — |
+| Mañío | 16,02 × 11,15 × 5,07 | 864.905 | — |
+| Roble | 8,79 × 16,81 × 6,55 | 1.608.021 | 1.224, origen en x −31,5 y +21,4 |
+| Maitén | 16,27 × 11,84 × 8,10 | 1.426.653 | 298 |
+| Coihue | 19,81 × 13,76 × 5,15 | 1.767.804 | — |
+| **Ciprés** | — | — | 🔴 **falta** |
+
+Los dos archivos de **Peumo son la misma casa**: masa principal idéntica, difieren en 1.224
+triángulos (el ventanal) y en dónde está posicionada en el espacio. No son dos plantas distintas.
+
+Al convertir: `tools/extraer_<nombre>_stl.py` produce `assets/<nombre>/casa.blend` (eso sí se
+commitea). **Limpiar los restos y recentrar el origen** antes de calcular las medidas; ver el
+aviso en `RECETA.md` §2.
 
 ### 2. Las cotas de la casa — se sacan del STL, pero conviene confirmarlas
 
-Ancho, fondo, altura de piso terminado, dónde está la cumbrera, dónde el frente vidriado y dónde
-el acceso. En Huingán están en el encabezado del script (12,18 m de ancho, cumbrera en x = 8,9,
-piso en z = 0,23, terreno en z = −0,31). Son las que alimentan `CASA_BOX` y el encuadre
-adaptable: si están mal, el dron encuadra mal toda la película.
+Ancho y fondo ya están medidos arriba. Falta lo que el STL no dice: altura de **piso terminado**,
+dónde está la **cumbrera**, dónde el **frente vidriado** y dónde el **acceso**. En Huingán están
+en el encabezado del script (12,18 m de ancho, cumbrera en x = 8,9, piso en z = 0,23, terreno en
+z = −0,31). Alimentan `CASA_BOX` y el encuadre adaptable: si están mal, el dron encuadra mal toda
+la película.
 
 ### 3. La planta sin cotas, en PDF — para la sección 4
 
@@ -193,16 +212,16 @@ con huellas en la nieve, útil si se quiere un día plano.
 
 ## Resumen
 
-Los HDRI ya **no bloquean a nadie**: están bajados y medidos para las tres familias que faltaban.
-Lo que bloquea de verdad, en el orden de trabajo acordado:
+Los HDRI y los STL ya **no bloquean a nadie**, salvo el de Ciprés. Lo que queda, en el orden de
+trabajo acordado:
 
 | # | Casa | Lo que bloquea |
 |---|---|---|
-| — | todas | 🔴 **El STL** — sin eso no se empieza ninguna |
+| — | todas | ✅ STL recibidos, salvo **Ciprés** 🔴 |
 | 3 | **Peumo** | Material de nieve con SSS + nieve en las ramas |
 | 4 | **Boldo** | Agua calma + construir la orilla opuesta |
 | 5 | **Mañío** | Contexto urbano y vegetación ornamental |
 | 6 | **Roble** | Hereda la nieve de Peumo; falta contexto de montaña |
 | 7 | **Maitén** | Reescribir la orilla rocosa y la espuma contra la piedra |
 | 8 | **Coihue** | Conseguir trigo y resolver viento |
-| 9 | **Ciprés** | Solo parametrizar Huingán: es la más barata de todas |
+| 9 | **Ciprés** | 🔴 **Falta el STL**; lo demás es solo parametrizar Huingán |

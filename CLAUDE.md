@@ -24,8 +24,12 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 ⚠️ El primer Ciprés (campo al atardecer) **no** corresponde a su emplazamiento y está archivado
 en `archivo/cipres_v1/`: no partir de ahí, Ciprés se rehace desde Huingán.
 
-**`PENDIENTES.md`** dice qué falta conseguir para cada casa antes de poder empezar (el STL lo
-entrega el usuario; HDRI de nieve y de lago todavía no existen).
+**`PENDIENTES.md`** dice qué falta para cada casa antes de poder empezar, con las medidas reales
+de cada STL. Los STL están en `stl/` (falta solo el de Ciprés) y los HDRI de todas las familias
+ya se bajan con `tools/get_assets_hdri.sh`.
+
+Los STL de SketchUp traen **restos sueltos y el origen desplazado**, que rompen el encuadre
+adaptable: correr `python3 tools/medir_stl.py stl/*.stl` antes de escribir cualquier extractor.
 
 **Nunca renderizar video de entrada.** Primero mandar fotos fijas desde varios ángulos (~10 min)
 y esperar el visto bueno del usuario; recién ahí lanzar el render largo (~17 h). Los ajustes de
