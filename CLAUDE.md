@@ -19,8 +19,11 @@ Emplazamientos (detalle y script base de cada uno en `RECETA.md` §5):
 | Mañío | playa urbanizada | | Roble | nieve tipo centro de ski |
 | Ciprés | playa del norte (más seco) ⚠️ | | | |
 
-⚠️ `casa_cipres_3d.py` es una escena de campo al atardecer y **no** corresponde a su
-emplazamiento: Ciprés se rehace partiendo de Huingán.
+⚠️ El primer Ciprés (campo al atardecer) **no** corresponde a su emplazamiento y está archivado
+en `archivo/cipres_v1/`: no partir de ahí, Ciprés se rehace desde Huingán.
+
+**`PENDIENTES.md`** dice qué falta conseguir para cada casa antes de poder empezar (el STL lo
+entrega el usuario; HDRI de nieve y de lago todavía no existen).
 
 **Nunca renderizar video de entrada.** Primero mandar fotos fijas desde varios ángulos (~10 min)
 y esperar el visto bueno del usuario; recién ahí lanzar el render largo (~17 h). Los ajustes de

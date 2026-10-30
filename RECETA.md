@@ -195,9 +195,12 @@ cambiar solo lo que el lugar pide; la receta del §3 no se toca.
 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | pendiente |
 | **Roble** | Nieve tipo centro de ski | Nieve | `casa_lingue_3d.py` | pendiente |
 
-> ⚠️ **Ciprés**: el script `casa_cipres_3d.py` que ya existe es una escena de **campo al
-> atardecer** y no corresponde a su emplazamiento. Hay que rehacerla partiendo de Huingán, no de
-> su propio script viejo. El antiguo queda como referencia de grado cálido nada más.
+> ⚠️ **Ciprés**: el primer intento del proyecto fue una escena de **campo al atardecer**, que no
+> corresponde a su emplazamiento. Está archivado en `archivo/cipres_v1/` (ver el README de esa
+> carpeta): sirve de referencia visual del volumen de la casa y del grado cálido, pero **no se
+> parte de ahí**. Ciprés se rehace desde Huingán como cualquier otra casa de playa.
+
+**Qué falta conseguir para cada casa antes de empezar: `PENDIENTES.md`.**
 
 ### HDRI disponibles
 
