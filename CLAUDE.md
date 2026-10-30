@@ -9,6 +9,10 @@ Escenas de Blender (Cycles) generadas por script: `casa_cipres_3d.py`, `casa_lin
 dron → secuencia de 42 s), la receta de realismo que se afinó en Casa Huingán, cómo funciona el
 recorrido de dron y la tabla de emplazamientos (playa / campo / bosque) con sus predefinidos.
 
+**Nunca renderizar video de entrada.** Primero mandar fotos fijas desde varios ángulos (~10 min)
+y esperar el visto bueno del usuario; recién ahí lanzar el render largo (~17 h). Los ajustes de
+luz, materiales o vegetación se hacen sobre las fotos, no sobre el video.
+
 Si la casa pedida no está en esa tabla y no dicen dónde va, **preguntar el emplazamiento antes de
 renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
 

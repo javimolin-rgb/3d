@@ -6,6 +6,31 @@ Guía para que cualquier sesión de Claude Code con acceso a este repositorio pu
 
 ---
 
+## 0. Regla de oro: fotos antes de renderizar
+
+**Nunca empezar a renderizar video apenas piden un modelo.** Primero se mandan **fotos fijas
+desde varios ángulos** para afinar lo visual, y recién cuando el usuario las aprueba se lanza el
+render largo.
+
+Un modelo completo son ~17 h de CPU. Un juego de 4 fotos son ~10 minutos. Cualquier ajuste de
+luz, materiales, vegetación, terreno o emplazamiento cuesta mil veces menos descubrirlo en las
+fotos. Si se renderiza primero y el color del techo estaba mal, se pierde un día.
+
+```bash
+for v in izq der izq_atras der_atras; do
+  /opt/bpyvenv/bin/python casa_<nombre>_3d.py -- --vista $v --still 1 \
+    --out output/<nombre>_propuesta/$v.png --res 720x1280 --samples 32
+done
+```
+
+Entregarlas con `SendUserFile` y **esperar respuesta**. Iterar sobre las fotos las veces que haga
+falta: es barato. Solo con el visto bueno explícito se pasa al §2.
+
+Antes de ese juego de 4, conviene un cuadro suelto a `--res 360x640 --samples 8` (~1 min) para
+confirmar que la escena arma sin errores.
+
+---
+
 ## 1. Qué se entrega
 
 Salvo que pidan otra cosa, un modelo terminado son **cinco secciones de video vertical** que
@@ -37,9 +62,9 @@ contenedor; los MP4 son el entregable duradero.
    Decimate (`MAX_FACES = 2500`). El STL original **no** va al repo; el `.blend` sí.
 2. **Escena** → `casa_<nombre>_3d.py`, copiado del script del emplazamiento que corresponda
    (ver §5) y ajustado al terreno real.
-3. **Encuadres fijos** para aprobar el look antes de gastar horas:
-   `python casa_<nombre>_3d.py -- --vista izq --still 1 --out prueba.png --res 360x640 --samples 8`
-   Siempre renderizar **un cuadro de prueba a baja resolución** antes de lanzar una sección.
+3. **Fotos de aprobación** → el paso del §0. Cuatro ángulos, entregados y aprobados por el
+   usuario. **No se sigue al 4 sin ese visto bueno.** Las fotos finales quedan en
+   `output/<nombre>_propuesta/`.
 4. **Secciones** → `PY=/opt/bpyvenv/bin/python setsid nohup tools/render_<nombre>.sh s1 &`
    (copiar `tools/render_huingan.sh`). Orden: s1 → s2 → s3 → s4 → s5.
 5. **s4** → `tools/plano_<nombre>.py`, post 2D sobre el último cuadro de s3.
@@ -208,6 +233,7 @@ Un modelo completo son **~17 h de CPU** en 4 núcleos (~100 s por cuadro). Leer 
 
 ## 7. Checklist antes de dar un modelo por terminado
 
+- [ ] Fotos de varios ángulos entregadas y **aprobadas por el usuario antes** de renderizar video.
 - [ ] Cuadro de prueba revisado antes de cada sección larga.
 - [ ] Las 5 secciones completas, cada una con su MP4.
 - [ ] Secuencia concatenada **sin recodificar**: 1008 cuadros, 42 s.
