@@ -38,7 +38,7 @@ for t in "$@"; do
   mkdir -p frames_peumo/$t
   find frames_peumo/$t -name "f_*.png" -size -10k -delete
   "$PY" casa_peumo_3d.py -- --vista dron --tramo $t --out "$PWD/frames_peumo/$t/f_" \
-    --res 720x1280 --samples 32 >> frames_peumo/$t/render.log 2>&1 < /dev/null
+    --res 720x1280 --samples 16 >> frames_peumo/$t/render.log 2>&1 < /dev/null
 done
 sleep 65
 kill $PROG

@@ -1099,8 +1099,7 @@ def setup_render():
     # cielo la profundidad salta de cien metros a infinito de un píxel al siguiente, y la bruma
     # saltaba con ella. Se veía como un moteado sucio en las copas del fondo.
     suave = nt.nodes.new("CompositorNodeBlur")
-    suave.filter_type = "GAUSS"
-    suave.size_x = suave.size_y = 3
+    suave.inputs["Size"].default_value = (3.0, 3.0)
     nt.links.new(tot.outputs[0], suave.inputs[0])
     nt.links.new(suave.outputs[0], mix.inputs[0])
     nt.links.new(rl.outputs["Image"], mix.inputs[6])
