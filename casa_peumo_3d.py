@@ -750,10 +750,11 @@ def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None, mat="nieve_rama")
 def nieve_sobre_techo(casco, M):
     """Capa de nieve del techo, modelada en vez de esparcida.
 
-    Los grumos sueltos daban una capa pareja y mullida que parecía plumavit, y eso en un techo a
-    28° no pasa: la nieve se desliza. Lo que queda es una cuña —casi nada en la cumbrera, gruesa
-    contra el alero, donde se frena— cortada por fajas peladas en el sentido de la pendiente, que
-    son los desprendimientos, y asomada por el borde en una cornisa que se dobla hacia abajo.
+    Los grumos sueltos daban una capa de bolitas que parecía plumavit. Acá la nieve es una sola
+    pieza continua, que es como se ve de verdad: una cuña —más delgada en la cumbrera, más gruesa
+    contra el alero, donde se frena al deslizar— asomada por el borde en una cornisa que se dobla
+    hacia abajo. El espesor varía suave, sin cortes: las fajas desprendidas se probaron y hacían
+    ver el techo parchado.
 
     Se construye duplicando las caras de chapa que miran al cielo, subdividiéndolas y corriendo
     cada vértice por su normal según ese espesor. El espesor queda guardado por vértice para que
@@ -787,17 +788,16 @@ def nieve_sobre_techo(casco, M):
     for v in bm.verts:
         t = (v.co.z - z_alero) / max(z_cum - z_alero, 1e-6)
         t = 1.0 - t                                   # 0 en la cumbrera, 1 en el alero
-        # las fajas peladas corren en el sentido de la pendiente: ruido largo en x, corto en y
-        faja = noise.noise(Vector((v.co.x / 9.0, v.co.y / 1.1, 67.0)))
-        queda = min(1.0, max(0.0, (faja + 0.45 * t - 0.06) / 0.22))
-        e = 0.30 * (0.05 + 0.95 * t ** 1.6) * queda
-        e *= 0.8 + 0.4 * noise.noise(Vector((v.co.x / 0.8, v.co.y / 0.8, 83.0)))
+        # la capa va entera: nada de fajas peladas, que cortaban el techo y lo hacían ver
+        # irregular. Lo que varía es el espesor, y de forma suave, sin bordes.
+        e = 0.30 * (0.30 + 0.70 * t ** 1.3)
+        e *= 0.88 + 0.24 * noise.noise(Vector((v.co.x / 2.6, v.co.y / 2.6, 83.0)))
         espesor[v] = e
     # la cornisa: en el borde del alero la nieve sobresale y se dobla
     for v in bm.verts:
         if any(len(e.link_faces) == 1 for e in v.link_edges) and espesor[v] > 0.04:
             t = 1.0 - (v.co.z - z_alero) / max(z_cum - z_alero, 1e-6)
-            if t > 0.86:
+            if t > 0.84:
                 baja = Vector((v.normal.x, v.normal.y, 0.0))
                 if baja.length > 1e-6:
                     v.co += baja.normalized() * 0.18
