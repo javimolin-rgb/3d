@@ -35,7 +35,8 @@ from mathutils import Vector, noise
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
         "wb": "6900", "save": None, "dof": "1",
-        "nevada": "1.0", "tramo": "s1"}
+        "nevada": "1.0", "tramo": "s1",
+        "carga": "1.0"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
 
@@ -62,6 +63,15 @@ CLARO = 30.0                 # radio del claro del bosque alrededor de la casa
 ORBITA = (15.0, 42.0)        # franja radial por donde pasa el dron: sin árboles grandes
 # La nieve cae con viento: 25° de inclinación. Cayendo a plomo se ve falsa, y además en video el
 # motion blur convierte cada copo en un hilo, y son esos hilos inclinados los que leen como nevada.
+# La nieve se va acumulando a lo largo del video: empieza liviana y termina cargada, y en la
+# quinta parte además está nevando. Aparte de contar algo, aligera las tres secciones más largas.
+# No se acumula subiendo la densidad del esparcido —eso cambiaría los puntos y la nieve
+# parpadearía de un cuadro a otro—: los puntos están fijos desde el principio y lo que crece es
+# cuántos de ellos se muestran, con un sorteo estable por punto. Así los grumos que ya estaban
+# no se mueven nunca y sólo van apareciendo los que faltan.
+CARGA = (0.40, 1.0)          # carga de nieve al principio y al final del video
+VIDEO_N = 1008               # cuadros del video completo (las cinco partes, s4 incluida)
+VIDEO_G0 = {"s1": 0, "s2": 240, "s3": 432, "s5": 816}   # dónde empieza cada parte
 VIENTO = Vector((0.82, 0.57, 0.0)).normalized()
 VIENTO_TAN = 0.47            # tangente del ángulo con la vertical (25°)
 FPS = 24
@@ -530,10 +540,26 @@ def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None, mat="nieve_rama")
     cmp.operation = "LESS_THAN"
     cmp.inputs[1].default_value = umbral
     Lk.new(sep.outputs["Z"], cmp.inputs[0])
+    # sorteo estable por punto: se borran los que caen por encima de la carga del momento
+    rv = N.new("FunctionNodeRandomValue")
+    rv.data_type = "FLOAT"
+    rv.inputs[2].default_value, rv.inputs[3].default_value = 0.0, 1.0
+    rv.inputs["Seed"].default_value = 97
+    carga = N.new("ShaderNodeValue")
+    carga.name = "Carga"
+    carga.outputs[0].default_value = 1.0
+    sin_nieve = N.new("FunctionNodeCompare")
+    sin_nieve.operation = "GREATER_THAN"
+    Lk.new(rv.outputs[1], sin_nieve.inputs[0])
+    Lk.new(carga.outputs[0], sin_nieve.inputs[1])
+    fuera = N.new("FunctionNodeBooleanMath")
+    fuera.operation = "OR"
+    Lk.new(cmp.outputs[0], fuera.inputs[0])
+    Lk.new(sin_nieve.outputs[0], fuera.inputs[1])
     dele = N.new("GeometryNodeDeleteGeometry")
     dele.domain = "POINT"
     Lk.new(d.outputs["Points"], dele.inputs["Geometry"])
-    Lk.new(cmp.outputs[0], dele.inputs["Selection"])
+    Lk.new(fuera.outputs[0], dele.inputs["Selection"])
     inst = N.new("GeometryNodeInstanceOnPoints")
     oi = N.new("GeometryNodeObjectInfo")
     oi.inputs["Object"].default_value = src
@@ -541,13 +567,21 @@ def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None, mat="nieve_rama")
     esc.data_type = "FLOAT_VECTOR"
     esc.inputs[0].default_value = (tam * 0.5, tam * 0.5, tam * 0.3)
     esc.inputs[1].default_value = (tam * 1.8, tam * 1.8, tam * 1.0)
+    crece = N.new("ShaderNodeVectorMath")      # y el grumo engorda con la carga
+    crece.operation = "SCALE"
+    Lk.new(esc.outputs["Value"], crece.inputs[0])
+    med = N.new("ShaderNodeMath")
+    med.operation = "MULTIPLY_ADD"
+    med.inputs[1].default_value, med.inputs[2].default_value = 0.45, 0.55
+    Lk.new(carga.outputs[0], med.inputs[0])
+    Lk.new(med.outputs[0], crece.inputs["Scale"])
     rot = N.new("FunctionNodeRandomValue")
     rot.data_type = "FLOAT_VECTOR"
     rot.inputs[0].default_value = (0.0, 0.0, 0.0)
     rot.inputs[1].default_value = (0.35, 0.35, math.tau)
     Lk.new(dele.outputs[0], inst.inputs["Points"])
     Lk.new(oi.outputs["Geometry"], inst.inputs["Instance"])
-    Lk.new(esc.outputs["Value"], inst.inputs["Scale"])
+    Lk.new(crece.outputs[0], inst.inputs["Scale"])
     Lk.new(rot.outputs["Value"], inst.inputs["Rotation"])
     Lk.new(inst.outputs[0], join.inputs[0])
     Lk.new(join.outputs[0], go.inputs[0])
@@ -766,6 +800,25 @@ def build_scrub(M, terreno, lib):
     Lk.new(join.outputs[0], go.inputs[0])
     md = terreno.modifiers.new("Matas", "NODES")
     md.node_group = ng
+
+
+def carga_en(g):
+    """Carga de nieve en el cuadro g del video completo: crece parejo de punta a punta."""
+    u = min(1.0, max(0.0, g / (VIDEO_N - 1.0)))
+    return CARGA[0] + (CARGA[1] - CARGA[0]) * u
+
+
+def animar_carga(n, g0):
+    """Mueve la carga de todos los grupos de nieve a lo largo de la sección. Va cuadro a cuadro:
+    son unos pocos valores por cuadro y así la curva no se pasa de los extremos entre secciones,
+    que es lo que haría saltar la nieve en el empalme."""
+    nodos = [ng.nodes["Carga"] for ng in bpy.data.node_groups if "Carga" in ng.nodes]
+    for f in range(n):
+        v = carga_en(g0 + f)
+        for nd in nodos:
+            nd.outputs[0].default_value = v
+            nd.outputs[0].keyframe_insert("default_value", frame=f + 1)
+    return nodos
 
 
 def build_snowfall(M, loc=None, tgt=None, n=36000, fuerza=1.0, caja=None):
@@ -1374,11 +1427,15 @@ def main():
         cam.data.clip_end = 5000
         sc.camera = cam
         build_drone(cam)
+        animar_carga(SECCIONES[opts["tramo"]], VIDEO_G0[opts["tramo"]])
         # la nevada va sólo en la quinta parte: en las otras tapa la casa y el bosque
         if opts["tramo"] == "s5":
             build_snowfall(M, caja=(72.0, 72.0, 30.0), fuerza=float(opts["nevada"]))
     else:
         cam = build_camera()
+        for ng in bpy.data.node_groups:
+            if "Carga" in ng.nodes:
+                ng.nodes["Carga"].outputs[0].default_value = float(opts["carga"])
         loc, tgt, _ = VISTAS[opts["vista"]]
         build_snowfall(M, loc, tgt, fuerza=float(opts["nevada"]))
         if opts.get("dof", "1") != "0":
