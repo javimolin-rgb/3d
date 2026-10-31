@@ -14,14 +14,16 @@ terraza hacia -Y bajo el testero vidriado de doble altura, porch de acceso hacia
 aguas asimétrico (cumbrera en x = 7,61, faldones de 28° y 33°), piso terminado en z = 0,60 sobre
 pilotes y terreno en z = 0.
 
-Paisaje: bosque nevado del sur, día nublado. Claro entre los árboles con la casa al medio, nieve
+Paisaje: bosque nevado del sur con sol bajo. Claro entre los árboles con la casa al medio, nieve
 con subsurface scattering, nieve cargada sobre las ramas, huella de pisadas hasta el acceso y
-bruma entre los troncos. El enganche (ENGANCHES.md) es el testero: desde el estar el bosque
+bruma entre los troncos, y el camino de acceso pisado hasta
+dejar la tierra a la vista. El enganche (ENGANCHES.md) es el testero: desde el estar el bosque
 nevado ocupa la pared entera, así que las tomas se plantan frente al ventanal.
 
 Las tres cosas que deciden si la nieve se ve real (RECETA.md §5):
   1. subsurface en el material de nieve, si no se lee como yeso;
-  2. sombras azules, que salen solas si el cielo físico calza con el HDRI;
+  2. sombras azules, que con el sol bajo son la mitad de la imagen: salen solas si el cielo
+     físico calza con el HDRI;
   3. un rebote difuso más (3), porque la nieve devuelve muchísima luz, y exposición más baja.
 """
 import math
@@ -34,7 +36,7 @@ from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
-        "wb": "6900", "save": None, "dof": "1",
+        "wb": "6250", "save": None, "dof": "1",
         "nevada": "1.0", "tramo": "s1",
         "carga": "1.0"}
 for i in range(0, len(argv), 2):
@@ -44,12 +46,25 @@ random.seed(11)
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CASA = os.path.join(ROOT, "assets", "peumo", "casa.blend")
 PH = os.path.join(ROOT, "assets", "nieve", "ph")   # modelos CC0 (tools/get_assets_nieve.sh)
-HDRI = os.path.join(ROOT, "assets", "hdri", "nieve", "snowy_forest_path_01_2k.exr")  # CC0
-HDRI_SUN_U = 0.6010          # columna del sol en el HDRI (0-1), medida con tools/medir_sol_hdri.py
-SUN_ELEV = 20.6              # elevación del sol en el HDRI
-SKY_GAIN = 0.11              # brillo del cielo físico (horizonte) para empatar con el HDRI
-SUN_AZ = 200.0               # luz desde adelante-izquierda (azimut desde +Y hacia +X)
-WB_TEMP = float(opts["wb"])  # más cálido que la playa: compensa el azul del día nublado
+HDRI = os.path.join(ROOT, "assets", "hdri", "nieve", "horn-koppe_snow_2k.exr")  # CC0
+# Sol de montaña, no día nublado. PENDIENTES.md recomendaba el cielo nublado porque perdona el
+# ruido, pero la escena salía gris y plomiza: la casa tiene que dar ganas de ir a desconectarse,
+# y eso lo hace el sol sobre la nieve —luz cálida en la cara de la casa, sombras largas y azules,
+# troncos a contraluz—, no una luz plana.
+# De los seis HDRI de nieve se eligió horn-koppe_snow, que es el de sol más fuerte y más alto
+# (28,2°). Con los de sol rasante la nieve horizontal recibía tan poca luz directa que el ambiente
+# se la comía y no había sombras: en una escena casi toda horizontal, la elevación del sol manda.
+HDRI_SUN_U = 0.6000          # columna del sol en el HDRI (0-1), medida con tools/medir_sol_hdri.py
+SUN_ELEV = 28.2              # elevación del sol en el HDRI
+SKY_GAIN = 0.05              # brillo del cielo físico (horizonte) para empatar con el HDRI
+AMBIENTE = 1.00              # cuánto del cielo ilumina (lo que ve la cámara no cambia)
+# El azimut se mide desde +Y hacia +X. El testero vidriado mira a -Y, así que para que el sol le
+# dé en la cara —y no lo deje a contraluz, que es lo que pasaba con el azimut heredado de Huingán—
+# tiene que estar en el hemisferio -Y. Y bien corrido al costado: con el sol de frente, la
+# sombra de la casa cae detrás y no se ve. A 300° le da de refilón al testero y tira la
+# sombra cruzando la nieve hacia el otro lado, que es lo que se quiere ver.
+SUN_AZ = 300.0
+WB_TEMP = float(opts["wb"])
 L, D = 9.49, 13.04           # ancho y fondo del casco (terraza + caja + porch)
 HC = Vector((L / 2, D / 2))  # centro de la casa en planta
 GROUND = 0.0                 # terreno bajo la casa (base de los pilotes)
@@ -274,6 +289,63 @@ def snow_mat(name="Nieve", sss=0.16, rough=0.38, bump=0.5):
     return m
 
 
+def terreno_mat(name="Terreno"):
+    """Suelo: nieve y tierra en el mismo material, mezcladas por el atributo 'pelado' que calcula
+    build_landscape. El borde entre una y otra no es la curva que dibuja el atributo sino esa
+    curva mordida por dos escalas de ruido: la nieve no retrocede en línea limpia, se va en
+    parches, y ese borde irregular es justamente lo que dice que alguien pisó ahí."""
+    m, n, l = new_mat(name)
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    out = n["Material Output"]
+    tc = n.new("ShaderNodeTexCoord")
+    v = tc.outputs["Object"]
+    # --- la nieve, igual que snow_mat
+    b.inputs["Base Color"].default_value = (0.90, 0.93, 0.97, 1)
+    b.inputs["Subsurface Weight"].default_value = 0.16
+    b.inputs["Subsurface Radius"].default_value = (0.09, 0.11, 0.17)
+    b.inputs["Subsurface Scale"].default_value = 0.11
+    b.inputs["IOR"].default_value = 1.31
+    grano = N.noise(v, 90.0, detail=6, rough=0.7)
+    l.new(N.math("ADD", 0.38, N.math("MULTIPLY", N.math("SUBTRACT", grano, 0.5), 0.55)),
+          b.inputs["Roughness"])
+    lomo = N.noise(v, 1.7, detail=4, rough=0.55)
+    grumo = N.noise(v, 14.0, detail=5, rough=0.6)
+    alt = N.math("ADD", N.math("MULTIPLY", lomo, 0.6),
+                 N.math("ADD", N.math("MULTIPLY", grumo, 0.3), N.math("MULTIPLY", grano, 0.1)))
+    bp = n.new("ShaderNodeBump")
+    bp.inputs["Strength"].default_value = 0.5
+    bp.inputs["Distance"].default_value = 0.06
+    l.new(alt, bp.inputs["Height"])
+    l.new(bp.outputs["Normal"], b.inputs["Normal"])
+    # --- la tierra que asoma: barro oscuro con ripio y algo de pasto seco
+    t = n.new("ShaderNodeBsdfPrincipled")
+    piedra = N.noise(v, 55.0, detail=6, rough=0.75)
+    barro = N.noise(v, 6.0, detail=5, rough=0.6)
+    col = N.mix(barro, (0.055, 0.040, 0.028), (0.105, 0.080, 0.052))
+    col = N.mix(N.smooth(piedra, 0.62, 0.78), col, (0.16, 0.145, 0.125))      # ripio claro
+    col = N.mix(N.smooth(N.noise(v, 3.2, detail=4), 0.68, 0.82), col, (0.19, 0.155, 0.085))  # pasto seco
+    l.new(col, t.inputs["Base Color"])
+    t.inputs["Roughness"].default_value = 0.92
+    bt = n.new("ShaderNodeBump")
+    bt.inputs["Strength"].default_value = 0.8
+    bt.inputs["Distance"].default_value = 0.04
+    l.new(piedra, bt.inputs["Height"])
+    l.new(bt.outputs["Normal"], t.inputs["Normal"])
+    # --- la mezcla: el atributo, mordido por ruido para que el borde sea irregular
+    at = n.new("ShaderNodeAttribute")
+    at.attribute_name = "pelado"
+    mordido = N.math("ADD", at.outputs["Fac"],
+                     N.math("ADD", N.math("MULTIPLY", N.math("SUBTRACT", N.noise(v, 7.0, detail=5), 0.5), 0.55),
+                            N.math("MULTIPLY", N.math("SUBTRACT", N.noise(v, 26.0, detail=5), 0.5), 0.3)))
+    mezcla = n.new("ShaderNodeMixShader")
+    l.new(N.smooth(mordido, 0.46, 0.74), mezcla.inputs[0])
+    l.new(b.outputs[0], mezcla.inputs[1])
+    l.new(t.outputs[0], mezcla.inputs[2])
+    l.new(mezcla.outputs[0], out.inputs["Surface"])
+    return m
+
+
 def bark_mat(name="Corteza", c1=(0.085, 0.065, 0.052), c2=(0.028, 0.024, 0.022)):
     """Corteza oscura y vertical: el bosque tiene que leerse oscuro contra la nieve."""
     m, n, l = new_mat(name)
@@ -324,7 +396,7 @@ def materials():
     M["muroint"] = boards_mat("MuroInterior", (0.46, 0.33, 0.20), (0.38, 0.26, 0.15), "Z", 9.0)
     M["vidrio"] = glass_mat()
     M["hormigon"] = principled("Hormigon", (0.21, 0.205, 0.195), 0.9)
-    M["nieve"] = snow_mat()
+    M["nieve"] = terreno_mat()
     M["nieve_rama"] = snow_mat("NieveRama", sss=0.0, rough=0.33, bump=0.8)
     M["copo"] = principled("Copo", (0.95, 0.96, 0.98), 0.6)
     # la nieve del techo lleva material propio, aparte de la de los árboles: así el corte de la
@@ -393,17 +465,56 @@ def house_dist(x, y):
     return math.hypot(dx, dy)
 
 
-def path_dist(x, y):
-    """Distancia a las huellas en la nieve: la que sale del porch (+Y) hacia el camino del bosque
-    y la que baja de la escalera de la terraza (-Y) y se pierde entre los árboles. Las pisadas son
-    lo que dice que la casa está habitada y no recién puesta ahí."""
+def camino_d(x, y):
+    """Distancia al camino de acceso: el que llega hasta el porch y se va al bosque. Es el que se
+    usa todos los días, así que es ancho, está pisado y abajo asoma la tierra."""
     t = max(0.0, min(1.0, (y - D) / 26.0))
     px = L * 0.72 + 5.5 * t * t - 1.5 * math.sin(t * 3.4)
-    d1 = math.hypot(x - px, 0.0) if y > D else math.hypot(x - px, D - y)
+    return math.hypot(x - px, 0.0) if y > D else math.hypot(x - px, D - y)
+
+
+def huella_d(x, y):
+    """Distancia a la huella de pisadas que baja de la escalera de la terraza y se pierde entre
+    los árboles. Esta es sólo nieve pisada, no llega a pelar el suelo."""
     u = max(0.0, min(1.0, -y / 14.0))
     qx = L * 0.28 - 4.0 * u * u + 1.2 * math.sin(u * 3.0)
-    d2 = math.hypot(x - qx, 0.0) if y < 0 else math.hypot(x - qx, y)
-    return min(d1, d2)
+    return math.hypot(x - qx, 0.0) if y < 0 else math.hypot(x - qx, y)
+
+
+def explanada_d(x, y):
+    """Distancia a la explanada despejada frente al acceso: donde se estaciona, se descarga la
+    leña y se pala la nieve. Es el pedazo más pelado de todos."""
+    dx = max(L * 0.55 - x, 0.0, x - (L + 1.8))
+    dy = max(D + 0.4 - y, 0.0, y - (D + 4.2))
+    return math.hypot(dx, dy)
+
+
+def path_dist(x, y):
+    """Distancia a lo pisado: el camino de acceso, la huella de la terraza o la explanada. Las
+    pisadas y el camino son lo que dice que la casa está habitada y no recién puesta ahí."""
+    return min(camino_d(x, y), huella_d(x, y), explanada_d(x, y))
+
+
+def pelado(x, y):
+    """Cuánto suelo asoma bajo la nieve, de 0 (nieve limpia) a 1 (tierra pelada). La nieve virgen
+    de punta a punta es lo que hacía ver la casa como si nadie la hubiera pisado nunca: donde se
+    camina y se estaciona todos los días la nieve se compacta, se derrite y abajo aparecen la
+    tierra y el ripio."""
+    v = 0.0
+    c = camino_d(x, y)
+    if c < 2.0:
+        v = max(v, 0.80 * (1.0 - c / 2.0) ** 0.6)          # las roderas y el centro del camino
+    e = explanada_d(x, y)
+    if e < 2.2:
+        v = max(v, 0.75 * (1.0 - e / 2.2) ** 0.7)          # la explanada del acceso
+    h = huella_d(x, y)
+    if h < 1.1:
+        v = max(v, 0.30 * (1.0 - h / 1.1))                 # la huella: nieve pisada, apenas pelada
+    # y donde el viento barre los lomos, la nieve se adelgaza y asoma el pasto seco
+    lomo = noise.noise(Vector((x / 9.0, y / 9.0, 41.0)))
+    if lomo > 0.34:
+        v = max(v, min(0.40, (lomo - 0.34) * 2.0))
+    return max(0.0, min(1.0, v))
 
 
 def terrain_h(x, y):
@@ -427,6 +538,8 @@ def terrain_h(x, y):
     d = house_dist(x, y)
     if d < 6.5:
         amontona = (1.0 - d / 6.5) ** 2
+        # salvo en el acceso, donde la nieve está palada y corrida a los lados del camino
+        amontona *= min(1.0, max(0.0, (min(camino_d(x, y), explanada_d(x, y)) - 1.6) / 2.0))
         h += (0.62 + 0.22 * noise.noise(Vector((x / 3.0, y / 3.0, 31.0)))) * amontona
     return h + GROUND
 def grid(name, x0, x1, y0, y1, step, mat, coll=None, skip=None, sink=None):
@@ -456,21 +569,37 @@ def build_landscape(M):
     coll = bpy.data.collections.new("Terreno")
     bpy.context.scene.collection.children.link(coll)
     cerca = grid("NieveCerca", -46.0, L + 46.0, -46.0, D + 46.0, 1.1, M["nieve"], coll)
+    marcar_pelado(cerca)
     dentro = (lambda x, y: -46.0 <= x <= L + 46.0 and -46.0 <= y <= D + 46.0)
     lejos = grid("NieveLejos", -230.0, L + 230.0, -230.0, D + 230.0, 5.0, M["nieve"], coll,
                  skip=dentro, sink=dentro)
+    marcar_pelado(lejos)
     hundir_huella(cerca)
     return cerca, lejos
 
 
+def marcar_pelado(o):
+    """Guarda en la malla cuánto suelo asoma en cada vértice, que es lo que mezcla terreno_mat."""
+    me = o.data
+    val = [pelado(v.co.x, v.co.y) for v in me.vertices]
+    at = me.attributes.get("pelado") or me.attributes.new("pelado", "FLOAT", "POINT")
+    at.data.foreach_set("value", val)
+
+
 def hundir_huella(o):
-    """Pisadas: la huella no se dibuja, se hunde. Un surco de pocos centímetros con el borde
-    levantado basta para que se lea el camino hasta el acceso."""
+    """Lo pisado no se dibuja, se hunde. El camino de acceso baja treinta centímetros —es nieve
+    compactada por meses— y lo que se paló queda amontonado en dos lomos a los costados, que es
+    como se ve un camino de nieve de verdad. La huella de la terraza apenas se marca."""
     for v in o.data.vertices:
-        d = path_dist(v.co.x, v.co.y)
-        if d < 1.6:
-            v.co.z -= 0.13 * (1.0 - d / 1.6) ** 1.5
-            v.co.z += 0.05 * max(0.0, 1.0 - abs(d - 1.0) / 0.6)     # borde pisoteado
+        x, y = v.co.x, v.co.y
+        c = min(camino_d(x, y), explanada_d(x, y))
+        if c < 4.2:
+            v.co.z -= 0.30 * max(0.0, 1.0 - c / 2.4) ** 1.2
+            v.co.z += 0.34 * max(0.0, 1.0 - abs(c - 3.0) / 1.2)     # el lomo de nieve palada
+        h = huella_d(x, y)
+        if h < 1.5:
+            v.co.z -= 0.11 * (1.0 - h / 1.5) ** 1.5
+            v.co.z += 0.04 * max(0.0, 1.0 - abs(h - 1.0) / 0.5)
     o.data.update()
 
 
@@ -965,7 +1094,7 @@ def build_world():
     sky.sun_disc = False
     sky.sun_elevation = math.radians(SUN_ELEV)
     sky.sun_rotation = math.radians(90.0 - SUN_AZ)
-    sky.aerosol_density = 3.2       # aire cargado de un día nublado de nieve
+    sky.aerosol_density = 2.2       # aire limpio de montaña
     # bajo el horizonte el cielo físico es "suelo" oscuro: los reflejos rasantes del mar lo verían
     # como una línea oscura en el horizonte. Se usa el cielo en espejo (z -> |z|).
     sxyz = n.new("ShaderNodeSeparateXYZ")
@@ -995,6 +1124,15 @@ def build_world():
     l.new(hi.outputs[0], cam_sky.inputs[0])
     l.new(gain.outputs[2], cam_sky.inputs[6])
     l.new(env.outputs["Color"], cam_sky.inputs[7])
+    # Perilla para bajar sólo la rama que ilumina —la que toman los rayos que no son de cámara ni
+    # de reflejo—, sin tocar el fondo que se ve. Con horn-koppe va en 1 y no hace nada; queda a
+    # mano por si otra casa de la familia nieve necesita apagar el ambiente.
+    amb = n.new("ShaderNodeMix")
+    amb.data_type = "RGBA"
+    amb.blend_type = "MULTIPLY"
+    amb.inputs[0].default_value = 1.0
+    amb.inputs[7].default_value = (AMBIENTE, AMBIENTE, AMBIENTE, 1)
+    l.new(env.outputs["Color"], amb.inputs[6])
     lp = n.new("ShaderNodeLightPath")
     pick = n.new("ShaderNodeMix")
     pick.data_type = "RGBA"
@@ -1003,11 +1141,16 @@ def build_world():
     l.new(lp.outputs["Is Camera Ray"], seen.inputs[0])
     l.new(lp.outputs["Is Glossy Ray"], seen.inputs[1])
     l.new(seen.outputs[0], pick.inputs[0])
-    l.new(env.outputs["Color"], pick.inputs[6])
+    l.new(amb.outputs[2], pick.inputs[6])
     l.new(cam_sky.outputs[2], pick.inputs[7])
     l.new(pick.outputs[2], bg.inputs[0])
+    # Nada de lámpara de sol aparte: horn-koppe_snow trae un sol propio muy fuerte (pico 62884
+    # contra los 34 del nublado) y sumarle una lámpara quemaba la escena. Y bajar el ambiente
+    # tampoco servía para sacar sombras: multiplicar el HDRI entero baja el sol y el cielo por
+    # igual, así que la razón entre los dos —que es la que hace la sombra— no cambia. Lo que
+    # decide es qué HDRI se elige.
     w.mist_settings.start = 25
-    w.mist_settings.depth = 320
+    w.mist_settings.depth = 420
     w.mist_settings.falloff = "LINEAR"
 
 
@@ -1039,7 +1182,7 @@ def setup_render():
     sc.view_settings.white_balance_temperature = WB_TEMP
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
-    sc.view_settings.exposure = -0.62    # una escena casi toda blanca se quema fácil con AgX
+    sc.view_settings.exposure = -0.35    # una escena casi toda blanca se quema fácil con AgX
     sc.view_layers[0].use_pass_mist = True
     # bruma atmosférica azulada en compositor (sólo sobre el terreno lejano)
     nt = bpy.data.node_groups.new("Bruma", "CompositorNodeTree")
@@ -1054,18 +1197,18 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    # bruma = 0,80 · (1 − e^(−(z − 22) / 165)), sobre todo lo que no es cielo (z < 10 km de cámara
+    # bruma = 0,58 · (1 − e^(−(z − 22) / 230)), sobre todo lo que no es cielo (z < 10 km de cámara
     # para el cielo no hay superficie: su profundidad es enorme). En un bosque la bruma tiene que
     # entrar mucho antes que en la playa: es lo que separa las filas de troncos y da profundidad.
     sc.view_layers[0].use_pass_z = True
     zrel = mnode("SUBTRACT", 22.0)
     pos = mnode("MAXIMUM", 0.0)
-    sc_ = mnode("DIVIDE", -165.0)
+    sc_ = mnode("DIVIDE", -230.0)
     ex = mnode("EXPONENT", 0.0)
     one = mnode("SUBTRACT", 1.0)
     sky = mnode("LESS_THAN", 1.0e7)
     mul = mnode("MULTIPLY", 1.0)
-    amt = mnode("MULTIPLY", 0.80)
+    amt = mnode("MULTIPLY", 0.58)
     one.inputs[0].default_value = 1.0
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
@@ -1084,7 +1227,7 @@ def setup_render():
     far_e = mnode("EXPONENT", 0.0)
     far_1 = mnode("SUBTRACT", 1.0)
     far_1.inputs[0].default_value = 1.0
-    far_a = mnode("MULTIPLY", 0.50)
+    far_a = mnode("MULTIPLY", 0.36)
     far_m = mnode("MULTIPLY", 1.0)
     tot = mnode("ADD", 0.0)
     nt.links.new(pos.outputs[0], far_s.inputs[0])
