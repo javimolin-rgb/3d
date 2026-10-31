@@ -322,9 +322,9 @@ def terreno_mat(name="Terreno"):
     t = n.new("ShaderNodeBsdfPrincipled")
     piedra = N.noise(v, 55.0, detail=6, rough=0.75)
     barro = N.noise(v, 6.0, detail=5, rough=0.6)
-    col = N.mix(barro, (0.055, 0.040, 0.028), (0.105, 0.080, 0.052))
-    col = N.mix(N.smooth(piedra, 0.62, 0.78), col, (0.16, 0.145, 0.125))      # ripio claro
-    col = N.mix(N.smooth(N.noise(v, 3.2, detail=4), 0.68, 0.82), col, (0.19, 0.155, 0.085))  # pasto seco
+    col = N.mix(barro, (0.070, 0.047, 0.030), (0.125, 0.090, 0.055))
+    col = N.mix(N.smooth(piedra, 0.70, 0.84), col, (0.145, 0.128, 0.108))    # ripio claro
+    col = N.mix(N.smooth(N.noise(v, 3.2, detail=4), 0.60, 0.78), col, (0.215, 0.165, 0.080))  # pasto seco
     l.new(col, t.inputs["Base Color"])
     t.inputs["Roughness"].default_value = 0.92
     bt = n.new("ShaderNodeBump")
@@ -431,7 +431,7 @@ def load_house(M):
     # delata que la casa se posó ahí hace un segundo.
     casco = next((o for o in coll.objects if "Casco" in o.name), None)
     if casco:
-        nevar(casco, M, dens=110.0, tam=0.075, umbral=0.55, solo=M["chapa"], mat="nieve_techo")
+        nevar(casco, M, dens=300.0, tam=0.042, umbral=0.55, solo=M["chapa"], mat="nieve_techo")
     # luces interiores tibias: con el día nublado afuera, son las que hacen que el ventanal
     # se lea como una casa habitada y no como un vidrio apagado
     for x, y, z, p in ((4.6, 5.0, 2.3, 150), (8.2, 4.6, 2.1, 70), (3.0, 10.4, 2.2, 90),
@@ -504,9 +504,9 @@ def pelado(x, y):
     c = camino_d(x, y)
     if c < 2.0:
         v = max(v, 0.80 * (1.0 - c / 2.0) ** 0.6)          # las roderas y el centro del camino
-    e = explanada_d(x, y)
+    e = explanada_d(x, y) - 0.9 * noise.noise(Vector((x / 2.6, y / 2.6, 53.0)))
     if e < 2.2:
-        v = max(v, 0.75 * (1.0 - e / 2.2) ** 0.7)          # la explanada del acceso
+        v = max(v, 0.75 * (1.0 - max(e, 0.0) / 2.2) ** 0.7)   # la explanada, de borde mordido
     h = huella_d(x, y)
     if h < 1.1:
         v = max(v, 0.30 * (1.0 - h / 1.1))                 # la huella: nieve pisada, apenas pelada
@@ -798,12 +798,11 @@ def build_forest(terreno, arboles, dmin=4.2, dens=0.18, seed=7, escala=(0.72, 1.
         x, y = v.co.x, v.co.y
         cd = claro_d(x, y)
         w = min(1.0, max(0.0, (cd - CLARO) / 8.0))              # el bosque cerrado, fuera del claro
-        # adentro del claro quedan algunos árboles grandes sueltos, para que no sea un potrero:
-        # pegados a la casa dan escala y, al orbitar, cruzan el cuadro y dan parallaje. Tienen que
-        # quedar bien adentro: a 22 m del centro el dron les pasaba a siete metros y tapaban todo.
-        if cd < ORBITA[0]:
-            w = max(w, 0.22)
-        elif cd < ORBITA[1]:
+        # ningún árbol grande dentro del claro. Se probó dejar algunos sueltos cerca de la casa
+        # para que no fuera un potrero, pero el dron orbita a unos treinta metros del centro: un
+        # árbol a quince le queda a catorce de la cámara y le tapa la casa entera media toma. Lo
+        # que llena el claro son los renuevos, las matas y los tocones, que son bajos y no estorban.
+        if cd < ORBITA[1]:
             w = 0.0
         w *= min(1.0, max(0.0, (house_dist(x, y) - 1.6) / 2.0))
         w *= min(1.0, max(0.0, (path_dist(x, y) - 2.2) / 2.0))  # el camino queda libre
@@ -884,7 +883,7 @@ def build_scrub(M, terreno, lib):
             nevar(realizar(o), M, dens=240.0, tam=0.065, umbral=0.38)
             o.location.z = -0.15          # medio enterrados en la nieve
     # un par de lomos de nieve pelados, para los claros entre mata y mata
-    for i in range(3):
+    for i in range(2):
         bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=random.uniform(0.6, 1.1),
                                               location=(0, 0, -0.55))
         m = bpy.context.object
@@ -923,8 +922,8 @@ def build_scrub(M, terreno, lib):
     at_n.inputs["Name"].default_value = "mata"
     dist = N.new("GeometryNodeDistributePointsOnFaces")
     dist.distribute_method = "POISSON"
-    dist.inputs["Distance Min"].default_value = 1.9
-    dist.inputs["Density Max"].default_value = 0.28
+    dist.inputs["Distance Min"].default_value = 2.8
+    dist.inputs["Density Max"].default_value = 0.16
     dist.inputs["Seed"].default_value = 31
     Lk.new(gi.outputs[0], dist.inputs["Mesh"])
     Lk.new(at_n.outputs[0], dist.inputs["Density Factor"])
@@ -1336,14 +1335,15 @@ S1_D0 = 118.0                # distancia inicial (m)
 
 def pose_s1(f, n):
     """Aproximación en espiral: el giro avanza parejo y la distancia cae en escala logarítmica con
-    salida suave (el dron frena al llegar). El punto de mira pasa del claro a la casa."""
+    salida suave (el dron frena al llegar). El punto de mira pasa del claro a la casa, y llega
+    pronto: si tarda, a mitad de la aproximación la casa queda pegada al borde del cuadro."""
     u = f / (n - 1)
     ua = u * u * (3 - 2 * u)
     az = math.radians(S1_AZ[0] + (S1_AZ[1] - S1_AZ[0]) * ua)
     el = math.radians(S1_EL[0] + (S1_EL[1] - S1_EL[0]) * ua)
     direc = Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
     ud = 1 - (1 - u) ** 2.2                          # rápido al comienzo, frena al final
-    tgt = Vector((L / 2, -16.0, 1.0)).lerp(CASA_C, smootherstep(min(1.0, u * 1.25)))
+    tgt = Vector((L / 2, -7.0, 1.6)).lerp(CASA_C, smootherstep(min(1.0, u * 2.1)))
     d_end = S1_END_D[0]
     dist = S1_D0 * (d_end / S1_D0) ** ud
     return direc, tgt, dist
