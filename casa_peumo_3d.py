@@ -39,7 +39,7 @@ argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
         "wb": "6250", "save": None, "dof": "1",
         "nevada": "1.0", "tramo": "s1",
-        "carga": "1.0"}
+        "carga": "1.0", "techo": "1.0", "techo_modo": "capa"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
 
@@ -86,6 +86,7 @@ ORBITA = (15.0, 42.0)        # franja radial por donde pasa el dron: sin árbole
 # cuántos de ellos se muestran, con un sorteo estable por punto. Así los grumos que ya estaban
 # no se mueven nunca y sólo van apareciendo los que faltan.
 CARGA = (0.40, 1.0)          # carga de nieve al principio y al final del video
+TECHO = float(opts["techo"])  # cuánta nieve queda en el techo (1 = lámina llena)
 VIDEO_N = 1008               # cuadros del video completo (las cinco partes, s4 incluida)
 VIDEO_G0 = {"s1": 0, "s2": 240, "s3": 432, "s5": 816}   # dónde empieza cada parte
 VIENTO = Vector((0.82, 0.57, 0.0)).normalized()
@@ -430,8 +431,13 @@ def load_house(M):
     # nieve en el techo: una capa modelada, no grumos. Los 28° la descargan solos (es el enganche
     # de la casa), así que no es un manto parejo sino una cuña con fajas desprendidas.
     casco = next((o for o in coll.objects if "Casco" in o.name), None)
-    if casco:
-        nieve_sobre_techo(casco, M)
+    if casco and TECHO > 0.001:
+        if opts["techo_modo"] == "grano":
+            # nieve granulada: muchísimos granos chicos, no las bolitas de las ramas
+            nevar(casco, M, dens=2600.0 * TECHO, tam=0.018, umbral=0.5,
+                  solo=M["chapa"], mat="nieve_techo")
+        else:
+            nieve_sobre_techo(casco, M)
     # luces interiores tibias: con el día nublado afuera, son las que hacen que el ventanal
     # se lea como una casa habitada y no como un vidrio apagado
     for x, y, z, p in ((4.6, 5.0, 2.3, 150), (8.2, 4.6, 2.1, 70), (3.0, 10.4, 2.2, 90),
@@ -793,13 +799,13 @@ def nieve_sobre_techo(casco, M):
         # La capa va entera y en degradé: el espesor baja hasta cero hacia la cumbrera, sin
         # cortes ni parches. Las fajas desprendidas se probaron y dejaban el techo parchado;
         # terminar la nieve de golpe la convertía en un bloque blanco pegado encima.
-        e = 0.30 * (0.10 + 0.90 * t)
+        e = 0.30 * TECHO * (0.10 + 0.90 * t)
         e *= 0.93 + 0.14 * noise.noise(Vector((v.co.x / 3.4, v.co.y / 3.4, 83.0)))
         espesor[v] = e
         # El velo decide cuánta chapa se ve, y crece mucho más lento que el espesor. Con un velo
         # lineal el degradé se agotaba en el primer tercio del faldón: la nieve es tan clara que
         # con medio velo ya se lee blanca. Elevado a 1,9 el cambio se reparte por todo el largo.
-        velo[v] = t ** 1.9
+        velo[v] = TECHO * t ** 1.9
     # la cornisa: en el borde del alero la nieve sobresale y se dobla
     for v in bm.verts:
         if any(len(e.link_faces) == 1 for e in v.link_edges) and espesor[v] > 0.04:
