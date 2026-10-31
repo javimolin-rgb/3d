@@ -817,13 +817,14 @@ def nieve_sobre_techo(casco, M):
         at_e = nt.nodes.new("ShaderNodeAttribute")
         at_e.name = "EspesorAlfa"
         at_e.attribute_name = "espesor"
-        # El degradé va de punta a punta del faldón: casi transparente en la cumbrera, opaco
-        # contra el alero, cambiando parejo en todo el tramo. Concentrarlo arriba partía el techo
+        # El degradé va de punta a punta del faldón: en la cumbrera la nieve es tan fina que se
+        # ve la chapa negra, y gana hasta tapar del todo contra el alero, cambiando parejo en
+        # todo el tramo. Concentrarlo arriba partía el techo
         # en dos zonas; dejarlo corto lo devolvía a un blanco entero sin degradé.
         ramp = nt.nodes.new("ShaderNodeMapRange")
         ramp.interpolation_type = "LINEAR"
         ramp.inputs[1].default_value, ramp.inputs[2].default_value = 0.03, 0.30
-        ramp.inputs[3].default_value, ramp.inputs[4].default_value = 0.14, 1.0
+        ramp.inputs[3].default_value, ramp.inputs[4].default_value = 0.0, 1.0
         nt.links.new(at_e.outputs["Fac"], ramp.inputs[0])
         nt.links.new(ramp.outputs[0], bsdf.inputs["Alpha"])
     at = me.attributes.new("espesor", "FLOAT", "POINT")
