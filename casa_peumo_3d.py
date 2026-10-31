@@ -336,7 +336,6 @@ def materials():
     M["corteza_clara"] = bark_mat("CortezaClara", (0.16, 0.135, 0.105), (0.06, 0.05, 0.042))
     M["follaje"] = foliage_mat("Follaje", (0.022, 0.048, 0.024), (0.010, 0.025, 0.014))
     M["follaje2"] = foliage_mat("Follaje2", (0.030, 0.052, 0.028), (0.014, 0.030, 0.017))
-    M["follaje_nevado"] = principled("FollajeNevado", (0.105, 0.125, 0.115), 0.80)
     M["lejos"] = principled("BosqueLejos", (0.055, 0.070, 0.062), 0.9)
     return M
 
@@ -502,10 +501,34 @@ def realizar(o):
 def empolvar(o, M):
     """Nieve de los árboles del fondo: no es geometría, es el follaje aclarado. A más de cien
     metros con bruma nadie distingue un grumo de nieve de un tono más claro, y la geometría de
-    miles de árboles nevados no entra en memoria."""
+    miles de árboles nevados no entra en memoria.
+
+    Aclarar no es reemplazar el material: las acículas son tarjetas con alfa, y cambiarles el
+    material entero las dejaba opacas, lo que contra el cielo se veía como un moteado sucio en
+    las copas. Se duplica el material una vez y se le mezcla blanco sólo al color base; el alfa
+    y el resto del árbol de nodos quedan como estaban."""
     for sl in o.material_slots:
-        if sl.material:
-            sl.material = M["follaje_nevado"]
+        m = sl.material
+        if not m:
+            continue
+        claro = bpy.data.materials.get(m.name + "_nevado")
+        if claro is None:
+            claro = m.copy()
+            claro.name = m.name + "_nevado"
+            b = next((nd for nd in claro.node_tree.nodes
+                      if nd.bl_idname == "ShaderNodeBsdfPrincipled"), None)
+            if b:
+                col = b.inputs["Base Color"]
+                mix = claro.node_tree.nodes.new("ShaderNodeMix")
+                mix.data_type = "RGBA"
+                mix.inputs[0].default_value = 0.62        # cuánto blanco entra
+                mix.inputs[7].default_value = (0.86, 0.89, 0.93, 1)
+                if col.links:
+                    claro.node_tree.links.new(col.links[0].from_socket, mix.inputs[6])
+                else:
+                    mix.inputs[6].default_value = col.default_value
+                claro.node_tree.links.new(mix.outputs[2], col)
+        sl.material = claro
     return o
 
 
@@ -633,7 +656,7 @@ def build_library(M):
     return lib, cerca, medio, lejos, renuevos
 
 
-def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25),
+def build_forest(terreno, arboles, dmin=4.2, dens=0.18, seed=7, escala=(0.72, 1.25),
                  attr="veg", corte=None):
     """Bosque con nodos de geometría sobre una malla de terreno, según un atributo 'veg' calculado
     en Python: 0 en el claro de la casa y sobre la huella, 1 en el bosque, modulado por dos octavas
@@ -772,7 +795,7 @@ def build_scrub(M, terreno, lib):
     dist = N.new("GeometryNodeDistributePointsOnFaces")
     dist.distribute_method = "POISSON"
     dist.inputs["Distance Min"].default_value = 1.9
-    dist.inputs["Density Max"].default_value = 0.40
+    dist.inputs["Density Max"].default_value = 0.28
     dist.inputs["Seed"].default_value = 31
     Lk.new(gi.outputs[0], dist.inputs["Mesh"])
     Lk.new(at_n.outputs[0], dist.inputs["Density Factor"])
@@ -1000,7 +1023,10 @@ def setup_render():
     cy.diffuse_bounces = 2        # con tanta nieve a la vista, el tercer rebote casi no se nota
     cy.glossy_bounces = 2
     cy.transmission_bounces = 4
-    cy.transparent_max_bounces = 6
+    cy.transparent_max_bounces = 10
+    cy.use_fast_gi = True            # en bosque denso, los rebotes profundos salen por oclusión
+    cy.ao_bounces_render = 2
+    cy.sample_clamp_indirect = 3.0   # sin esto, el cielo visto entre acículas deja luciérnagas
     cy.caustics_reflective = cy.caustics_refractive = False
     cy.blur_glossy = 1.0
     cy.use_denoising = True
@@ -1069,7 +1095,14 @@ def setup_render():
     nt.links.new(sky.outputs[0], far_m.inputs[1])
     nt.links.new(amt.outputs[0], tot.inputs[0])
     nt.links.new(far_m.outputs[0], tot.inputs[1])
-    nt.links.new(tot.outputs[0], mix.inputs[0])
+    # la cantidad de bruma se difumina antes de aplicarla: en el borde entre una acícula y el
+    # cielo la profundidad salta de cien metros a infinito de un píxel al siguiente, y la bruma
+    # saltaba con ella. Se veía como un moteado sucio en las copas del fondo.
+    suave = nt.nodes.new("CompositorNodeBlur")
+    suave.filter_type = "GAUSS"
+    suave.size_x = suave.size_y = 3
+    nt.links.new(tot.outputs[0], suave.inputs[0])
+    nt.links.new(suave.outputs[0], mix.inputs[0])
     nt.links.new(rl.outputs["Image"], mix.inputs[6])
     nt.links.new(mix.outputs[2], go.inputs[0])
 
@@ -1417,7 +1450,7 @@ def main():
     # el bosque del fondo, en dos bandas sobre la misma malla, para que el detalle baje de a poco
     build_forest(lejos, arb_medio, dmin=6.5, dens=0.12, seed=19, escala=(0.8, 1.35),
                  attr="veg_medio", corte=lambda r: min(1.0, max(0.0, (105.0 - r) / 26.0)))
-    build_forest(lejos, arb_lejos, dmin=8.5, dens=0.10, seed=23, escala=(0.85, 1.5),
+    build_forest(lejos, arb_lejos, dmin=10.0, dens=0.085, seed=23, escala=(0.85, 1.5),
                  attr="veg_lejos", corte=lambda r: min(1.0, max(0.0, (r - 88.0) / 26.0)))
     # renuevos pegados a la casa: lo que crece solo al borde del claro y la enraíza en el lugar
     build_forest(cerca, renuevos, dmin=3.2, dens=0.26, seed=41, escala=(0.6, 1.25),
