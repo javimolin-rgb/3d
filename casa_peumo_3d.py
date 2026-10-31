@@ -2,6 +2,7 @@
 
 Uso:
   python casa_peumo_3d.py -- --vista izq --still 1 --out cuadro.png [--res 720x1280] [--samples 32]
+  python casa_peumo_3d.py -- --vista dron --tramo s1 --out frames_peumo/s1/f_ --res 720x1280
   (vistas: izq / der = tomas fijas de dron desde el frente vidriado; izq_atras / der_atras = las
   opuestas, desde la fachada de acceso. --nevada gradúa la nieve cayendo: 0 la apaga, 1 es nevada
   normal, 2,5 es nevando fuerte. --dof 0 apaga el desenfoque. El recorrido de dron por secciones se arma después de que
@@ -34,7 +35,7 @@ from mathutils import Vector, noise
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
         "wb": "6900", "save": None, "dof": "1",
-        "nevada": "1.0"}
+        "nevada": "1.0", "tramo": "s1"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
 
@@ -52,7 +53,17 @@ L, D = 9.49, 13.04           # ancho y fondo del casco (terraza + caja + porch)
 HC = Vector((L / 2, D / 2))  # centro de la casa en planta
 GROUND = 0.0                 # terreno bajo la casa (base de los pilotes)
 PISO = 0.60                  # piso terminado
-CLARO = 11.0                 # radio del claro del bosque alrededor de la casa
+# El claro tiene que dar para la órbita del dron. Con la casa de 9,5 x 13 m y lente de 30 mm, el
+# encuadre adaptable deja la cámara a unos 31 m: si el claro es más chico que eso, el dron orbita
+# por dentro del bosque y los árboles le tapan el lente. Así que el claro es grande, pero no es un
+# potrero: adentro quedan renuevos, matas, tocones y algunos árboles grandes sueltos, y la franja
+# por donde pasa la órbita es la única que va del todo despejada.
+CLARO = 30.0                 # radio del claro del bosque alrededor de la casa
+ORBITA = (23.0, 40.0)        # franja radial por donde pasa el dron: sin árboles grandes
+# La nieve cae con viento: 25° de inclinación. Cayendo a plomo se ve falsa, y además en video el
+# motion blur convierte cada copo en un hilo, y son esos hilos inclinados los que leen como nevada.
+VIENTO = Vector((0.82, 0.57, 0.0)).normalized()
+VIENTO_TAN = 0.47            # tangente del ángulo con la vertical (25°)
 FPS = 24
 # ---------------------------------------------------------------- utilidades
 def link(obj, coll=None):
@@ -343,11 +354,10 @@ def load_house(M):
 
 # ---------------------------------------------------------------- terreno
 def claro_d(x, y):
-    """Distancia al claro, medida en una elipse estirada hacia -Y: el bosque encierra la casa por
-    los costados y por atrás, pero se abre delante del ventanal. Es lo que hace que el testero
-    tenga algo que mirar —y lo que deja plantar la cámara sin un árbol encima."""
+    """Distancia al claro, medida en una elipse algo estirada hacia -Y: el claro se abre un poco
+    más delante del ventanal, que es lo que el testero tiene para mirar."""
     dx = (x - HC.x) / 1.15
-    dy = (y - HC.y) / (2.2 if y < HC.y else 1.25)
+    dy = (y - HC.y) / (1.35 if y < HC.y else 1.1)
     return math.hypot(dx, dy)
 
 
@@ -426,8 +436,8 @@ def build_landscape(M):
     hasta los cerros del fondo, que la bruma termina de fundir con el cielo."""
     coll = bpy.data.collections.new("Terreno")
     bpy.context.scene.collection.children.link(coll)
-    cerca = grid("NieveCerca", -34.0, L + 34.0, -34.0, D + 34.0, 0.9, M["nieve"], coll)
-    dentro = (lambda x, y: -34.0 <= x <= L + 34.0 and -34.0 <= y <= D + 34.0)
+    cerca = grid("NieveCerca", -46.0, L + 46.0, -46.0, D + 46.0, 1.1, M["nieve"], coll)
+    dentro = (lambda x, y: -46.0 <= x <= L + 46.0 and -46.0 <= y <= D + 46.0)
     lejos = grid("NieveLejos", -230.0, L + 230.0, -230.0, D + 230.0, 5.0, M["nieve"], coll,
                  skip=dentro, sink=dentro)
     hundir_huella(cerca)
@@ -590,7 +600,14 @@ def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.
     veg = []
     for v in me.vertices:
         x, y = v.co.x, v.co.y
-        w = min(1.0, max(0.0, (claro_d(x, y) - CLARO) / 5.0))   # el claro alrededor de la casa
+        cd = claro_d(x, y)
+        w = min(1.0, max(0.0, (cd - CLARO) / 8.0))              # el bosque cerrado, fuera del claro
+        # adentro del claro quedan algunos árboles grandes sueltos, para que no sea un potrero:
+        # cerca de la casa dan escala y parallaje, pero la franja de la órbita va limpia
+        if cd < ORBITA[0]:
+            w = max(w, 0.09)
+        elif cd < ORBITA[1]:
+            w = 0.0
         w *= min(1.0, max(0.0, (house_dist(x, y) - 1.6) / 2.0))
         w *= min(1.0, max(0.0, (path_dist(x, y) - 2.2) / 2.0))  # el camino queda libre
         w *= min(1.0, max(0.0, (cam_dist(x, y) - 5.5) / 3.5))   # nada de árboles pegados al lente
@@ -691,6 +708,7 @@ def build_scrub(M, terreno, lib):
     for v in me.vertices:
         x, y = v.co.x, v.co.y
         w = min(1.0, max(0.0, (house_dist(x, y) - 1.1) / 2.2))
+        w *= min(1.0, max(0.0, (CLARO + 10.0 - claro_d(x, y)) / 8.0))
         w *= min(1.0, max(0.0, (path_dist(x, y) - 1.8) / 1.5))
         w *= min(1.0, max(0.0, 0.70 + 1.2 * noise.noise(Vector((x / 5.0, y / 5.0, 21.5)))))
         val.append(max(0.0, min(1.0, w)))
@@ -744,8 +762,8 @@ def build_scrub(M, terreno, lib):
     md.node_group = ng
 
 
-def build_snowfall(M, loc, tgt, n=36000, fuerza=1.0):
-    """Nieve cayendo: copos repartidos en el volumen que la cámara mira. Los de más cerca quedan
+def build_snowfall(M, loc=None, tgt=None, n=36000, fuerza=1.0, caja=None):
+    """Nieve cayendo, en diagonal por el viento (VIENTO_TAN). Los de más cerca quedan
     desenfocados y se leen como motas blandas —que es como se ve nevar en una foto—, así que la
     cámara va con desenfoque: a 30 mm y f/4 la hiperfocal son ocho metros, o sea que el bosque
     y la casa quedan nítidos y sólo se ablanda lo que pasa a menos de tres metros del lente."""
@@ -800,7 +818,8 @@ def build_snowfall(M, loc, tgt, n=36000, fuerza=1.0):
     # van repartidas parejo, así la curva suave que arma Blender pasa recta por ellas y el copo
     # cae a velocidad constante, sin acelerar ni frenar.
     for k in range(9):
-        o.location = (0.35 * k / 8.0, 0.0, -9.0 * k / 8.0)
+        dz = -9.0 * k / 8.0
+        o.location = VIENTO * (-dz * VIENTO_TAN) + Vector((0, 0, dz))
         o.keyframe_insert("location", frame=1 + k * FPS)
     return coll
 
@@ -1004,6 +1023,313 @@ def build_camera():
 
 
 
+# ---------------------------------------------------------------- recorrido de dron (por secciones)
+# El reel se divide en secciones que se renderizan por separado (--vista dron --tramo sN) y se unen
+# en la edición como una sola toma de dron (la última pose de una es la primera de la siguiente),
+# con la misma lógica del reel de Casa Lingue y del recorrido de Huingán:
+#   s1  aproximación: parte lejos y alto sobre el bosque y se acerca en espiral, desacelerando,
+#       hasta la diagonal frontal izquierda                                                10 s
+#   s2  vuelo lento rodeando el frente hacia el costado, a distancia casi constante
+#   s3  sube a la vista aérea y el techo se corta: recintos hasta la cenital
+#   s4  paso a la planta y la lámina (post 2D, como tools/video_corte.py en Lingue)
+#   s5  baja en espiral hacia la fachada de acceso y el camino
+# Un dron no hace zoom: la distancia cambia de forma continua y suave (nunca "respira" con el giro);
+# el encuadre adaptable sólo fija la distancia final para que la casa quepa en pantalla.
+SECCIONES = {"s1": 240, "s2": 192, "s3": 240, "s5": 192}
+INICIO = {"s2": 0, "s3": 192, "s5": 432}      # cuadro de inicio de cada sección en la ruta continua s2..s5
+CASA_BOX = (0.0, L, -1.3, D + 1.3, GROUND, 6.6)      # caja de la casa (con escaleras) para encuadrar
+CASA_C = Vector((L / 2, D / 2, 2.0))                 # punto al que mira el dron
+FIT = 0.80                                           # ancho de pantalla que ocupa la casa
+
+
+def ease(t):
+    t = min(max(t, 0.0), 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def fit_distance(direc, target, lens, aspect, fit=FIT):
+    """Distancia a la que la caja de la casa ocupa `fit` del ancho de pantalla, mirando a `target`
+    desde la dirección `direc` (vector unitario desde el objetivo hacia la cámara). De frente la
+    casa muestra todo su largo y la cámara queda más lejos; en diagonal, más cerca."""
+    fwd = -direc
+    right = fwd.cross(Vector((0, 0, 1))).normalized()
+    up = right.cross(fwd)
+    half_w = (36.0 * aspect / 2) / lens          # sensor ajustado al alto (vertical): tan(fov_h/2)
+    half_h = (36.0 / 2) / lens
+    x0, x1, y0, y1, z0, z1 = CASA_BOX
+    corners = [Vector((x, y, z)) for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)]
+    lo, hi = 5.0, 200.0
+    for _ in range(40):
+        dist = (lo + hi) / 2
+        cam = target + direc * dist
+        ok = True
+        for c in corners:
+            v = c - cam
+            depth = v.dot(fwd)
+            if depth <= 0.1 or abs(v.dot(right) / depth) > half_w * fit or abs(v.dot(up) / depth) > half_h * 0.9:
+                ok = False
+                break
+        lo, hi = (dist, hi) if not ok else (lo, dist)
+    return hi
+
+
+def smootherstep(t):
+    t = min(max(t, 0.0), 1.0)
+    return t * t * t * (t * (t * 6 - 15) + 10)
+
+
+S1_AZ = (-118.0, -42.0)      # azimut (0 = de frente, la cámara hacia -Y; negativo = lado izquierdo)
+S1_EL = (44.0, 20.0)         # elevación (°): empieza alto, por sobre las copas
+# En la playa el dron podía entrar rasante porque no había nada en el medio. Acá, a ras de copas,
+# el bosque tapa la casa entera: la aproximación tiene que venir de arriba y bajar al claro.
+S1_D0 = 118.0                # distancia inicial (m)
+
+
+def pose_s1(f, n):
+    """Aproximación en espiral: el giro avanza parejo y la distancia cae en escala logarítmica con
+    salida suave (el dron frena al llegar). El punto de mira pasa del claro a la casa."""
+    u = f / (n - 1)
+    ua = u * u * (3 - 2 * u)
+    az = math.radians(S1_AZ[0] + (S1_AZ[1] - S1_AZ[0]) * ua)
+    el = math.radians(S1_EL[0] + (S1_EL[1] - S1_EL[0]) * ua)
+    direc = Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
+    ud = 1 - (1 - u) ** 2.2                          # rápido al comienzo, frena al final
+    tgt = Vector((L / 2, -16.0, 1.0)).lerp(CASA_C, smootherstep(min(1.0, u * 1.25)))
+    d_end = S1_END_D[0]
+    dist = S1_D0 * (d_end / S1_D0) ** ud
+    return direc, tgt, dist
+
+
+S1_END_D = [None]
+
+
+def s1_setup(w, h, lens):
+    """Distancia final de s1: la que deja la casa en el encuadre adaptable en la diagonal final."""
+    az, el = math.radians(S1_AZ[1]), math.radians(S1_EL[1])
+    direc = Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
+    S1_END_D[0] = fit_distance(direc, CASA_C, lens, w / h)
+
+
+# ------------------------------------------- ruta continua s2 -> s3 -> s5 (spline por claves)
+# Peumo tiene dos pisos, así que el corte baja en dos tiempos en vez de uno: primero se lleva el
+# techo y deja ver el segundo piso, después baja al primero. Con un solo escalón, el mezanine y el
+# dormitorio principal no se alcanzaban a ver nunca.
+CUT_TOP, CUT_MID, CUT_LOW = 7.2, 4.30, 2.35
+# claves: (cuadro global, azimut°, elevación°, distancia, altura de corte, parar)
+#   distancia: número (m) o ("fit", factor): la del encuadre adaptable en esa dirección
+#   parar=True: la cámara llega quieta a esa clave (fin de s3, antes del paso a la planta)
+RUTA = [
+    (0, S1_AZ[1], S1_EL[1], ("fit", 1.0), CUT_TOP, True),     # = último cuadro de s1
+    (90, 0.0, 19.0, ("frente", 1.0), CUT_TOP, False),         # de frente al testero vidriado
+    (192, 62.0, 21.0, ("frente", 1.0), CUT_TOP, False),       # fin s2: costado, sobre los pilotes
+    (262, 78.0, 40.0, ("fit", 1.05), CUT_TOP, False),
+    (352, 86.0, 76.0, ("fit", 1.0), CUT_MID, False),
+    (432, 90.0, 89.5, ("fit", 1.0), CUT_LOW, True),           # fin s3: cenital, casa a lo largo de la pantalla
+    (500, 122.0, 52.0, ("fit", 1.15), CUT_TOP, False),
+    (624, 168.0, 18.0, ("fit", 1.0), CUT_TOP, True),          # fin s5: fachada de acceso y el camino
+]
+CUT_KEYS = [(0, CUT_TOP), (250, CUT_TOP), (330, CUT_MID), (400, CUT_LOW), (432, CUT_LOW),
+            (470, CUT_LOW), (545, CUT_TOP), (624, CUT_TOP)]
+
+
+def _dir(az, el):
+    az, el = math.radians(az), math.radians(el)
+    return Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
+
+
+def _hermite_channel(keys, f):
+    """Interpolación cúbica de Hermite con tangentes de Catmull-Rom (0 en claves 'parar' y extremos)."""
+    ts = [k[0] for k in keys]
+    if f <= ts[0]:
+        return keys[0][1]
+    if f >= ts[-1]:
+        return keys[-1][1]
+    i = max(j for j in range(len(ts) - 1) if ts[j] <= f)
+
+    def tan(j):
+        if j == 0 or j == len(keys) - 1 or keys[j][2]:
+            return 0.0
+        return (keys[j + 1][1] - keys[j - 1][1]) / (ts[j + 1] - ts[j - 1])
+
+    h = ts[i + 1] - ts[i]
+    t = (f - ts[i]) / h
+    p0, p1, m0, m1 = keys[i][1], keys[i + 1][1], tan(i) * h, tan(i + 1) * h
+    t2, t3 = t * t, t * t * t
+    return (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1
+
+
+_RUTA_D = {}
+
+
+def ruta_setup(w, h, lens):
+    """Resuelve las distancias de la ruta: 'fit' en la dirección de la clave; 'frente' = el mayor
+    encuadre del arco frontal (así el dron no se acerca y aleja mientras rodea la casa)."""
+    s1_setup(w, h, lens)
+    frente = max(fit_distance(_dir(a, 20.0), CASA_C, lens, w / h) for a in range(-45, 75, 5))
+    for k in RUTA:
+        kind, fac = k[3]
+        d = frente if kind == "frente" else fit_distance(_dir(k[1], k[2]), CASA_C, lens, w / h)
+        _RUTA_D[k[0]] = d * fac
+    _RUTA_D[0] = S1_END_D[0]
+
+
+def ruta_pose(g):
+    """Pose en el cuadro global g de la ruta continua s2..s5 (distancia en escala logarítmica)."""
+    az = _hermite_channel([(k[0], k[1], k[5]) for k in RUTA], g)
+    el = _hermite_channel([(k[0], k[2], k[5]) for k in RUTA], g)
+    ld = _hermite_channel([(k[0], math.log(_RUTA_D[k[0]]), k[5]) for k in RUTA], g)
+    return _dir(az, min(el, 89.5)), CASA_C, math.exp(ld)
+
+
+def cut_z(g):
+    return _hermite_channel([(k[0], k[1], True) for k in CUT_KEYS], g)
+
+
+def section_groups():
+    """Grupos de shader de corte (como en Casa Lingue): lo que queda sobre el plano de corte se
+    vuelve transparente; en muros y techo ('relleno') las caras interiores cortadas se ven oscuras."""
+    groups = {}
+    for cap in (False, True):
+        ng = bpy.data.node_groups.new("Corte" + ("Relleno" if cap else ""), "ShaderNodeTree")
+        ng.interface.new_socket("Shader", in_out="INPUT", socket_type="NodeSocketShader")
+        ng.interface.new_socket("Shader", in_out="OUTPUT", socket_type="NodeSocketShader")
+        n, l = ng.nodes, ng.links
+        gi, go = n.new("NodeGroupInput"), n.new("NodeGroupOutput")
+        geo = n.new("ShaderNodeNewGeometry")
+        sep = n.new("ShaderNodeSeparateXYZ")
+        l.new(geo.outputs["Position"], sep.inputs[0])
+        val = n.new("ShaderNodeValue")
+        val.name = "AlturaCorte"
+        gt = n.new("ShaderNodeMath")
+        gt.operation = "GREATER_THAN"
+        l.new(sep.outputs["Z"], gt.inputs[0])
+        l.new(val.outputs[0], gt.inputs[1])
+        shader = gi.outputs[0]
+        if cap:
+            em = n.new("ShaderNodeEmission")
+            em.inputs["Color"].default_value = (0.03, 0.03, 0.03, 1)
+            mc = n.new("ShaderNodeMixShader")
+            l.new(geo.outputs["Backfacing"], mc.inputs[0])
+            l.new(gi.outputs[0], mc.inputs[1])
+            l.new(em.outputs[0], mc.inputs[2])
+            shader = mc.outputs[0]
+        tr = n.new("ShaderNodeBsdfTransparent")
+        mx = n.new("ShaderNodeMixShader")
+        l.new(gt.outputs[0], mx.inputs[0])
+        l.new(shader, mx.inputs[1])
+        l.new(tr.outputs[0], mx.inputs[2])
+        l.new(mx.outputs[0], go.inputs[0])
+        groups[cap] = ng
+    return groups
+
+
+def apply_section(frames, g0):
+    """Corte animado de la casa: shader en sus materiales (no en el paisaje) y, en las piezas, se
+    borran con nodos de geometría las caras enteras sobre el corte (no se apilan transparencias)."""
+    house = list(bpy.data.collections["Casa"].objects)
+    groups = section_groups()
+    capped = {"ChapaNegra", "MaderaFachada", "MaderaCielo", "MuroInterior", "Pm_MarcoNegro", "Pm_PuertaMadera"}
+    mats = {sl.material for o in house for sl in o.material_slots if sl.material}
+    for m in mats:
+        out = next(nd for nd in m.node_tree.nodes if nd.bl_idname == "ShaderNodeOutputMaterial" and nd.is_active_output)
+        if not out.inputs["Surface"].links:
+            continue
+        lk = out.inputs["Surface"].links[0]
+        src = lk.from_socket
+        m.node_tree.links.remove(lk)
+        g = m.node_tree.nodes.new("ShaderNodeGroup")
+        g.node_tree = groups[m.name in capped]
+        m.node_tree.links.new(src, g.inputs[0])
+        m.node_tree.links.new(g.outputs[0], out.inputs["Surface"])
+    ng = bpy.data.node_groups.new("CorteGeo", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, Lk = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    pos = N.new("GeometryNodeInputPosition")
+    sep = N.new("ShaderNodeSeparateXYZ")
+    Lk.new(pos.outputs[0], sep.inputs[0])
+    cmp_ = N.new("FunctionNodeCompare")
+    cmp_.data_type = "FLOAT"
+    cmp_.operation = "GREATER_THAN"
+    zval = N.new("ShaderNodeValue")
+    Lk.new(sep.outputs["Z"], cmp_.inputs["A"])
+    Lk.new(zval.outputs[0], cmp_.inputs["B"])
+    ev = N.new("GeometryNodeFieldOnDomain")
+    ev.domain = "FACE"
+    ev.data_type = "BOOLEAN"
+    Lk.new(cmp_.outputs[0], ev.inputs[0])
+    dl = N.new("GeometryNodeDeleteGeometry")
+    dl.domain = "FACE"
+    Lk.new(gi.outputs[0], dl.inputs["Geometry"])
+    Lk.new(ev.outputs[0], dl.inputs["Selection"])
+    Lk.new(dl.outputs[0], go.inputs[0])
+    for o in house:
+        if o.type == "MESH" and o.name != "Peumo_Casco":
+            o.modifiers.new("Corte", "NODES").node_group = ng
+    socks = [zval.outputs[0]] + [g.nodes["AlturaCorte"].outputs[0] for g in groups.values()]
+    for f in range(frames):
+        for sk in socks:
+            sk.default_value = cut_z(g0 + f)
+            sk.keyframe_insert("default_value", frame=f + 1)
+    for o in house:   # con el techo abierto entra el día: luces interiores suaves
+        if o.type == "LIGHT":
+            o.visible_camera = False
+            o.data.energy *= 0.3
+    bpy.context.scene.cycles.transparent_max_bounces = 24
+
+
+
+
+POSES = {"s1": pose_s1}
+SETUP = {"s1": s1_setup}
+for _t in ("s2", "s3", "s5"):
+    POSES[_t] = (lambda t: lambda f, n: ruta_pose(INICIO[t] + f))(_t)
+    SETUP[_t] = ruta_setup
+
+
+def build_drone(cam):
+    """Anima la cámara cuadro a cuadro según la sección pedida."""
+    sc = bpy.context.scene
+    tramo = opts["tramo"]
+    n = SECCIONES[tramo]
+    sc.frame_start, sc.frame_end = 1, n
+    sc.frame_step = int(opts.get("step", "1"))   # >1 para previsualizaciones rápidas
+    w, h = (int(v) for v in opts["res"].split("x"))
+    lens = 30.0
+    cam.data.lens = lens
+    SETUP[tramo](w, h, lens)
+    for f in range(n):
+        pose = POSES[tramo](f, n)
+        direc, tgt = pose[0], pose[1]
+        dist = pose[2] if len(pose) > 2 else fit_distance(direc, tgt, lens, w / h)
+        cam.location = tgt + direc * dist
+        cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
+        cam.keyframe_insert("location", frame=f + 1)
+        cam.keyframe_insert("rotation_euler", frame=f + 1)
+    if tramo in ("s3", "s5"):
+        apply_section(n, INICIO[tramo])
+    if tramo == "s3":   # dónde cae la casa en la cenital: para calzar la planta (tools/plano_peumo.py)
+        import json
+        from bpy_extras.object_utils import world_to_camera_view
+        direc, tgt, dist = ruta_pose(INICIO["s3"] + n - 1)
+        cam.location = tgt + direc * dist
+        cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
+        bpy.context.view_layer.update()
+        pts = {}
+        for k, (x, y) in {"o": (0.0, 0.0), "x": (L, 0.0), "y": (0.0, D)}.items():
+            v = world_to_camera_view(sc, cam, Vector((x, y, PISO)))
+            pts[k] = [v.x * w, (1 - v.y) * h]
+        out_dir = os.path.dirname(opts["out"])
+        os.makedirs(out_dir, exist_ok=True)
+        json.dump({"pts": pts, "res": [w, h]}, open(os.path.join(out_dir, "plano.json"), "w"))
+    sc.render.use_overwrite = False      # reanudable: no vuelve a renderizar cuadros guardados
+    sc.render.use_placeholder = True
+    sc.render.use_persistent_data = True
+    sc.render.use_motion_blur = True
+    sc.render.motion_blur_shutter = 0.35
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     M = materials()
@@ -1013,29 +1339,41 @@ def main():
     build_forest(cerca, arb_cerca)
     # el bosque del fondo, en dos bandas sobre la misma malla, para que el detalle baje de a poco
     build_forest(lejos, arb_medio, dmin=6.5, dens=0.12, seed=19, escala=(0.8, 1.35),
-                 attr="veg_medio", corte=lambda r: min(1.0, max(0.0, (92.0 - r) / 26.0)))
+                 attr="veg_medio", corte=lambda r: min(1.0, max(0.0, (105.0 - r) / 26.0)))
     build_forest(lejos, arb_lejos, dmin=8.5, dens=0.10, seed=23, escala=(0.85, 1.5),
-                 attr="veg_lejos", corte=lambda r: min(1.0, max(0.0, (r - 74.0) / 26.0)))
+                 attr="veg_lejos", corte=lambda r: min(1.0, max(0.0, (r - 88.0) / 26.0)))
     # renuevos pegados a la casa: lo que crece solo al borde del claro y la enraíza en el lugar
-    build_forest(cerca, renuevos, dmin=2.8, dens=0.30, seed=41, escala=(0.6, 1.25),
-                 attr="renuevo", corte=lambda r: min(1.0, max(0.0, (CLARO + 6.0 - r) / 4.0)))
+    build_forest(cerca, renuevos, dmin=3.2, dens=0.26, seed=41, escala=(0.6, 1.25),
+                 attr="renuevo", corte=lambda r: min(1.0, max(0.0, (CLARO + 8.0 - r) / 6.0)))
     build_scrub(M, cerca, lib)
     build_lenera(M)
     build_world()
     setup_render()
     sc = bpy.context.scene
-    cam = build_camera()
-    loc, tgt, _ = VISTAS[opts["vista"]]
-    build_snowfall(M, loc, tgt, fuerza=float(opts["nevada"]))
-    if opts.get("dof", "1") != "0":
-        cam.data.dof.use_dof = True
-        cam.data.dof.focus_distance = (Vector(tgt) - Vector(loc)).length
-        cam.data.dof.aperture_fstop = 4.0
+    if opts["vista"] == "dron":
+        cam = link(bpy.data.objects.new("Camara", bpy.data.cameras.new("Camara")))
+        cam.data.clip_end = 5000
+        sc.camera = cam
+        build_drone(cam)
+        # la nevada va sólo en la quinta parte: en las otras tapa la casa y el bosque
+        if opts["tramo"] == "s5":
+            build_snowfall(M, caja=(90.0, 90.0, 34.0), fuerza=float(opts["nevada"]))
+    else:
+        cam = build_camera()
+        loc, tgt, _ = VISTAS[opts["vista"]]
+        build_snowfall(M, loc, tgt, fuerza=float(opts["nevada"]))
+        if opts.get("dof", "1") != "0":
+            cam.data.dof.use_dof = True
+            cam.data.dof.focus_distance = (Vector(tgt) - Vector(loc)).length
+            cam.data.dof.aperture_fstop = 4.0
     if opts["save"]:
         bpy.ops.wm.save_as_mainfile(filepath=opts["save"])
     sc.render.filepath = opts["out"]
-    sc.frame_set(int(opts["still"]))
-    bpy.ops.render.render(write_still=True)
+    if opts["vista"] == "dron" and not opts.get("cuadro"):
+        bpy.ops.render.render(animation=True)
+    else:
+        sc.frame_set(int(opts.get("cuadro") or opts["still"]))
+        bpy.ops.render.render(write_still=True)
 
 
 main()
