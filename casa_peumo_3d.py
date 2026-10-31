@@ -751,10 +751,11 @@ def nieve_sobre_techo(casco, M):
     """Capa de nieve del techo, modelada en vez de esparcida.
 
     Los grumos sueltos daban una capa de bolitas que parecía plumavit. Acá la nieve es una sola
-    pieza continua, que es como se ve de verdad: una cuña —más delgada en la cumbrera, más gruesa
-    contra el alero, donde se frena al deslizar— asomada por el borde en una cornisa que se dobla
-    hacia abajo. El espesor varía suave, sin cortes: las fajas desprendidas se probaron y hacían
-    ver el techo parchado.
+    pieza continua que se va en degradé: una cuña que arranca en nada en la cumbrera y engrosa
+    contra el alero, donde se frena al deslizar, asomada por el borde en una cornisa que se dobla
+    hacia abajo. Y donde adelgaza se vuelve translúcida y deja ver la chapa oscura, que es lo que
+    hace que el degradé se lea; si la nieve termina de golpe, por fino que sea el borde, se ve
+    como un bloque blanco apoyado encima.
 
     Se construye duplicando las caras de chapa que miran al cielo, subdividiéndolas y corriendo
     cada vértice por su normal según ese espesor. El espesor queda guardado por vértice para que
@@ -788,10 +789,11 @@ def nieve_sobre_techo(casco, M):
     for v in bm.verts:
         t = (v.co.z - z_alero) / max(z_cum - z_alero, 1e-6)
         t = 1.0 - t                                   # 0 en la cumbrera, 1 en el alero
-        # la capa va entera: nada de fajas peladas, que cortaban el techo y lo hacían ver
-        # irregular. Lo que varía es el espesor, y de forma suave, sin bordes.
-        e = 0.30 * (0.30 + 0.70 * t ** 1.3)
-        e *= 0.88 + 0.24 * noise.noise(Vector((v.co.x / 2.6, v.co.y / 2.6, 83.0)))
+        # La capa va entera y en degradé: el espesor baja hasta cero hacia la cumbrera, sin
+        # cortes ni parches. Las fajas desprendidas se probaron y dejaban el techo parchado;
+        # terminar la nieve de golpe la convertía en un bloque blanco pegado encima.
+        e = 0.30 * t ** 1.25
+        e *= 0.93 + 0.14 * noise.noise(Vector((v.co.x / 3.4, v.co.y / 3.4, 83.0)))
         espesor[v] = e
     # la cornisa: en el borde del alero la nieve sobresale y se dobla
     for v in bm.verts:
@@ -808,6 +810,17 @@ def nieve_sobre_techo(casco, M):
     bm.to_mesh(me)
     o = link(bpy.data.objects.new("Peumo_NieveTecho", me), casco.users_collection[0])
     me.materials.append(M["nieve_techo"])
+    nt = M["nieve_techo"].node_tree
+    if "EspesorAlfa" not in nt.nodes:
+        bsdf = next(nd for nd in nt.nodes if nd.bl_idname == "ShaderNodeBsdfPrincipled")
+        at_e = nt.nodes.new("ShaderNodeAttribute")
+        at_e.name = "EspesorAlfa"
+        at_e.attribute_name = "espesor"
+        ramp = nt.nodes.new("ShaderNodeMapRange")
+        ramp.interpolation_type = "SMOOTHSTEP"
+        ramp.inputs[1].default_value, ramp.inputs[2].default_value = 0.012, 0.085
+        nt.links.new(at_e.outputs["Fac"], ramp.inputs[0])
+        nt.links.new(ramp.outputs[0], bsdf.inputs["Alpha"])
     at = me.attributes.new("espesor", "FLOAT", "POINT")
     at.data.foreach_set("value", [espesor[v] for v in bm.verts])
     bm.free()
@@ -815,7 +828,7 @@ def nieve_sobre_techo(casco, M):
     for q in me.polygons:
         q.use_smooth = True
     sol = o.modifiers.new("Espesor", "SOLIDIFY")
-    sol.thickness = 0.05
+    sol.thickness = 0.02
     sol.offset = -1.0
     # la acumulación del video: con la carga baja, la capa se aplasta contra el techo
     ng = bpy.data.node_groups.new("NieveTechoCarga", "GeometryNodeTree")
