@@ -3,7 +3,8 @@
 Uso:
   python casa_peumo_3d.py -- --vista izq --still 1 --out cuadro.png [--res 720x1280] [--samples 32]
   (vistas: izq / der = tomas fijas de dron desde el frente vidriado; izq_atras / der_atras = las
-  opuestas, desde la fachada de acceso. El recorrido de dron por secciones se arma después de que
+  opuestas, desde la fachada de acceso. --nevada gradúa la nieve cayendo: 0 la apaga, 1 es nevada
+  normal, 2,5 es nevando fuerte. --dof 0 apaga el desenfoque. El recorrido de dron por secciones se arma después de que
   el usuario apruebe estas fotos: RECETA.md §0.)
 
 La casa sale del modelo STL de Neorigen (assets/peumo/casa.blend, generado con
@@ -32,7 +33,8 @@ from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
-        "wb": "6900", "save": None}
+        "wb": "6900", "save": None, "dof": "1",
+        "nevada": "1.0"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
 
@@ -298,11 +300,12 @@ def materials():
     M["hormigon"] = principled("Hormigon", (0.21, 0.205, 0.195), 0.9)
     M["nieve"] = snow_mat()
     M["nieve_rama"] = snow_mat("NieveRama", sss=0.45, rough=0.33, bump=0.8)
+    M["copo"] = principled("Copo", (0.95, 0.96, 0.98), 0.6)
     M["corteza"] = bark_mat()
     M["corteza_clara"] = bark_mat("CortezaClara", (0.16, 0.135, 0.105), (0.06, 0.05, 0.042))
     M["follaje"] = foliage_mat("Follaje", (0.022, 0.048, 0.024), (0.010, 0.025, 0.014))
     M["follaje2"] = foliage_mat("Follaje2", (0.030, 0.052, 0.028), (0.014, 0.030, 0.017))
-    M["follaje_nevado"] = principled("FollajeNevado", (0.30, 0.33, 0.31), 0.78)
+    M["follaje_nevado"] = principled("FollajeNevado", (0.105, 0.125, 0.115), 0.80)
     M["lejos"] = principled("BosqueLejos", (0.055, 0.070, 0.062), 0.9)
     return M
 
@@ -321,6 +324,12 @@ def load_house(M):
         for sl in o.material_slots:
             if sl.material and sl.material.name in swap:
                 sl.material = swap[sl.material.name]
+    # nieve en el techo: una capa rala, limitada al material de la chapa. Los 28° descargan la
+    # nieve solos (es el enganche de la casa), pero un techo impecable en medio de una nevada
+    # delata que la casa se posó ahí hace un segundo.
+    casco = next((o for o in coll.objects if "Casco" in o.name), None)
+    if casco:
+        nevar(casco, M, dens=110.0, tam=0.075, umbral=0.55, solo=M["chapa"])
     # luces interiores tibias: con el día nublado afuera, son las que hacen que el ventanal
     # se lea como una casa habitada y no como un vidrio apagado
     for x, y, z, p in ((4.6, 5.0, 2.3, 150), (8.2, 4.6, 2.1, 70), (3.0, 10.4, 2.2, 90),
@@ -356,10 +365,16 @@ def house_dist(x, y):
 
 
 def path_dist(x, y):
-    """Distancia a la huella de pisadas que sale del porch (+Y) hacia el camino del bosque."""
+    """Distancia a las huellas en la nieve: la que sale del porch (+Y) hacia el camino del bosque
+    y la que baja de la escalera de la terraza (-Y) y se pierde entre los árboles. Las pisadas son
+    lo que dice que la casa está habitada y no recién puesta ahí."""
     t = max(0.0, min(1.0, (y - D) / 26.0))
     px = L * 0.72 + 5.5 * t * t - 1.5 * math.sin(t * 3.4)
-    return math.hypot(x - px, 0.0) if y > D else math.hypot(x - px, D - y)
+    d1 = math.hypot(x - px, 0.0) if y > D else math.hypot(x - px, D - y)
+    u = max(0.0, min(1.0, -y / 14.0))
+    qx = L * 0.28 - 4.0 * u * u + 1.2 * math.sin(u * 3.0)
+    d2 = math.hypot(x - qx, 0.0) if y < 0 else math.hypot(x - qx, y)
+    return min(d1, d2)
 
 
 def terrain_h(x, y):
@@ -378,10 +393,12 @@ def terrain_h(x, y):
              + 0.20 * noise.noise(Vector((x / 2.4, y / 2.4, 14.7)))
              + 0.07 * noise.noise(Vector((x / 1.1, y / 1.1, 18.2))))
     h = base * plano + cerros + sopla * (0.45 + 0.55 * plano)
-    # la nieve se acumula contra la casa: un lomo bajo que la asienta en el terreno
+    # la nieve se amontona contra la casa: el viento la arrima a los muros y deja un ventisquero
+    # que sube por los pilotes. Sin él la casa se ve apoyada sobre la nieve en vez de metida en ella.
     d = house_dist(x, y)
-    if d < 4.0:
-        h += 0.30 * (1.0 - d / 4.0) ** 2
+    if d < 6.5:
+        amontona = (1.0 - d / 6.5) ** 2
+        h += (0.62 + 0.22 * noise.noise(Vector((x / 3.0, y / 3.0, 31.0)))) * amontona
     return h + GROUND
 def grid(name, x0, x1, y0, y1, step, mat, coll=None, skip=None, sink=None):
     """Malla de terreno. skip(x, y): se omite el cuadro si sus cuatro esquinas caen dentro (así
@@ -462,11 +479,13 @@ def empolvar(o, M):
     return o
 
 
-def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45):
+def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None):
     """Acumula nieve sobre lo que mira al cielo. La nieve no es una capa de pintura blanca: son
     grumos posados sobre las caras cuya normal apunta hacia arriba, con tamaño y giro al azar.
     El umbral deja los troncos y las caras verticales casi limpios, que es lo que pasa de verdad:
-    la nieve se sostiene en las ramas, no en la corteza vertical."""
+    la nieve se sostiene en las ramas, no en la corteza vertical. Con `solo` la nieve se limita
+    a las caras de un material, que es como se le pone nieve al techo de la casa sin llenar de
+    grumos el piso del living."""
     grumo = bpy.data.objects.new(o.name + "_grumo", bpy.data.meshes.new(o.name + "_grumo"))
     bpy.context.scene.collection.objects.link(grumo)
     bpy.ops.object.select_all(action="DESELECT")
@@ -486,6 +505,10 @@ def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45):
     d = N.new("GeometryNodeDistributePointsOnFaces")
     d.inputs["Density"].default_value = dens
     Lk.new(gi.outputs[0], d.inputs["Mesh"])
+    if solo is not None:
+        msel = N.new("GeometryNodeMaterialSelection")
+        msel.inputs["Material"].default_value = solo
+        Lk.new(msel.outputs["Selection"], d.inputs["Selection"])
     sep = N.new("ShaderNodeSeparateXYZ")
     Lk.new(d.outputs["Normal"], sep.inputs[0])
     cmp = N.new("FunctionNodeCompare")
@@ -520,12 +543,20 @@ def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45):
 
 def build_library(M):
     """Árboles reales de Poly Haven (CC0), nevados. Son abetos y pinos de verdad, con ramas y
-    acículas: es lo único que hace que un bosque nevado no se vea de cartón. Van en dos juegos,
-    LOD1 para el bosque cercano y LOD2 para el del fondo, que la bruma se come igual."""
+    acículas: es lo único que hace que un bosque nevado no se vea de cartón.
+
+    Van en tres bandas, y la del medio existe justamente para que no se note el cambio: con sólo
+    dos, a los treinta y pico de metros se pasaba de golpe de un árbol nevado en detalle a una
+    silueta aclarada, y ese salto delataba el truco más que la propia silueta del fondo.
+      cerca  LOD1 con nieve de geometría densa
+      medio  LOD2 con nieve de geometría rala (hasta ~110 m)
+      lejos  LOD2 sin nieve, sólo el follaje aclarado, que la bruma termina de fundir."""
     lib = bpy.data.collections.new("Biblioteca")
     cerca = bpy.data.collections.new("ArbolesCerca")
+    medio = bpy.data.collections.new("ArbolesMedio")
     lejos = bpy.data.collections.new("ArbolesLejos")
-    for c in (lib, cerca, lejos):
+    renuevos = bpy.data.collections.new("Renuevos")
+    for c in (lib, cerca, medio, lejos, renuevos):
         bpy.context.scene.collection.children.link(c)
     def arboles(dest, lod, dens, tam):
         nombres = [f"{t}_tree_01_{v}_{lod}" for t in ("fir", "pine") for v in "abc"]
@@ -533,20 +564,23 @@ def build_library(M):
             for o in load_ph(dest, ident, nombres):
                 o = realizar(o)
                 nevar(o, M, dens=dens, tam=tam) if dens else empolvar(o, M)
-    arboles(cerca, "LOD1", 110.0, 0.075)
+    arboles(cerca, "LOD1", 85.0, 0.075)
+    arboles(medio, "LOD2", 32.0, 0.11)
     arboles(lejos, "LOD2", None, None)
     # renuevos: lo que crece en el claro, al borde del bosque
     for ident, nombres in (("fir_sapling_medium", ["fir_sapling_medium_a_LOD1", "fir_sapling_medium_b_LOD1"]),
+                           ("fir_sapling", ["fir_sapling_a_LOD1", "fir_sapling_b_LOD1"]),
                            ("pine_sapling_small", ["pine_sapling_small_a", "pine_sapling_small_b",
                                                    "pine_sapling_small_c"])):
-        for o in load_ph(cerca, ident, nombres):
+        for o in load_ph(renuevos, ident, nombres):
             nevar(realizar(o), M, dens=240.0, tam=0.05)
-    for c in (lib, cerca, lejos):
+    for c in (lib, cerca, medio, lejos, renuevos):
         c.hide_render = c.hide_viewport = True
-    return lib, cerca, lejos
+    return lib, cerca, medio, lejos, renuevos
 
 
-def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25)):
+def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25),
+                 attr="veg", corte=None):
     """Bosque con nodos de geometría sobre una malla de terreno, según un atributo 'veg' calculado
     en Python: 0 en el claro de la casa y sobre la huella, 1 en el bosque, modulado por dos octavas
     de ruido para que haya matas y claros en vez de una grilla pareja (RECETA.md §3). Se corre
@@ -557,15 +591,17 @@ def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.
     for v in me.vertices:
         x, y = v.co.x, v.co.y
         w = min(1.0, max(0.0, (claro_d(x, y) - CLARO) / 5.0))   # el claro alrededor de la casa
+        w *= min(1.0, max(0.0, (house_dist(x, y) - 1.6) / 2.0))
         w *= min(1.0, max(0.0, (path_dist(x, y) - 2.2) / 2.0))  # el camino queda libre
         w *= min(1.0, max(0.0, (cam_dist(x, y) - 5.5) / 3.5))   # nada de árboles pegados al lente
-        w *= min(1.0, max(0.0, (300.0 - math.hypot(x - HC.x, y - HC.y)) / 45.0))
         w *= min(1.0, max(0.0, 0.80 + 1.1 * noise.noise(Vector((x / 13.0, y / 13.0, 1.9)))
                           + 0.35 * noise.noise(Vector((x / 4.0, y / 4.0, 5.3)))))
+        if corte:
+            w *= corte(math.hypot(x - HC.x, y - HC.y))
         veg.append(max(0.0, min(1.0, w)))
-    at = me.attributes.get("veg") or me.attributes.new("veg", "FLOAT", "POINT")
+    at = me.attributes.get(attr) or me.attributes.new(attr, "FLOAT", "POINT")
     at.data.foreach_set("value", veg)
-    ng = bpy.data.node_groups.new("Bosque_" + terreno.name, "GeometryNodeTree")
+    ng = bpy.data.node_groups.new("Bosque_%s_%s" % (terreno.name, attr), "GeometryNodeTree")
     ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
     ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
     N, Lk = ng.nodes, ng.links
@@ -574,7 +610,7 @@ def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.
     Lk.new(gi.outputs[0], join.inputs[0])
     at_n = N.new("GeometryNodeInputNamedAttribute")
     at_n.data_type = "FLOAT"
-    at_n.inputs["Name"].default_value = "veg"
+    at_n.inputs["Name"].default_value = attr
     dist = N.new("GeometryNodeDistributePointsOnFaces")
     dist.distribute_method = "POISSON"
     dist.inputs["Distance Min"].default_value = dmin
@@ -608,7 +644,7 @@ def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.
     Lk.new(rot.outputs["Value"], inst.inputs["Rotation"])
     Lk.new(inst.outputs["Instances"], join.inputs[0])
     Lk.new(join.outputs[0], go.inputs[0])
-    md = terreno.modifiers.new("Bosque", "NODES")
+    md = terreno.modifiers.new("Bosque_" + attr, "NODES")
     md.node_group = ng
 
 
@@ -654,7 +690,7 @@ def build_scrub(M, terreno, lib):
     val = []
     for v in me.vertices:
         x, y = v.co.x, v.co.y
-        w = min(1.0, max(0.0, (house_dist(x, y) - 2.5) / 3.0))
+        w = min(1.0, max(0.0, (house_dist(x, y) - 1.1) / 2.2))
         w *= min(1.0, max(0.0, (path_dist(x, y) - 1.8) / 1.5))
         w *= min(1.0, max(0.0, 0.70 + 1.2 * noise.noise(Vector((x / 5.0, y / 5.0, 21.5)))))
         val.append(max(0.0, min(1.0, w)))
@@ -706,6 +742,88 @@ def build_scrub(M, terreno, lib):
     Lk.new(join.outputs[0], go.inputs[0])
     md = terreno.modifiers.new("Matas", "NODES")
     md.node_group = ng
+
+
+def build_snowfall(M, loc, tgt, n=36000, fuerza=1.0):
+    """Nieve cayendo: copos repartidos en el volumen que la cámara mira. Los de más cerca quedan
+    desenfocados y se leen como motas blandas —que es como se ve nevar en una foto—, así que la
+    cámara va con desenfoque: a 30 mm y f/4 la hiperfocal son ocho metros, o sea que el bosque
+    y la casa quedan nítidos y sólo se ablanda lo que pasa a menos de tres metros del lente."""
+    coll = bpy.data.collections.new("Nevada")
+    bpy.context.scene.collection.children.link(coll)
+    n = int(n * fuerza)
+    loc, tgt = Vector(loc), Vector(tgt)
+    fwd = (tgt - loc).normalized()
+    der = fwd.cross(Vector((0, 0, 1))).normalized()
+    arr = der.cross(fwd)
+    largo = (tgt - loc).length + 14.0
+    verts = []
+    for _ in range(n):
+        # más cerca de la cámara que lejos: es donde el desenfoque los vuelve visibles
+        # arrancan a tres metros y medio y se reparten parejo en profundidad: así la densidad en pantalla
+        # es pareja. Más cerca que eso el desenfoque los infla y parece lente sucio.
+        d = 3.5 + (largo - 3.5) * random.random()
+        ancho = 2.5 + d * 0.8
+        p = loc + fwd * d + der * random.uniform(-ancho, ancho) + arr * random.uniform(-ancho, ancho)
+        if p.z < GROUND + 0.1:
+            continue
+        verts.append(p)
+    me = bpy.data.meshes.new("Copos")
+    me.from_pydata(verts, [], [])
+    me.update()
+    o = link(bpy.data.objects.new("Copos", me), coll)
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=0, radius=1.0, location=(0, 0, -900))
+    copo = bpy.context.object
+    copo.name = "Copo"
+    copo.data.materials.append(M["copo"])
+    bpy.context.scene.collection.objects.unlink(copo)
+    coll.objects.link(copo)
+    ng = bpy.data.node_groups.new("Nevada", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, Lk = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    inst = N.new("GeometryNodeInstanceOnPoints")
+    oi = N.new("GeometryNodeObjectInfo")
+    oi.inputs["Object"].default_value = copo
+    esc = N.new("FunctionNodeRandomValue")
+    esc.data_type = "FLOAT_VECTOR"
+    esc.inputs[0].default_value = (0.011,) * 3
+    esc.inputs[1].default_value = (0.028,) * 3
+    Lk.new(gi.outputs[0], inst.inputs["Points"])
+    Lk.new(oi.outputs["Geometry"], inst.inputs["Instance"])
+    Lk.new(esc.outputs["Value"], inst.inputs["Scale"])
+    Lk.new(inst.outputs[0], go.inputs[0])
+    md = o.modifiers.new("Nevada", "NODES")
+    md.node_group = ng
+    # cae: en video el motion blur lo convierte en hilos; en una foto fija no se nota. Las claves
+    # van repartidas parejo, así la curva suave que arma Blender pasa recta por ellas y el copo
+    # cae a velocidad constante, sin acelerar ni frenar.
+    for k in range(9):
+        o.location = (0.35 * k / 8.0, 0.0, -9.0 * k / 8.0)
+        o.keyframe_insert("location", frame=1 + k * FPS)
+    return coll
+
+
+def build_lenera(M):
+    """Leña apilada contra el muro, bajo el alero. Es de las cosas que más integran una casa:
+    dice que alguien vive ahí y que el invierno se preparó con tiempo."""
+    coll = bpy.data.collections.new("Lenera")
+    bpy.context.scene.collection.children.link(coll)
+    x0, y0 = L + 0.18, 3.1
+    for fila in range(7):
+        for i in range(9):
+            y = y0 + i * 0.30 + random.uniform(-0.02, 0.02)
+            z = PISO + 0.06 + fila * 0.255 + random.uniform(-0.015, 0.015)
+            r = random.uniform(0.105, 0.145)
+            bpy.ops.mesh.primitive_cylinder_add(vertices=9, radius=r, depth=random.uniform(0.42, 0.5),
+                                                location=(x0 + 0.26 + random.uniform(-0.03, 0.03), y, z))
+            t = bpy.context.object
+            t.rotation_euler = (0, math.radians(90), random.uniform(-0.05, 0.05))
+            t.data.materials.append(M["corteza_clara"] if i % 3 else M["corteza"])
+            bpy.context.scene.collection.objects.unlink(t)
+            coll.objects.link(t)
+    return coll
 
 
 # ---------------------------------------------------------------- cielo, render y cámara
@@ -817,18 +935,18 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    # bruma = 0,74 · (1 − e^(−(z − 22) / 190)), sobre todo lo que no es cielo (z < 10 km de cámara
+    # bruma = 0,80 · (1 − e^(−(z − 22) / 165)), sobre todo lo que no es cielo (z < 10 km de cámara
     # para el cielo no hay superficie: su profundidad es enorme). En un bosque la bruma tiene que
     # entrar mucho antes que en la playa: es lo que separa las filas de troncos y da profundidad.
     sc.view_layers[0].use_pass_z = True
     zrel = mnode("SUBTRACT", 22.0)
     pos = mnode("MAXIMUM", 0.0)
-    sc_ = mnode("DIVIDE", -190.0)
+    sc_ = mnode("DIVIDE", -165.0)
     ex = mnode("EXPONENT", 0.0)
     one = mnode("SUBTRACT", 1.0)
     sky = mnode("LESS_THAN", 1.0e7)
     mul = mnode("MULTIPLY", 1.0)
-    amt = mnode("MULTIPLY", 0.74)
+    amt = mnode("MULTIPLY", 0.80)
     one.inputs[0].default_value = 1.0
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
@@ -891,14 +1009,28 @@ def main():
     M = materials()
     load_house(M)
     cerca, lejos = build_landscape(M)
-    lib, arb_cerca, arb_lejos = build_library(M)
+    lib, arb_cerca, arb_medio, arb_lejos, renuevos = build_library(M)
     build_forest(cerca, arb_cerca)
-    build_forest(lejos, arb_lejos, dmin=9.0, dens=0.06, seed=19, escala=(0.85, 1.5))
+    # el bosque del fondo, en dos bandas sobre la misma malla, para que el detalle baje de a poco
+    build_forest(lejos, arb_medio, dmin=6.5, dens=0.12, seed=19, escala=(0.8, 1.35),
+                 attr="veg_medio", corte=lambda r: min(1.0, max(0.0, (92.0 - r) / 26.0)))
+    build_forest(lejos, arb_lejos, dmin=8.5, dens=0.10, seed=23, escala=(0.85, 1.5),
+                 attr="veg_lejos", corte=lambda r: min(1.0, max(0.0, (r - 74.0) / 26.0)))
+    # renuevos pegados a la casa: lo que crece solo al borde del claro y la enraíza en el lugar
+    build_forest(cerca, renuevos, dmin=2.8, dens=0.30, seed=41, escala=(0.6, 1.25),
+                 attr="renuevo", corte=lambda r: min(1.0, max(0.0, (CLARO + 6.0 - r) / 4.0)))
     build_scrub(M, cerca, lib)
+    build_lenera(M)
     build_world()
     setup_render()
     sc = bpy.context.scene
-    build_camera()
+    cam = build_camera()
+    loc, tgt, _ = VISTAS[opts["vista"]]
+    build_snowfall(M, loc, tgt, fuerza=float(opts["nevada"]))
+    if opts.get("dof", "1") != "0":
+        cam.data.dof.use_dof = True
+        cam.data.dof.focus_distance = (Vector(tgt) - Vector(loc)).length
+        cam.data.dof.aperture_fstop = 4.0
     if opts["save"]:
         bpy.ops.wm.save_as_mainfile(filepath=opts["save"])
     sc.render.filepath = opts["out"]
