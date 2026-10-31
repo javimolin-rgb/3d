@@ -786,16 +786,20 @@ def nieve_sobre_techo(casco, M):
     bm.normal_update()
     zs = [v.co.z for v in bm.verts]
     z_cum, z_alero = max(zs), min(zs)
-    espesor = {}
+    espesor, velo = {}, {}
     for v in bm.verts:
         t = (v.co.z - z_alero) / max(z_cum - z_alero, 1e-6)
         t = 1.0 - t                                   # 0 en la cumbrera, 1 en el alero
         # La capa va entera y en degradé: el espesor baja hasta cero hacia la cumbrera, sin
         # cortes ni parches. Las fajas desprendidas se probaron y dejaban el techo parchado;
         # terminar la nieve de golpe la convertía en un bloque blanco pegado encima.
-        e = 0.30 * (0.10 + 0.90 * t)      # casi lineal: el degradé recorre todo el faldón
+        e = 0.30 * (0.10 + 0.90 * t)
         e *= 0.93 + 0.14 * noise.noise(Vector((v.co.x / 3.4, v.co.y / 3.4, 83.0)))
         espesor[v] = e
+        # El velo decide cuánta chapa se ve, y crece mucho más lento que el espesor. Con un velo
+        # lineal el degradé se agotaba en el primer tercio del faldón: la nieve es tan clara que
+        # con medio velo ya se lee blanca. Elevado a 1,9 el cambio se reparte por todo el largo.
+        velo[v] = t ** 1.9
     # la cornisa: en el borde del alero la nieve sobresale y se dobla
     for v in bm.verts:
         if any(len(e.link_faces) == 1 for e in v.link_edges) and espesor[v] > 0.04:
@@ -816,19 +820,21 @@ def nieve_sobre_techo(casco, M):
         bsdf = next(nd for nd in nt.nodes if nd.bl_idname == "ShaderNodeBsdfPrincipled")
         at_e = nt.nodes.new("ShaderNodeAttribute")
         at_e.name = "EspesorAlfa"
-        at_e.attribute_name = "espesor"
+        at_e.attribute_name = "velo"
         # El degradé va de punta a punta del faldón: en la cumbrera la nieve es tan fina que se
         # ve la chapa negra, y gana hasta tapar del todo contra el alero, cambiando parejo en
         # todo el tramo. Concentrarlo arriba partía el techo
         # en dos zonas; dejarlo corto lo devolvía a un blanco entero sin degradé.
         ramp = nt.nodes.new("ShaderNodeMapRange")
         ramp.interpolation_type = "LINEAR"
-        ramp.inputs[1].default_value, ramp.inputs[2].default_value = 0.03, 0.30
-        ramp.inputs[3].default_value, ramp.inputs[4].default_value = 0.0, 1.0
+        ramp.inputs[1].default_value, ramp.inputs[2].default_value = 0.0, 1.0
+        ramp.inputs[3].default_value, ramp.inputs[4].default_value = 0.03, 0.95
         nt.links.new(at_e.outputs["Fac"], ramp.inputs[0])
         nt.links.new(ramp.outputs[0], bsdf.inputs["Alpha"])
     at = me.attributes.new("espesor", "FLOAT", "POINT")
     at.data.foreach_set("value", [espesor[v] for v in bm.verts])
+    at = me.attributes.new("velo", "FLOAT", "POINT")
+    at.data.foreach_set("value", [velo[v] for v in bm.verts])
     bm.free()
     src.free()
     for q in me.polygons:
