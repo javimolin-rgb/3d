@@ -239,11 +239,15 @@ def glass_mat():
 
 
 # ---------------------------------------------------------------- materiales de nieve y bosque
-def snow_mat(name="Nieve", sss=0.38, rough=0.38, bump=0.5):
+def snow_mat(name="Nieve", sss=0.16, rough=0.38, bump=0.5):
     """Nieve: lo decisivo es el subsurface. Sin translucidez la nieve se lee como yeso; con un
     scattering corto y apenas azulado aparece el brillo interno que la delata como nieve. El
     relieve son tres escalas de ruido (lomos de viento, grumos y grano) y el grano fino además
-    pica la rugosidad, que es de dónde sale el destello."""
+    pica la rugosidad, que es de dónde sale el destello.
+
+    El peso del scattering está medido contra el reloj: la nieve llena casi toda la pantalla, así
+    que casi todos los rayos de cámara pagan un camino aleatorio. Y en la nieve de ramas y techo
+    va en cero: son grumos de dos centímetros, ahí no se distingue y se paga igual."""
     m, n, l = new_mat(name)
     N = Nodos(n, l)
     b = n["Principled BSDF"]
@@ -251,8 +255,9 @@ def snow_mat(name="Nieve", sss=0.38, rough=0.38, bump=0.5):
     v = tc.outputs["Object"]
     b.inputs["Base Color"].default_value = (0.90, 0.93, 0.97, 1)
     b.inputs["Subsurface Weight"].default_value = sss
-    b.inputs["Subsurface Radius"].default_value = (0.09, 0.11, 0.17)   # el azul viaja más adentro
-    b.inputs["Subsurface Scale"].default_value = 0.11
+    if sss:
+        b.inputs["Subsurface Radius"].default_value = (0.09, 0.11, 0.17)  # el azul viaja más adentro
+        b.inputs["Subsurface Scale"].default_value = 0.11
     b.inputs["IOR"].default_value = 1.31                                # hielo
     grano = N.noise(v, 90.0, detail=6, rough=0.7)
     l.new(N.math("ADD", N.math("MULTIPLY", rough, 1.0),
@@ -320,13 +325,13 @@ def materials():
     M["vidrio"] = glass_mat()
     M["hormigon"] = principled("Hormigon", (0.21, 0.205, 0.195), 0.9)
     M["nieve"] = snow_mat()
-    M["nieve_rama"] = snow_mat("NieveRama", sss=0.45, rough=0.33, bump=0.8)
+    M["nieve_rama"] = snow_mat("NieveRama", sss=0.0, rough=0.33, bump=0.8)
     M["copo"] = principled("Copo", (0.95, 0.96, 0.98), 0.6)
     # la nieve del techo lleva material propio, aparte de la de los árboles: así el corte de la
     # sección 3 se la puede llevar junto con el techo. Con el material compartido, al cortar la
     # casa quedaba una losa blanca flotando que tapaba los recintos, y la nieve de todo el bosque
     # se habría cortado también.
-    M["nieve_techo"] = snow_mat("NieveTecho", sss=0.45, rough=0.33, bump=0.8)
+    M["nieve_techo"] = snow_mat("NieveTecho", sss=0.0, rough=0.33, bump=0.8)
     M["corteza"] = bark_mat()
     M["corteza_clara"] = bark_mat("CortezaClara", (0.16, 0.135, 0.105), (0.06, 0.05, 0.042))
     M["follaje"] = foliage_mat("Follaje", (0.022, 0.048, 0.024), (0.010, 0.025, 0.014))
@@ -597,7 +602,7 @@ def build_library(M):
     Van en tres bandas, y la del medio existe justamente para que no se note el cambio: con sólo
     dos, a los treinta y pico de metros se pasaba de golpe de un árbol nevado en detalle a una
     silueta aclarada, y ese salto delataba el truco más que la propia silueta del fondo.
-      cerca  LOD1 con nieve de geometría densa
+      cerca  LOD2 con nieve de geometría densa
       medio  LOD2 con nieve de geometría rala (hasta ~110 m)
       lejos  LOD2 sin nieve, sólo el follaje aclarado, que la bruma termina de fundir."""
     lib = bpy.data.collections.new("Biblioteca")
@@ -613,16 +618,16 @@ def build_library(M):
             for o in load_ph(dest, ident, nombres):
                 o = realizar(o)
                 nevar(o, M, dens=dens, tam=tam) if dens else empolvar(o, M)
-    arboles(cerca, "LOD1", 85.0, 0.075)
-    arboles(medio, "LOD2", 32.0, 0.11)
+    arboles(cerca, "LOD2", 48.0, 0.085)
+    arboles(medio, "LOD2", 20.0, 0.125)
     arboles(lejos, "LOD2", None, None)
     # renuevos: lo que crece en el claro, al borde del bosque
-    for ident, nombres in (("fir_sapling_medium", ["fir_sapling_medium_a_LOD1", "fir_sapling_medium_b_LOD1"]),
-                           ("fir_sapling", ["fir_sapling_a_LOD1", "fir_sapling_b_LOD1"]),
+    for ident, nombres in (("fir_sapling_medium", ["fir_sapling_medium_a_LOD2", "fir_sapling_medium_b_LOD2"]),
+                           ("fir_sapling", ["fir_sapling_a_LOD2", "fir_sapling_b_LOD2"]),
                            ("pine_sapling_small", ["pine_sapling_small_a", "pine_sapling_small_b",
                                                    "pine_sapling_small_c"])):
         for o in load_ph(renuevos, ident, nombres):
-            nevar(realizar(o), M, dens=240.0, tam=0.05)
+            nevar(realizar(o), M, dens=150.0, tam=0.055)
     for c in (lib, cerca, medio, lejos, renuevos):
         c.hide_render = c.hide_viewport = True
     return lib, cerca, medio, lejos, renuevos
@@ -712,7 +717,7 @@ def build_scrub(M, terreno, lib):
     matas = bpy.data.collections.new("Matas")
     bpy.context.scene.collection.children.link(matas)
     piezas = {
-        "shrub_02": ["shrub_02_a_LOD1", "shrub_02_b_LOD1", "shrub_02_c_LOD1"],
+        "shrub_02": ["shrub_02_a_LOD2", "shrub_02_b_LOD2", "shrub_02_c_LOD2"],
         "tree_stump_01": ["tree_stump_01"],
         "tree_stump_02": ["tree_stump_02"],
         "dead_tree_trunk": ["dead_tree_trunk"],
@@ -724,7 +729,7 @@ def build_scrub(M, terreno, lib):
     }
     for ident, nombres in piezas.items():
         for o in load_ph(matas, ident, nombres):
-            nevar(realizar(o), M, dens=380.0, tam=0.06, umbral=0.38)
+            nevar(realizar(o), M, dens=240.0, tam=0.065, umbral=0.38)
             o.location.z = -0.15          # medio enterrados en la nieve
     # un par de lomos de nieve pelados, para los claros entre mata y mata
     for i in range(3):
@@ -990,12 +995,12 @@ def setup_render():
     cy.device = "CPU"
     cy.samples = int(opts["samples"])
     cy.use_adaptive_sampling = True
-    cy.adaptive_threshold = 0.03
+    cy.adaptive_threshold = 0.06
     cy.max_bounces = 6
-    cy.diffuse_bounces = 3        # la nieve tiene albedo altísimo y rebota mucha luz
+    cy.diffuse_bounces = 2        # con tanta nieve a la vista, el tercer rebote casi no se nota
     cy.glossy_bounces = 2
     cy.transmission_bounces = 4
-    cy.transparent_max_bounces = 12
+    cy.transparent_max_bounces = 6
     cy.caustics_reflective = cy.caustics_refractive = False
     cy.blur_glossy = 1.0
     cy.use_denoising = True
@@ -1008,7 +1013,7 @@ def setup_render():
     sc.view_settings.white_balance_temperature = WB_TEMP
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
-    sc.view_settings.exposure = -0.75    # una escena casi toda blanca se quema fácil con AgX
+    sc.view_settings.exposure = -0.62    # una escena casi toda blanca se quema fácil con AgX
     sc.view_layers[0].use_pass_mist = True
     # bruma atmosférica azulada en compositor (sólo sobre el terreno lejano)
     nt = bpy.data.node_groups.new("Bruma", "CompositorNodeTree")
@@ -1348,7 +1353,7 @@ def apply_section(frames, g0):
         if o.type == "LIGHT":
             o.visible_camera = False
             o.data.energy *= 0.3
-    bpy.context.scene.cycles.transparent_max_bounces = 24
+    bpy.context.scene.cycles.transparent_max_bounces = 12
 
 
 
