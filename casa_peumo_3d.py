@@ -59,7 +59,7 @@ PISO = 0.60                  # piso terminado
 # potrero: adentro quedan renuevos, matas, tocones y algunos árboles grandes sueltos, y la franja
 # por donde pasa la órbita es la única que va del todo despejada.
 CLARO = 30.0                 # radio del claro del bosque alrededor de la casa
-ORBITA = (23.0, 40.0)        # franja radial por donde pasa el dron: sin árboles grandes
+ORBITA = (15.0, 42.0)        # franja radial por donde pasa el dron: sin árboles grandes
 # La nieve cae con viento: 25° de inclinación. Cayendo a plomo se ve falsa, y además en video el
 # motion blur convierte cada copo en un hilo, y son esos hilos inclinados los que leen como nevada.
 VIENTO = Vector((0.82, 0.57, 0.0)).normalized()
@@ -312,6 +312,11 @@ def materials():
     M["nieve"] = snow_mat()
     M["nieve_rama"] = snow_mat("NieveRama", sss=0.45, rough=0.33, bump=0.8)
     M["copo"] = principled("Copo", (0.95, 0.96, 0.98), 0.6)
+    # la nieve del techo lleva material propio, aparte de la de los árboles: así el corte de la
+    # sección 3 se la puede llevar junto con el techo. Con el material compartido, al cortar la
+    # casa quedaba una losa blanca flotando que tapaba los recintos, y la nieve de todo el bosque
+    # se habría cortado también.
+    M["nieve_techo"] = snow_mat("NieveTecho", sss=0.45, rough=0.33, bump=0.8)
     M["corteza"] = bark_mat()
     M["corteza_clara"] = bark_mat("CortezaClara", (0.16, 0.135, 0.105), (0.06, 0.05, 0.042))
     M["follaje"] = foliage_mat("Follaje", (0.022, 0.048, 0.024), (0.010, 0.025, 0.014))
@@ -340,7 +345,7 @@ def load_house(M):
     # delata que la casa se posó ahí hace un segundo.
     casco = next((o for o in coll.objects if "Casco" in o.name), None)
     if casco:
-        nevar(casco, M, dens=110.0, tam=0.075, umbral=0.55, solo=M["chapa"])
+        nevar(casco, M, dens=110.0, tam=0.075, umbral=0.55, solo=M["chapa"], mat="nieve_techo")
     # luces interiores tibias: con el día nublado afuera, son las que hacen que el ventanal
     # se lea como una casa habitada y no como un vidrio apagado
     for x, y, z, p in ((4.6, 5.0, 2.3, 150), (8.2, 4.6, 2.1, 70), (3.0, 10.4, 2.2, 90),
@@ -489,7 +494,7 @@ def empolvar(o, M):
     return o
 
 
-def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None):
+def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None, mat="nieve_rama"):
     """Acumula nieve sobre lo que mira al cielo. La nieve no es una capa de pintura blanca: son
     grumos posados sobre las caras cuya normal apunta hacia arriba, con tamaño y giro al azar.
     El umbral deja los troncos y las caras verticales casi limpios, que es lo que pasa de verdad:
@@ -503,7 +508,7 @@ def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None):
     src = bpy.context.object
     src.name = o.name + "_grumo"
     src.scale = (1.0, 1.0, 0.42)
-    src.data.materials.append(M["nieve_rama"])
+    src.data.materials.append(M[mat])
     bpy.data.objects.remove(grumo, do_unlink=True)
     ng = bpy.data.node_groups.new("Nieve_" + o.name, "GeometryNodeTree")
     ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
@@ -603,7 +608,8 @@ def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.
         cd = claro_d(x, y)
         w = min(1.0, max(0.0, (cd - CLARO) / 8.0))              # el bosque cerrado, fuera del claro
         # adentro del claro quedan algunos árboles grandes sueltos, para que no sea un potrero:
-        # cerca de la casa dan escala y parallaje, pero la franja de la órbita va limpia
+        # pegados a la casa dan escala y, al orbitar, cruzan el cuadro y dan parallaje. Tienen que
+        # quedar bien adentro: a 22 m del centro el dron les pasaba a siete metros y tapaban todo.
         if cd < ORBITA[0]:
             w = max(w, 0.22)
         elif cd < ORBITA[1]:
@@ -769,23 +775,33 @@ def build_snowfall(M, loc=None, tgt=None, n=36000, fuerza=1.0, caja=None):
     y la casa quedan nítidos y sólo se ablanda lo que pasa a menos de tres metros del lente."""
     coll = bpy.data.collections.new("Nevada")
     bpy.context.scene.collection.children.link(coll)
-    n = int(n * fuerza)
-    loc, tgt = Vector(loc), Vector(tgt)
-    fwd = (tgt - loc).normalized()
-    der = fwd.cross(Vector((0, 0, 1))).normalized()
-    arr = der.cross(fwd)
-    largo = (tgt - loc).length + 14.0
     verts = []
-    for _ in range(n):
-        # más cerca de la cámara que lejos: es donde el desenfoque los vuelve visibles
-        # arrancan a tres metros y medio y se reparten parejo en profundidad: así la densidad en pantalla
-        # es pareja. Más cerca que eso el desenfoque los infla y parece lente sucio.
-        d = 3.5 + (largo - 3.5) * random.random()
-        ancho = 2.5 + d * 0.8
-        p = loc + fwd * d + der * random.uniform(-ancho, ancho) + arr * random.uniform(-ancho, ancho)
-        if p.z < GROUND + 0.1:
-            continue
-        verts.append(p)
+    if caja:
+        # recorrido de dron: la cámara se mueve, así que la nevada llena una caja sobre la casa.
+        # La densidad está calibrada contra la toma fija (un copo por metro cúbico se ve bien en
+        # pantalla); acá baja algo porque en video el motion blur estira cada copo en un hilo y
+        # con la misma cantidad taparía la casa.
+        rx, ry, zt = caja
+        for _ in range(int(rx * ry * zt * 0.60 * fuerza)):
+            verts.append(Vector((HC.x + random.uniform(-rx / 2, rx / 2),
+                                 HC.y + random.uniform(-ry / 2, ry / 2),
+                                 GROUND + random.uniform(0.2, zt))))
+    else:
+        # toma fija: basta llenar el cono que mira la cámara
+        loc, tgt = Vector(loc), Vector(tgt)
+        fwd = (tgt - loc).normalized()
+        der = fwd.cross(Vector((0, 0, 1))).normalized()
+        arr = der.cross(fwd)
+        largo = (tgt - loc).length + 14.0
+        for _ in range(int(n * fuerza)):
+            # arrancan a tres metros y medio y se reparten parejo en profundidad: así la densidad
+            # en pantalla es pareja. Más cerca el desenfoque los infla y parece lente sucio.
+            d = 3.5 + (largo - 3.5) * random.random()
+            ancho = 2.5 + d * 0.8
+            p = loc + fwd * d + der * random.uniform(-ancho, ancho) + arr * random.uniform(-ancho, ancho)
+            if p.z < GROUND + 0.1:
+                continue
+            verts.append(p)
     me = bpy.data.meshes.new("Copos")
     me.from_pydata(verts, [], [])
     me.update()
@@ -1230,6 +1246,9 @@ def apply_section(frames, g0):
     groups = section_groups()
     capped = {"ChapaNegra", "MaderaFachada", "MaderaCielo", "MuroInterior", "Pm_MarcoNegro", "Pm_PuertaMadera"}
     mats = {sl.material for o in house for sl in o.material_slots if sl.material}
+    techo = bpy.data.materials.get("NieveTecho")      # la nieve del techo se corta con el techo
+    if techo:
+        mats.add(techo)
     for m in mats:
         out = next(nd for nd in m.node_tree.nodes if nd.bl_idname == "ShaderNodeOutputMaterial" and nd.is_active_output)
         if not out.inputs["Surface"].links:
@@ -1357,7 +1376,7 @@ def main():
         build_drone(cam)
         # la nevada va sólo en la quinta parte: en las otras tapa la casa y el bosque
         if opts["tramo"] == "s5":
-            build_snowfall(M, caja=(90.0, 90.0, 34.0), fuerza=float(opts["nevada"]))
+            build_snowfall(M, caja=(72.0, 72.0, 30.0), fuerza=float(opts["nevada"]))
     else:
         cam = build_camera()
         loc, tgt, _ = VISTAS[opts["vista"]]
