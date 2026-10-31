@@ -559,7 +559,7 @@ def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.
         w = min(1.0, max(0.0, (claro_d(x, y) - CLARO) / 5.0))   # el claro alrededor de la casa
         w *= min(1.0, max(0.0, (path_dist(x, y) - 2.2) / 2.0))  # el camino queda libre
         w *= min(1.0, max(0.0, (cam_dist(x, y) - 5.5) / 3.5))   # nada de árboles pegados al lente
-        w *= min(1.0, max(0.0, (245.0 - math.hypot(x - HC.x, y - HC.y)) / 35.0))
+        w *= min(1.0, max(0.0, (300.0 - math.hypot(x - HC.x, y - HC.y)) / 45.0))
         w *= min(1.0, max(0.0, 0.80 + 1.1 * noise.noise(Vector((x / 13.0, y / 13.0, 1.9)))
                           + 0.35 * noise.noise(Vector((x / 4.0, y / 4.0, 5.3)))))
         veg.append(max(0.0, min(1.0, w)))
@@ -708,26 +708,6 @@ def build_scrub(M, terreno, lib):
     md.node_group = ng
 
 
-def build_far_forest(M):
-    """La última franja del fondo, más allá de los 250 m: no son árboles, es una masa oscura y
-    dentada sobre los cerros. Ahí la bruma ya se comió todo el detalle, y poner árboles de verdad
-    sería pagar horas de render por algo que no se ve."""
-    coll = bpy.data.collections.new("BosqueLejos")
-    bpy.context.scene.collection.children.link(coll)
-    random.seed(23)
-    for i in range(1300):
-        a = random.uniform(0, math.tau)
-        r = random.uniform(250.0, 340.0)
-        x, y = HC.x + math.cos(a) * r, HC.y + math.sin(a) * r
-        h = random.uniform(8.0, 15.0) * (0.8 + r / 420.0)
-        bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=h * 0.115, radius2=0.0, depth=h,
-                                        location=(x, y, terrain_h(x, y) + h / 2 - 0.6))
-        o = bpy.context.object
-        o.data.materials.append(M["lejos"])
-        o.scale = (random.uniform(0.8, 1.2), random.uniform(0.8, 1.2), 1.0)
-        bpy.context.scene.collection.objects.unlink(o)
-        coll.objects.link(o)
-    return coll
 # ---------------------------------------------------------------- cielo, render y cámara
 def build_world():
     sc = bpy.context.scene
@@ -915,7 +895,6 @@ def main():
     build_forest(cerca, arb_cerca)
     build_forest(lejos, arb_lejos, dmin=9.0, dens=0.06, seed=19, escala=(0.85, 1.5))
     build_scrub(M, cerca, lib)
-    build_far_forest(M)
     build_world()
     setup_render()
     sc = bpy.context.scene
