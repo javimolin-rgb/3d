@@ -605,7 +605,7 @@ def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.
         # adentro del claro quedan algunos árboles grandes sueltos, para que no sea un potrero:
         # cerca de la casa dan escala y parallaje, pero la franja de la órbita va limpia
         if cd < ORBITA[0]:
-            w = max(w, 0.09)
+            w = max(w, 0.22)
         elif cd < ORBITA[1]:
             w = 0.0
         w *= min(1.0, max(0.0, (house_dist(x, y) - 1.6) / 2.0))
@@ -1039,7 +1039,7 @@ SECCIONES = {"s1": 240, "s2": 192, "s3": 240, "s5": 192}
 INICIO = {"s2": 0, "s3": 192, "s5": 432}      # cuadro de inicio de cada sección en la ruta continua s2..s5
 CASA_BOX = (0.0, L, -1.3, D + 1.3, GROUND, 6.6)      # caja de la casa (con escaleras) para encuadrar
 CASA_C = Vector((L / 2, D / 2, 2.0))                 # punto al que mira el dron
-FIT = 0.80                                           # ancho de pantalla que ocupa la casa
+FIT = 0.86                                           # ancho de pantalla que ocupa la casa
 
 
 def ease(t):
@@ -1079,7 +1079,7 @@ def smootherstep(t):
 
 
 S1_AZ = (-118.0, -42.0)      # azimut (0 = de frente, la cámara hacia -Y; negativo = lado izquierdo)
-S1_EL = (44.0, 20.0)         # elevación (°): empieza alto, por sobre las copas
+S1_EL = (44.0, 15.0)         # elevación (°): empieza alto, por sobre las copas
 # En la playa el dron podía entrar rasante porque no había nada en el medio. Acá, a ras de copas,
 # el bosque tapa la casa entera: la aproximación tiene que venir de arriba y bajar al claro.
 S1_D0 = 118.0                # distancia inicial (m)
@@ -1120,13 +1120,13 @@ CUT_TOP, CUT_MID, CUT_LOW = 7.2, 4.30, 2.35
 #   parar=True: la cámara llega quieta a esa clave (fin de s3, antes del paso a la planta)
 RUTA = [
     (0, S1_AZ[1], S1_EL[1], ("fit", 1.0), CUT_TOP, True),     # = último cuadro de s1
-    (90, 0.0, 19.0, ("frente", 1.0), CUT_TOP, False),         # de frente al testero vidriado
-    (192, 62.0, 21.0, ("frente", 1.0), CUT_TOP, False),       # fin s2: costado, sobre los pilotes
+    (90, 0.0, 13.0, ("frente", 1.0), CUT_TOP, False),         # de frente al testero vidriado
+    (192, 62.0, 16.0, ("frente", 1.0), CUT_TOP, False),       # fin s2: costado, sobre los pilotes
     (262, 78.0, 40.0, ("fit", 1.05), CUT_TOP, False),
     (352, 86.0, 76.0, ("fit", 1.0), CUT_MID, False),
     (432, 90.0, 89.5, ("fit", 1.0), CUT_LOW, True),           # fin s3: cenital, casa a lo largo de la pantalla
     (500, 122.0, 52.0, ("fit", 1.15), CUT_TOP, False),
-    (624, 168.0, 18.0, ("fit", 1.0), CUT_TOP, True),          # fin s5: fachada de acceso y el camino
+    (624, 168.0, 14.0, ("fit", 1.0), CUT_TOP, True),          # fin s5: fachada de acceso y el camino
 ]
 CUT_KEYS = [(0, CUT_TOP), (250, CUT_TOP), (330, CUT_MID), (400, CUT_LOW), (432, CUT_LOW),
             (470, CUT_LOW), (545, CUT_TOP), (624, CUT_TOP)]
@@ -1165,7 +1165,7 @@ def ruta_setup(w, h, lens):
     """Resuelve las distancias de la ruta: 'fit' en la dirección de la clave; 'frente' = el mayor
     encuadre del arco frontal (así el dron no se acerca y aleja mientras rodea la casa)."""
     s1_setup(w, h, lens)
-    frente = max(fit_distance(_dir(a, 20.0), CASA_C, lens, w / h) for a in range(-45, 75, 5))
+    frente = max(fit_distance(_dir(a, 15.0), CASA_C, lens, w / h) for a in range(-45, 75, 5))
     for k in RUTA:
         kind, fac = k[3]
         d = frente if kind == "frente" else fit_distance(_dir(k[1], k[2]), CASA_C, lens, w / h)
