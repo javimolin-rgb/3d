@@ -39,6 +39,7 @@ for i in range(0, len(argv), 2):
 random.seed(11)
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CASA = os.path.join(ROOT, "assets", "peumo", "casa.blend")
+PH = os.path.join(ROOT, "assets", "nieve", "ph")   # modelos CC0 (tools/get_assets_nieve.sh)
 HDRI = os.path.join(ROOT, "assets", "hdri", "nieve", "snowy_forest_path_01_2k.exr")  # CC0
 HDRI_SUN_U = 0.6010          # columna del sol en el HDRI (0-1), medida con tools/medir_sol_hdri.py
 SUN_ELEV = 20.6              # elevación del sol en el HDRI
@@ -301,6 +302,7 @@ def materials():
     M["corteza_clara"] = bark_mat("CortezaClara", (0.16, 0.135, 0.105), (0.06, 0.05, 0.042))
     M["follaje"] = foliage_mat("Follaje", (0.022, 0.048, 0.024), (0.010, 0.025, 0.014))
     M["follaje2"] = foliage_mat("Follaje2", (0.030, 0.052, 0.028), (0.014, 0.030, 0.017))
+    M["follaje_nevado"] = principled("FollajeNevado", (0.30, 0.33, 0.31), 0.78)
     M["lejos"] = principled("BosqueLejos", (0.055, 0.070, 0.062), 0.9)
     return M
 
@@ -372,8 +374,9 @@ def terrain_h(x, y):
     plano = max(0.0, min(1.0, (r - 7.0) / 9.0))          # el claro de la casa, casi a nivel
     # aun en el claro la nieve ondula: ventisqueros bajos que cruzan el terreno. Sin esto el
     # primer plano es una mesa de billar blanca y delata que es CG.
-    sopla = (0.30 * noise.noise(Vector((x / 6.5, y / 6.5, 11.3)))
-             + 0.12 * noise.noise(Vector((x / 2.2, y / 2.2, 14.7))))
+    sopla = (0.46 * noise.noise(Vector((x / 6.5, y / 6.5, 11.3)))
+             + 0.20 * noise.noise(Vector((x / 2.4, y / 2.4, 14.7)))
+             + 0.07 * noise.noise(Vector((x / 1.1, y / 1.1, 18.2))))
     h = base * plano + cerros + sopla * (0.45 + 0.55 * plano)
     # la nieve se acumula contra la casa: un lomo bajo que la asienta en el terreno
     d = house_dist(x, y)
@@ -426,118 +429,124 @@ def hundir_huella(o):
 
 
 # ---------------------------------------------------------------- bosque nevado
-def conifera(M, name, h=11.0, faldas=14, r0=1.6, nieve=True):
-    """Conífera de cono por capas: tronco y faldones que se achican hacia arriba, con la carga de
-    nieve encima. La nieve sobre las ramas no es material, es geometría: un cono más chico apoyado
-    sobre el faldón, y no en todos —la nieve se sostiene en parches, no en discos parejos—. Sin
-    esta carga el árbol se ve verde y limpio y la escena de nieve se cae (RECETA.md §5)."""
-    partes = []
-    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=h * 0.014, depth=h, location=(0, 0, h / 2))
-    t = bpy.context.object
-    t.data.materials.append(M["corteza"])
-    partes.append(t)
-    for i in range(faldas):
-        u = i / (faldas - 1)
-        z = h * (0.20 + 0.78 * u)
-        r = r0 * (1.0 - u) ** 0.7 + 0.08
-        hh = h * 0.13 * (1.0 - 0.4 * u)
-        jit = random.uniform(-0.09, 0.09)
-        bpy.ops.mesh.primitive_cone_add(vertices=9, radius1=r, radius2=r * 0.12, depth=hh,
-                                        location=(jit, jit, z + hh / 2))
-        c = bpy.context.object
-        c.data.materials.append(M["follaje" if i % 2 else "follaje2"])
-        for v in c.data.vertices:                       # un cono perfecto no existe en el bosque
-            v.co.x *= random.uniform(0.80, 1.20)
-            v.co.y *= random.uniform(0.80, 1.20)
-            v.co.z *= random.uniform(0.9, 1.1)
-        partes.append(c)
-        if nieve and random.random() < 0.72:
-            rs = r * random.uniform(0.55, 0.85)
-            bpy.ops.mesh.primitive_cone_add(vertices=9, radius1=rs, radius2=rs * 0.25,
-                                            depth=hh * 0.26,
-                                            location=(jit + random.uniform(-0.1, 0.1),
-                                                      jit + random.uniform(-0.1, 0.1),
-                                                      z + hh * 0.78))
-            sn = bpy.context.object
-            sn.data.materials.append(M["nieve_rama"])
-            for v in sn.data.vertices:
-                v.co.x *= random.uniform(0.7, 1.3)
-                v.co.y *= random.uniform(0.7, 1.3)
-                v.co.z *= random.uniform(0.7, 1.3)
-            partes.append(sn)
-    # la punta, siempre nevada
-    bpy.ops.mesh.primitive_cone_add(vertices=8, radius1=r0 * 0.16, radius2=0.0, depth=h * 0.1,
-                                    location=(0, 0, h * 0.99))
-    pt = bpy.context.object
-    pt.data.materials.append(M["nieve_rama"])
-    partes.append(pt)
+def load_ph(lib, ident, nombres):
+    """Objetos de un modelo de Poly Haven, en la biblioteca para instanciar. Se dejan en el
+    origen, sin padre: los nodos de geometría los reparten después."""
+    with bpy.data.libraries.load(os.path.join(PH, ident, ident + ".blend")) as (a, b):
+        b.objects = [n for n in a.objects if n in set(nombres)]
+    out = []
+    for o in b.objects:
+        lib.objects.link(o)
+        o.location, o.rotation_euler, o.parent = (0, 0, 0), (0, 0, 0), None
+        out.append(o)
+    return out
+
+
+def realizar(o):
+    """Aplica los nodos de geometría del modelo: los árboles de Poly Haven instancian sus
+    ramillas, y hay que concretarlas para poder acumularles nieve encima."""
     bpy.ops.object.select_all(action="DESELECT")
-    for p in partes:
-        p.select_set(True)
-    bpy.context.view_layer.objects.active = partes[0]
-    bpy.ops.object.join()
-    o = bpy.context.object
-    o.name = name
-    for p in o.data.polygons:
-        p.use_smooth = True
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.convert(target="MESH")
+    return bpy.context.object
+
+
+def empolvar(o, M):
+    """Nieve de los árboles del fondo: no es geometría, es el follaje aclarado. A más de cien
+    metros con bruma nadie distingue un grumo de nieve de un tono más claro, y la geometría de
+    miles de árboles nevados no entra en memoria."""
+    for sl in o.material_slots:
+        if sl.material:
+            sl.material = M["follaje_nevado"]
     return o
 
 
-def arbol_desnudo(M, name, h=9.0):
-    """Árbol sin hojas: tronco y unas ramas con nieve encima. Mezclados entre las coníferas dan
-    la variedad del bosque de verdad y leen muy bien en contraluz contra la bruma."""
-    partes = []
-    bpy.ops.mesh.primitive_cylinder_add(vertices=7, radius=h * 0.022, depth=h, location=(0, 0, h / 2))
-    t = bpy.context.object
-    t.data.materials.append(M["corteza_clara"])
-    partes.append(t)
-    for i in range(11):
-        z = h * random.uniform(0.32, 0.96)
-        a = random.uniform(0, math.tau)
-        lr = h * random.uniform(0.16, 0.30)
-        incl = math.radians(random.uniform(52, 74))
-        cx, cy = math.cos(a) * lr * 0.5 * math.sin(incl), math.sin(a) * lr * 0.5 * math.sin(incl)
-        cz = z + lr * 0.5 * math.cos(incl)
-        bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=h * 0.014, depth=lr,
-                                            location=(cx, cy, cz))
-        r = bpy.context.object
-        r.rotation_euler = (0, incl, a)
-        r.data.materials.append(M["corteza_clara"])
-        partes.append(r)
-        # la nieve se apoya sobre la rama: mismo eje, apenas más gruesa y corrida hacia arriba
-        bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=h * 0.016, depth=lr * 0.8,
-                                            location=(cx, cy, cz + h * 0.011))
-        sn = bpy.context.object
-        sn.rotation_euler = (0, incl, a)
-        sn.scale = (1.0, 0.55, 1.0)
-        sn.data.materials.append(M["nieve_rama"])
-        partes.append(sn)
+def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45):
+    """Acumula nieve sobre lo que mira al cielo. La nieve no es una capa de pintura blanca: son
+    grumos posados sobre las caras cuya normal apunta hacia arriba, con tamaño y giro al azar.
+    El umbral deja los troncos y las caras verticales casi limpios, que es lo que pasa de verdad:
+    la nieve se sostiene en las ramas, no en la corteza vertical."""
+    grumo = bpy.data.objects.new(o.name + "_grumo", bpy.data.meshes.new(o.name + "_grumo"))
+    bpy.context.scene.collection.objects.link(grumo)
     bpy.ops.object.select_all(action="DESELECT")
-    for p in partes:
-        p.select_set(True)
-    bpy.context.view_layer.objects.active = partes[0]
-    bpy.ops.object.join()
-    o = bpy.context.object
-    o.name = name
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=0, radius=1.0, location=(0, 0, -900))
+    src = bpy.context.object
+    src.name = o.name + "_grumo"
+    src.scale = (1.0, 1.0, 0.42)
+    src.data.materials.append(M["nieve_rama"])
+    bpy.data.objects.remove(grumo, do_unlink=True)
+    ng = bpy.data.node_groups.new("Nieve_" + o.name, "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, Lk = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    join = N.new("GeometryNodeJoinGeometry")
+    Lk.new(gi.outputs[0], join.inputs[0])
+    d = N.new("GeometryNodeDistributePointsOnFaces")
+    d.inputs["Density"].default_value = dens
+    Lk.new(gi.outputs[0], d.inputs["Mesh"])
+    sep = N.new("ShaderNodeSeparateXYZ")
+    Lk.new(d.outputs["Normal"], sep.inputs[0])
+    cmp = N.new("FunctionNodeCompare")
+    cmp.operation = "LESS_THAN"
+    cmp.inputs[1].default_value = umbral
+    Lk.new(sep.outputs["Z"], cmp.inputs[0])
+    dele = N.new("GeometryNodeDeleteGeometry")
+    dele.domain = "POINT"
+    Lk.new(d.outputs["Points"], dele.inputs["Geometry"])
+    Lk.new(cmp.outputs[0], dele.inputs["Selection"])
+    inst = N.new("GeometryNodeInstanceOnPoints")
+    oi = N.new("GeometryNodeObjectInfo")
+    oi.inputs["Object"].default_value = src
+    esc = N.new("FunctionNodeRandomValue")
+    esc.data_type = "FLOAT_VECTOR"
+    esc.inputs[0].default_value = (tam * 0.5, tam * 0.5, tam * 0.3)
+    esc.inputs[1].default_value = (tam * 1.8, tam * 1.8, tam * 1.0)
+    rot = N.new("FunctionNodeRandomValue")
+    rot.data_type = "FLOAT_VECTOR"
+    rot.inputs[0].default_value = (0.0, 0.0, 0.0)
+    rot.inputs[1].default_value = (0.35, 0.35, math.tau)
+    Lk.new(dele.outputs[0], inst.inputs["Points"])
+    Lk.new(oi.outputs["Geometry"], inst.inputs["Instance"])
+    Lk.new(esc.outputs["Value"], inst.inputs["Scale"])
+    Lk.new(rot.outputs["Value"], inst.inputs["Rotation"])
+    Lk.new(inst.outputs[0], join.inputs[0])
+    Lk.new(join.outputs[0], go.inputs[0])
+    md = o.modifiers.new("Nieve", "NODES")
+    md.node_group = ng
     return o
 
 
 def build_library(M):
-    """Variantes de árbol en una colección aparte, que el esparcido instancia."""
+    """Árboles reales de Poly Haven (CC0), nevados. Son abetos y pinos de verdad, con ramas y
+    acículas: es lo único que hace que un bosque nevado no se vea de cartón. Van en dos juegos,
+    LOD1 para el bosque cercano y LOD2 para el del fondo, que la bruma se come igual."""
     lib = bpy.data.collections.new("Biblioteca")
-    for i, h in enumerate((15.0, 12.0, 9.5, 18.0, 7.5, 13.0)):
-        o = conifera(M, f"Conifera{i}", h=h, faldas=15 if h > 10 else 12,
-                     r0=h * 0.135 * random.uniform(0.85, 1.15))
-        bpy.context.scene.collection.objects.unlink(o)
-        lib.objects.link(o)
-    for i, h in enumerate((11.0, 8.0)):
-        o = arbol_desnudo(M, f"Desnudo{i}", h=h)
-        bpy.context.scene.collection.objects.unlink(o)
-        lib.objects.link(o)
-    return lib
+    cerca = bpy.data.collections.new("ArbolesCerca")
+    lejos = bpy.data.collections.new("ArbolesLejos")
+    for c in (lib, cerca, lejos):
+        bpy.context.scene.collection.children.link(c)
+    def arboles(dest, lod, dens, tam):
+        nombres = [f"{t}_tree_01_{v}_{lod}" for t in ("fir", "pine") for v in "abc"]
+        for ident in ("fir_tree_01", "pine_tree_01"):
+            for o in load_ph(dest, ident, nombres):
+                o = realizar(o)
+                nevar(o, M, dens=dens, tam=tam) if dens else empolvar(o, M)
+    arboles(cerca, "LOD1", 110.0, 0.075)
+    arboles(lejos, "LOD2", None, None)
+    # renuevos: lo que crece en el claro, al borde del bosque
+    for ident, nombres in (("fir_sapling_medium", ["fir_sapling_medium_a_LOD1", "fir_sapling_medium_b_LOD1"]),
+                           ("pine_sapling_small", ["pine_sapling_small_a", "pine_sapling_small_b",
+                                                   "pine_sapling_small_c"])):
+        for o in load_ph(cerca, ident, nombres):
+            nevar(realizar(o), M, dens=240.0, tam=0.05)
+    for c in (lib, cerca, lejos):
+        c.hide_render = c.hide_viewport = True
+    return lib, cerca, lejos
 
 
-def build_forest(terreno, lib, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25)):
+def build_forest(terreno, arboles, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25)):
     """Bosque con nodos de geometría sobre una malla de terreno, según un atributo 'veg' calculado
     en Python: 0 en el claro de la casa y sobre la huella, 1 en el bosque, modulado por dos octavas
     de ruido para que haya matas y claros en vez de una grilla pareja (RECETA.md §3). Se corre
@@ -550,6 +559,7 @@ def build_forest(terreno, lib, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25))
         w = min(1.0, max(0.0, (claro_d(x, y) - CLARO) / 5.0))   # el claro alrededor de la casa
         w *= min(1.0, max(0.0, (path_dist(x, y) - 2.2) / 2.0))  # el camino queda libre
         w *= min(1.0, max(0.0, (cam_dist(x, y) - 5.5) / 3.5))   # nada de árboles pegados al lente
+        w *= min(1.0, max(0.0, (245.0 - math.hypot(x - HC.x, y - HC.y)) / 35.0))
         w *= min(1.0, max(0.0, 0.80 + 1.1 * noise.noise(Vector((x / 13.0, y / 13.0, 1.9)))
                           + 0.35 * noise.noise(Vector((x / 4.0, y / 4.0, 5.3)))))
         veg.append(max(0.0, min(1.0, w)))
@@ -574,12 +584,12 @@ def build_forest(terreno, lib, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25))
     Lk.new(at_n.outputs[0], dist.inputs["Density Factor"])
     inst = N.new("GeometryNodeInstanceOnPoints")
     info = N.new("GeometryNodeCollectionInfo")
-    info.inputs["Collection"].default_value = lib
+    info.inputs["Collection"].default_value = arboles
     info.inputs["Separate Children"].default_value = True
     info.inputs["Reset Children"].default_value = True
     rnd = N.new("FunctionNodeRandomValue")
     rnd.data_type = "INT"
-    rnd.inputs[5].default_value = len(lib.objects) - 1
+    rnd.inputs[5].default_value = len(arboles.objects) - 1
     esc = N.new("FunctionNodeRandomValue")
     esc.data_type = "FLOAT_VECTOR"
     esc.inputs[0].default_value = (escala[0], escala[0], escala[0] * 0.95)
@@ -602,51 +612,51 @@ def build_forest(terreno, lib, dmin=3.4, dens=0.22, seed=7, escala=(0.72, 1.25))
     md.node_group = ng
 
 
-def build_scrub(M, terreno):
-    """Matas nevadas y montículos en el claro. Es lo que rompe el blanco del primer plano: en un
-    claro de verdad asoman arbustos tapados, tocones y lomos de nieve, no una sábana lisa."""
-    lib = bpy.data.collections.new("Matas")
-    for i in range(5):
-        partes = []
-        a = random.uniform(0.5, 1.2)
-        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=a,
-                                              location=(0, 0, a * 0.42))
+def build_scrub(M, terreno, lib):
+    """Lo que asoma de la nieve en el claro: arbustos tapados, tocones, troncos caídos, raíces y
+    piedras, todos de Poly Haven y todos nevados, más algún lomo de nieve. Es lo que rompe el
+    blanco del primer plano; un claro liso delata que es CG."""
+    matas = bpy.data.collections.new("Matas")
+    bpy.context.scene.collection.children.link(matas)
+    piezas = {
+        "shrub_02": ["shrub_02_a_LOD1", "shrub_02_b_LOD1", "shrub_02_c_LOD1"],
+        "tree_stump_01": ["tree_stump_01"],
+        "tree_stump_02": ["tree_stump_02"],
+        "dead_tree_trunk": ["dead_tree_trunk"],
+        "root_cluster_01": ["root_cluster_01"],
+        "dry_branches_medium_01": ["dry_branches_medium_01_a", "dry_branches_medium_01_b"],
+        "rock_07": ["rock_07_LOD2"],
+        "rock_09": ["rock_09_LOD2"],
+        "boulder_01": ["boulder_01_LOD2"],
+    }
+    for ident, nombres in piezas.items():
+        for o in load_ph(matas, ident, nombres):
+            nevar(realizar(o), M, dens=380.0, tam=0.06, umbral=0.38)
+            o.location.z = -0.15          # medio enterrados en la nieve
+    # un par de lomos de nieve pelados, para los claros entre mata y mata
+    for i in range(3):
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=random.uniform(0.6, 1.1),
+                                              location=(0, 0, -0.55))
         m = bpy.context.object
-        m.scale = (random.uniform(1.1, 2.0), random.uniform(1.1, 2.0), random.uniform(0.16, 0.30))
+        m.name = f"Lomo{i}"
+        m.scale = (random.uniform(1.2, 2.1), random.uniform(1.2, 2.1), random.uniform(0.5, 0.8))
         for v in m.data.vertices:
             v.co.x *= random.uniform(0.75, 1.3)
             v.co.y *= random.uniform(0.75, 1.3)
             v.co.z *= random.uniform(0.7, 1.2)
         m.data.materials.append(M["nieve_rama"])
-        partes.append(m)
-        if i % 2:                                   # alguna rama oscura que asoma de la mata
-            for _ in range(3):
-                an = random.uniform(0, math.tau)
-                bpy.ops.mesh.primitive_cylinder_add(vertices=5, radius=0.028, depth=a * 1.5,
-                                                    location=(math.cos(an) * a * 0.3,
-                                                              math.sin(an) * a * 0.3, a * 0.75))
-                r = bpy.context.object
-                r.rotation_euler = (0, random.uniform(0.3, 0.8), an)
-                r.data.materials.append(M["corteza_clara"])
-                partes.append(r)
-        bpy.ops.object.select_all(action="DESELECT")
-        for q in partes:
-            q.select_set(True)
-        bpy.context.view_layer.objects.active = partes[0]
-        bpy.ops.object.join()
-        o = bpy.context.object
-        o.name = f"Mata{i}"
-        for q in o.data.polygons:
+        for q in m.data.polygons:
             q.use_smooth = True
-        bpy.context.scene.collection.objects.unlink(o)
-        lib.objects.link(o)
+        bpy.context.scene.collection.objects.unlink(m)
+        matas.objects.link(m)
+    matas.hide_render = matas.hide_viewport = True
     me = terreno.data
     val = []
     for v in me.vertices:
         x, y = v.co.x, v.co.y
         w = min(1.0, max(0.0, (house_dist(x, y) - 2.5) / 3.0))
         w *= min(1.0, max(0.0, (path_dist(x, y) - 1.8) / 1.5))
-        w *= min(1.0, max(0.0, 0.45 + 1.3 * noise.noise(Vector((x / 5.0, y / 5.0, 21.5)))))
+        w *= min(1.0, max(0.0, 0.70 + 1.2 * noise.noise(Vector((x / 5.0, y / 5.0, 21.5)))))
         val.append(max(0.0, min(1.0, w)))
     at = me.attributes.new("mata", "FLOAT", "POINT")
     at.data.foreach_set("value", val)
@@ -662,24 +672,24 @@ def build_scrub(M, terreno):
     at_n.inputs["Name"].default_value = "mata"
     dist = N.new("GeometryNodeDistributePointsOnFaces")
     dist.distribute_method = "POISSON"
-    dist.inputs["Distance Min"].default_value = 2.6
-    dist.inputs["Density Max"].default_value = 0.22
+    dist.inputs["Distance Min"].default_value = 1.9
+    dist.inputs["Density Max"].default_value = 0.40
     dist.inputs["Seed"].default_value = 31
     Lk.new(gi.outputs[0], dist.inputs["Mesh"])
     Lk.new(at_n.outputs[0], dist.inputs["Density Factor"])
     inst = N.new("GeometryNodeInstanceOnPoints")
     info = N.new("GeometryNodeCollectionInfo")
-    info.inputs["Collection"].default_value = lib
+    info.inputs["Collection"].default_value = matas
     info.inputs["Separate Children"].default_value = True
     info.inputs["Reset Children"].default_value = True
     rnd = N.new("FunctionNodeRandomValue")
     rnd.data_type = "INT"
-    rnd.inputs[5].default_value = len(lib.objects) - 1
+    rnd.inputs[5].default_value = len(matas.objects) - 1
     rnd.inputs["Seed"].default_value = 11
     esc = N.new("FunctionNodeRandomValue")
     esc.data_type = "FLOAT_VECTOR"
-    esc.inputs[0].default_value = (0.5, 0.5, 0.4)
-    esc.inputs[1].default_value = (1.3, 1.3, 1.1)
+    esc.inputs[0].default_value = (0.6, 0.6, 0.6)
+    esc.inputs[1].default_value = (1.3, 1.3, 1.2)
     esc.inputs["Seed"].default_value = 13
     rot = N.new("FunctionNodeRandomValue")
     rot.data_type = "FLOAT_VECTOR"
@@ -699,14 +709,15 @@ def build_scrub(M, terreno):
 
 
 def build_far_forest(M):
-    """Bosque de fondo: no son árboles, es una masa oscura y dentada sobre los cerros. A esa
-    distancia la bruma se come el detalle, y poner árboles de verdad costaría horas de render."""
+    """La última franja del fondo, más allá de los 250 m: no son árboles, es una masa oscura y
+    dentada sobre los cerros. Ahí la bruma ya se comió todo el detalle, y poner árboles de verdad
+    sería pagar horas de render por algo que no se ve."""
     coll = bpy.data.collections.new("BosqueLejos")
     bpy.context.scene.collection.children.link(coll)
     random.seed(23)
-    for i in range(1400):
+    for i in range(1300):
         a = random.uniform(0, math.tau)
-        r = random.uniform(150.0, 260.0)
+        r = random.uniform(250.0, 340.0)
         x, y = HC.x + math.cos(a) * r, HC.y + math.sin(a) * r
         h = random.uniform(8.0, 15.0) * (0.8 + r / 420.0)
         bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=h * 0.115, radius2=0.0, depth=h,
@@ -900,10 +911,10 @@ def main():
     M = materials()
     load_house(M)
     cerca, lejos = build_landscape(M)
-    lib = build_library(M)
-    build_forest(cerca, lib)
-    build_forest(lejos, lib, dmin=6.0, dens=0.1, seed=19, escala=(0.85, 1.4))
-    build_scrub(M, cerca)
+    lib, arb_cerca, arb_lejos = build_library(M)
+    build_forest(cerca, arb_cerca)
+    build_forest(lejos, arb_lejos, dmin=9.0, dens=0.06, seed=19, escala=(0.85, 1.5))
+    build_scrub(M, cerca, lib)
     build_far_forest(M)
     build_world()
     setup_render()
