@@ -10,7 +10,7 @@ primero.
 
 1. ~~Lingue~~ ✅ campo
 2. ~~Huingán~~ ✅ playa
-3. **Peumo** — nieve en el bosque ← **la que viene**
+3. **Peumo** — nieve en el bosque ← **en curso**: casa, escena y fotos de aprobación
 4. **Boldo** — lago
 5. **Mañío** — playa urbanizada
 6. **Roble** — nieve tipo centro de ski
@@ -25,14 +25,16 @@ después heredan de ellos, igual que Mañío y Ciprés heredan de Huingán.
 
 ## La que viene: Peumo (nieve en el bosque)
 
-### Lo que falta decidir
+### Lo que se decidió
 
-- 🟡 **Cuál de los dos ventanales.** `Modelo Casa Peumo.stl` y
-  `Modelo Casa Peumo (Ventanal Grande) .stl` son la misma casa (9,49 × 13,04 × 6,54 m en las
-  dos); difieren solo en el ventanal. Hay que elegir uno.
-- 🟡 **La planta sin cotas en PDF**, para la sección 4. Sin ella el recorrido queda en cuatro
-  secciones.
-- 🟡 **Cotas que el STL no dice**: piso terminado, cumbrera, frente vidriado y acceso.
+- ✅ **Ventanal Grande**, elegido por el usuario. Es con el que funciona el enganche: el vidrio
+  sube hasta el frontón sin interrupciones. `assets/peumo/casa.blend` sale de ese archivo.
+- ✅ **La planta sin cotas en PDF**, en `assets/peumo/planta_sin_cotas.pdf` (las dos plantas en
+  una lámina, bajada del Drive de Neorigen). La sección 4 se puede hacer.
+- ✅ **Cotas que el STL no dice**, medidas al convertirlo: piso terminado en z = 0,60 sobre
+  pilotes (terreno en z = 0), segundo piso en z = 3,00, cumbrera en x = 7,61 a z = 6,53,
+  frente vidriado en y = 2,05 y acceso en y = 12,35. Los faldones dan 28° y 33°, que confirma
+  los 28° de `ENGANCHES.md`.
 
 ### Lo que ya está listo
 
@@ -56,17 +58,24 @@ después heredan de ellos, igual que Mañío y Ciprés heredan de Huingán.
 
 ### Lo que hay que construir, en orden
 
-1. 🔴 **Material de nieve con subsurface scattering.** Lo primero y lo más determinante. Sin
-   translucidez la nieve se lee como yeso. Hay que resolverlo y mirarlo en una foto antes de
-   seguir con todo lo demás.
-2. 🟡 **Nieve sobre las ramas.** No alcanza con el suelo blanco: si los árboles están verdes y
-   limpios, la escena se cae. Es geometría, no solo material.
-3. 🟡 **Bosque sureño.** `vegetacion.py` genera árboles con Sapling Tree Gen y es el punto de
-   partida, pero hay que ajustar especies y densidad, y sumar bruma entre los troncos.
-4. 🟡 **Ajustes de render**: `diffuse_bounces` de 2 a 3 por el albedo alto de la nieve, y vigilar
+1. ✅ **Material de nieve con subsurface scattering**, en `snow_mat()` de `casa_peumo_3d.py`:
+   scattering corto y apenas azulado (radio 0,09 / 0,11 / 0,17), relieve de tres escalas de ruido
+   y grano fino sobre la rugosidad, que es de donde sale el destello.
+2. ✅ **Nieve sobre las ramas**, como geometría: un cono apoyado sobre cada faldón de la conífera
+   y un medio cilindro sobre cada rama de los árboles desnudos. No cae pareja —se sostiene en
+   parches—, si no se ve como una torta de bodas.
+3. ✅ **Bosque sureño.** No salió de Sapling: son coníferas de faldones por capas y árboles
+   desnudos, instanciados con nodos de geometría sobre las dos mallas de terreno. Mucho más
+   baratas de renderizar, y a esa distancia con bruma rinden igual. La bruma entre los troncos
+   es la del compositor, con la escala acortada (22 m, 190).
+4. ✅ **Ajustes de render**: `diffuse_bounces` de 2 a 3 por el albedo alto de la nieve, y vigilar
    la exposición para que no se queme con AgX. Única excepción a los ajustes de `RECETA.md` §3.
 5. ✔️ **Verificar en las fotos que las sombras salgan azules**, no grises. Si salen grises, el
-   cielo físico y el HDRI no están calzados.
+   cielo físico y el HDRI no están calzados. **Pendiente de la revisión del usuario**, junto con
+   el resto de las cuatro fotos de `output/peumo_propuesta/`.
+
+El HDRI elegido es `snowy_forest_path_01` (el recomendado acá): nublado, luz difusa pareja,
+`HDRI_SUN_U = 0.6010`, `SUN_ELEV = 20.6`.
 
 ---
 
