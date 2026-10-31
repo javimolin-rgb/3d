@@ -32,6 +32,7 @@ import random
 import sys
 
 import bpy  # noqa: E402  (bpy debe importarse antes que bmesh)
+import bmesh
 from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -426,12 +427,11 @@ def load_house(M):
         for sl in o.material_slots:
             if sl.material and sl.material.name in swap:
                 sl.material = swap[sl.material.name]
-    # nieve en el techo: una capa rala, limitada al material de la chapa. Los 28° descargan la
-    # nieve solos (es el enganche de la casa), pero un techo impecable en medio de una nevada
-    # delata que la casa se posó ahí hace un segundo.
+    # nieve en el techo: una capa modelada, no grumos. Los 28° la descargan solos (es el enganche
+    # de la casa), así que no es un manto parejo sino una cuña con fajas desprendidas.
     casco = next((o for o in coll.objects if "Casco" in o.name), None)
     if casco:
-        nevar(casco, M, dens=300.0, tam=0.042, umbral=0.55, solo=M["chapa"], mat="nieve_techo")
+        nieve_sobre_techo(casco, M)
     # luces interiores tibias: con el día nublado afuera, son las que hacen que el ventanal
     # se lea como una casa habitada y no como un vidrio apagado
     for x, y, z, p in ((4.6, 5.0, 2.3, 150), (8.2, 4.6, 2.1, 70), (3.0, 10.4, 2.2, 90),
@@ -744,6 +744,115 @@ def nevar(o, M, dens=110.0, tam=0.075, umbral=0.45, solo=None, mat="nieve_rama")
     Lk.new(join.outputs[0], go.inputs[0])
     md = o.modifiers.new("Nieve", "NODES")
     md.node_group = ng
+    return o
+
+
+def nieve_sobre_techo(casco, M):
+    """Capa de nieve del techo, modelada en vez de esparcida.
+
+    Los grumos sueltos daban una capa pareja y mullida que parecía plumavit, y eso en un techo a
+    28° no pasa: la nieve se desliza. Lo que queda es una cuña —casi nada en la cumbrera, gruesa
+    contra el alero, donde se frena— cortada por fajas peladas en el sentido de la pendiente, que
+    son los desprendimientos, y asomada por el borde en una cornisa que se dobla hacia abajo.
+
+    Se construye duplicando las caras de chapa que miran al cielo, subdividiéndolas y corriendo
+    cada vértice por su normal según ese espesor. El espesor queda guardado por vértice para que
+    la acumulación del video la pueda animar sin rehacer la geometría."""
+    mi = casco.data.materials.find(M["chapa"].name)
+    src = bmesh.new()
+    src.from_mesh(casco.data)
+    caras = [f for f in src.faces
+             if f.material_index == mi and f.normal.z > 0.35 and f.calc_center_median().z > 1.8]
+    if not caras:
+        src.free()
+        return None
+    bm = bmesh.new()
+    mapa = {}
+    for f in caras:
+        vs = []
+        for v in f.verts:
+            if v.index not in mapa:
+                mapa[v.index] = bm.verts.new(v.co)
+            vs.append(mapa[v.index])
+        try:
+            bm.faces.new(vs)
+        except ValueError:
+            pass
+    bm.verts.ensure_lookup_table()
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=10, use_grid_fill=True)
+    bm.normal_update()
+    zs = [v.co.z for v in bm.verts]
+    z_cum, z_alero = max(zs), min(zs)
+    espesor = {}
+    for v in bm.verts:
+        t = (v.co.z - z_alero) / max(z_cum - z_alero, 1e-6)
+        t = 1.0 - t                                   # 0 en la cumbrera, 1 en el alero
+        # las fajas peladas corren en el sentido de la pendiente: ruido largo en x, corto en y
+        faja = noise.noise(Vector((v.co.x / 9.0, v.co.y / 1.1, 67.0)))
+        queda = min(1.0, max(0.0, (faja + 0.45 * t - 0.06) / 0.22))
+        e = 0.30 * (0.05 + 0.95 * t ** 1.6) * queda
+        e *= 0.8 + 0.4 * noise.noise(Vector((v.co.x / 0.8, v.co.y / 0.8, 83.0)))
+        espesor[v] = e
+    # la cornisa: en el borde del alero la nieve sobresale y se dobla
+    for v in bm.verts:
+        if any(len(e.link_faces) == 1 for e in v.link_edges) and espesor[v] > 0.04:
+            t = 1.0 - (v.co.z - z_alero) / max(z_cum - z_alero, 1e-6)
+            if t > 0.86:
+                baja = Vector((v.normal.x, v.normal.y, 0.0))
+                if baja.length > 1e-6:
+                    v.co += baja.normalized() * 0.18
+                v.co.z -= 0.11
+    for v in bm.verts:
+        v.co += v.normal * espesor[v]
+    me = bpy.data.meshes.new("Peumo_NieveTecho")
+    bm.to_mesh(me)
+    o = link(bpy.data.objects.new("Peumo_NieveTecho", me), casco.users_collection[0])
+    me.materials.append(M["nieve_techo"])
+    at = me.attributes.new("espesor", "FLOAT", "POINT")
+    at.data.foreach_set("value", [espesor[v] for v in bm.verts])
+    bm.free()
+    src.free()
+    for q in me.polygons:
+        q.use_smooth = True
+    sol = o.modifiers.new("Espesor", "SOLIDIFY")
+    sol.thickness = 0.05
+    sol.offset = -1.0
+    # la acumulación del video: con la carga baja, la capa se aplasta contra el techo
+    ng = bpy.data.node_groups.new("NieveTechoCarga", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, Lk = ng.nodes, ng.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    sp = N.new("GeometryNodeSetPosition")
+    nor = N.new("GeometryNodeInputNormal")
+    esp = N.new("GeometryNodeInputNamedAttribute")
+    esp.data_type = "FLOAT"
+    esp.inputs["Name"].default_value = "espesor"
+    carga = N.new("ShaderNodeValue")
+    carga.name = "Carga"
+    carga.outputs[0].default_value = 1.0
+    menos = N.new("ShaderNodeMath")
+    menos.operation = "SUBTRACT"
+    menos.inputs[0].default_value = 1.0
+    Lk.new(carga.outputs[0], menos.inputs[1])
+    cuanto = N.new("ShaderNodeMath")
+    cuanto.operation = "MULTIPLY"
+    Lk.new(esp.outputs[0], cuanto.inputs[0])
+    Lk.new(menos.outputs[0], cuanto.inputs[1])
+    off = N.new("ShaderNodeVectorMath")
+    off.operation = "SCALE"
+    Lk.new(nor.outputs[0], off.inputs[0])
+    neg = N.new("ShaderNodeMath")
+    neg.operation = "MULTIPLY"
+    neg.inputs[1].default_value = -1.0
+    Lk.new(cuanto.outputs[0], neg.inputs[0])
+    Lk.new(neg.outputs[0], off.inputs["Scale"])
+    Lk.new(gi.outputs[0], sp.inputs["Geometry"])
+    Lk.new(off.outputs[0], sp.inputs["Offset"])
+    Lk.new(sp.outputs[0], go.inputs[0])
+    md = o.modifiers.new("Carga", "NODES")
+    md.node_group = ng
+    o.modifiers.move(md.name and 0, 0)
     return o
 
 
