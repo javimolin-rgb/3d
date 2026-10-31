@@ -753,9 +753,10 @@ def nieve_sobre_techo(casco, M):
     Los grumos sueltos daban una capa de bolitas que parecía plumavit. Acá la nieve es una sola
     pieza continua que se va en degradé: una cuña que arranca en nada en la cumbrera y engrosa
     contra el alero, donde se frena al deslizar, asomada por el borde en una cornisa que se dobla
-    hacia abajo. Y donde adelgaza se vuelve translúcida y deja ver la chapa oscura, que es lo que
+    hacia abajo. Y donde adelgaza se vuelve translúcida y deja entrever la chapa, que es lo que
     hace que el degradé se lea; si la nieve termina de golpe, por fino que sea el borde, se ve
-    como un bloque blanco apoyado encima.
+    como un bloque blanco apoyado encima. El degradé es parejo de la cumbrera al alero: cuando se
+    concentraba arriba, el techo se partía en dos zonas en vez de leerse como una sola capa.
 
     Se construye duplicando las caras de chapa que miran al cielo, subdividiéndolas y corriendo
     cada vértice por su normal según ese espesor. El espesor queda guardado por vértice para que
@@ -792,7 +793,7 @@ def nieve_sobre_techo(casco, M):
         # La capa va entera y en degradé: el espesor baja hasta cero hacia la cumbrera, sin
         # cortes ni parches. Las fajas desprendidas se probaron y dejaban el techo parchado;
         # terminar la nieve de golpe la convertía en un bloque blanco pegado encima.
-        e = 0.30 * t ** 1.25
+        e = 0.30 * (0.10 + 0.90 * t)      # casi lineal: el degradé recorre todo el faldón
         e *= 0.93 + 0.14 * noise.noise(Vector((v.co.x / 3.4, v.co.y / 3.4, 83.0)))
         espesor[v] = e
     # la cornisa: en el borde del alero la nieve sobresale y se dobla
@@ -816,9 +817,13 @@ def nieve_sobre_techo(casco, M):
         at_e = nt.nodes.new("ShaderNodeAttribute")
         at_e.name = "EspesorAlfa"
         at_e.attribute_name = "espesor"
+        # El degradé va de punta a punta del faldón y es suave: la nieve nunca desaparece del
+        # todo, sólo deja entrever la chapa arriba. Concentrar el cambio cerca de la cumbrera
+        # partía el techo en dos zonas en vez de leerse como un solo degradé.
         ramp = nt.nodes.new("ShaderNodeMapRange")
-        ramp.interpolation_type = "SMOOTHSTEP"
-        ramp.inputs[1].default_value, ramp.inputs[2].default_value = 0.012, 0.085
+        ramp.interpolation_type = "LINEAR"
+        ramp.inputs[1].default_value, ramp.inputs[2].default_value = 0.03, 0.30
+        ramp.inputs[3].default_value, ramp.inputs[4].default_value = 0.62, 1.0
         nt.links.new(at_e.outputs["Fac"], ramp.inputs[0])
         nt.links.new(ramp.outputs[0], bsdf.inputs["Alpha"])
     at = me.attributes.new("espesor", "FLOAT", "POINT")
