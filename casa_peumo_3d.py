@@ -39,7 +39,7 @@ argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
         "wb": "6250", "save": None, "dof": "1",
         "nevada": "1.0", "tramo": "s1",
-        "carga": "1.0", "techo": "1.0", "techo_modo": "capa"}
+        "carga": "1.0", "techo": "0.28", "techo_modo": "capa"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
 
@@ -86,7 +86,8 @@ ORBITA = (15.0, 42.0)        # franja radial por donde pasa el dron: sin árbole
 # cuántos de ellos se muestran, con un sorteo estable por punto. Así los grumos que ya estaban
 # no se mueven nunca y sólo van apareciendo los que faltan.
 CARGA = (0.40, 1.0)          # carga de nieve al principio y al final del video
-TECHO = float(opts["techo"])  # cuánta nieve queda en el techo (1 = lámina llena)
+TECHO = float(opts["techo"])  # cuánta nieve queda en el techo; 0,28 es la elegida: los 28°
+                              # descargan casi toda y queda una película que gana al alero
 VIDEO_N = 1008               # cuadros del video completo (las cinco partes, s4 incluida)
 VIDEO_G0 = {"s1": 0, "s2": 240, "s3": 432, "s5": 816}   # dónde empieza cada parte
 VIENTO = Vector((0.82, 0.57, 0.0)).normalized()
