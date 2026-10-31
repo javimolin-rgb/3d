@@ -13,7 +13,9 @@ progreso() {
       echo "Actualizado: $(TZ=America/Santiago date '+%d-%m %H:%M') (hora de Chile)"
       echo
       for t in "$@"; do
-        n=$(python3 -c "import re;print(re.search(r'\"$t\": (\d+)', open('casa_peumo_3d.py').read()).group(1))")
+        # el total sale de SECCIONES, no del primer "sN" que aparezca: VIDEO_G0 tiene las mismas
+        # claves y la cuenta daba cero, con lo que el medidor se caía en cada vuelta
+        n=$(python3 -c "import re;t=open('casa_peumo_3d.py').read();b=re.search(r'SECCIONES = \{[^}]*\}',t).group(0);print(re.search(r'\"$t\": (\d+)',b).group(1))")
         k=$(find frames_peumo/$t -name 'f_*.png' -size +10k 2>/dev/null | wc -l)
         printf "  %s: %3d / %3d cuadros (%3d %%)\n" "$t" "$k" "$n" $((100 * k / n))
       done
