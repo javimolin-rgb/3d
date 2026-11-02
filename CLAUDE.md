@@ -94,11 +94,19 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
 Los contenedores son efímeros: al empezar una sesión en uno nuevo hay que rearmar esto antes de
 renderizar (nada de ello va al repo, son ~650 MB).
 
-- Blender: instalar el módulo `bpy` en un venv. `pip install bpy` se cuelga resolviendo
-  dependencias; bajar la rueda directo y darle el nombre canónico (pip rechaza otro):
-  `curl -sSL -C - -o bpy-5.2.3-cp313-cp313-manylinux_2_28_x86_64.whl <url de pypi.org/pypi/bpy/json>`
-  y `python3 -m venv /opt/bpyvenv && /opt/bpyvenv/bin/pip install <la rueda>`. Luego usar
-  `PY=/opt/bpyvenv/bin/python` en los scripts de render.
+- Blender: instalar el módulo `bpy` en un venv, **fijando `bpy==5.0.1`, que sólo tiene rueda para
+  Python 3.11**: `python3.11 -m venv venv-bpy && ./venv-bpy/bin/pip install bpy==5.0.1`. Luego usar
+  `PY=$PWD/venv-bpy/bin/python` en los scripts de render. Verificar con
+  `./venv-bpy/bin/python -c "import bpy; print(bpy.app.version_string)"`.
+  **No tomar la última versión de bpy.** Con 5.2.3 (cp313) `casa_peumo_3d.py` no corre: aborta en
+  `nevar()` con `NodeSocketInt.default_value expected an int type, not float` (lo vieron dos
+  contenedores al rearmar el entorno desde esta receta, que antes decía 5.2.3). Si hace falta
+  subir de versión, los enteros que van a sockets de Geometry Nodes hay que castearlos a `int`.
+  Todas las secciones de una casa tienen que renderizarse **con la misma versión de bpy**: si se
+  reparte una sección entre contenedores y uno usa otra versión, la diferencia se ve justo en el
+  empalme.
+  Si `pip install` se cuelga resolviendo dependencias, bajar la rueda directo de
+  `pypi.org/pypi/bpy/json` con `curl -sSL -C -` y darle el nombre canónico (pip rechaza otro).
 - Librerías gráficas: `bpy` aborta con SIGABRT sin ellas, aunque Cycles renderice en CPU.
   `apt-get install -y libegl1 libgl1 libglx-mesa0 libgl1-mesa-dri libxi6 libxrender1 libxxf86vm1
   libxfixes3 libsm6 libice6 libxkbcommon0 libwayland-client0`. Los avisos `EGL_BAD_MATCH` que
