@@ -78,6 +78,11 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   distintos ni el crudo coincide exacto (el núcleo de Cycles que elige la CPU del host cambia el
   último bit); lo que importa es la magnitud, y en Peumo quedó por debajo del ruido de
   codificación de un cuadro contra su propia versión en el MP4 (1,72 contra 1,95 de media).
+  Y la vara tiene que ser **local**: la diferencia entre cuadros vecinos no es constante a lo largo
+  de una toma (cambia con la velocidad de la cámara), así que el empalme se compara contra sus
+  vecinos inmediatos y no contra una base medida en otra parte del clip. En s5 de Peumo la base era
+  5,9 al principio y 7,8 junto al empalme: con la base vieja, un empalme limpio (+1,2 %) habría
+  leído +31 %.
 - Armar el MP4 con `tools/armar_video.sh` (`LOOK=dia` para Casa Lingue).
 - Video de recintos de Lingue: `casa_lingue_3d.py -- --vista corte --res 720x1280 --samples 20
   --frames 1-264`, luego `tools/video_corte.py frames_recintos frames_recintos_post` y
