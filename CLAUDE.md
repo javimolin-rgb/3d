@@ -66,6 +66,18 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   6,5 min con el techo a medio abrir —el interior se ilumina sólo de rebote por una abertura
   parcial— y 3,3 otra vez cuando queda abierto del todo). Partir por la mitad en cantidad de
   cuadros le deja toda la meseta cara a un contenedor.
+  Para verificar un empalme, medir sobre los **PNG crudos**, no sobre los MP4: H.264 predice entre
+  cuadros vecinos y achica la diferencia entre los pares que están dentro de un mismo archivo
+  (x0,82 de media, más cuanto menor la diferencia real), mientras que el par del empalme cruza dos
+  codificaciones y no recibe ese descuento. Medido así, el empalme de Peumo leía un +30 % contra
+  sus vecinos y en crudo era un +10 %, dentro de la variación de la serie.
+  Y para comparar un mismo cuadro rendido en dos contenedores **no sirve el md5 del PNG**: Blender
+  escribe `tEXt Date` y `tEXt RenderTime` adentro, así que el hash difiere siempre aunque los
+  píxeles sean idénticos. Comparar el volcado crudo:
+  `ffmpeg -i f.png -f rawvideo -pix_fmt rgb24 f.raw && md5sum f.raw`. Ojo que entre contenedores
+  distintos ni el crudo coincide exacto (el núcleo de Cycles que elige la CPU del host cambia el
+  último bit); lo que importa es la magnitud, y en Peumo quedó por debajo del ruido de
+  codificación de un cuadro contra su propia versión en el MP4 (1,72 contra 1,95 de media).
 - Armar el MP4 con `tools/armar_video.sh` (`LOOK=dia` para Casa Lingue).
 - Video de recintos de Lingue: `casa_lingue_3d.py -- --vista corte --res 720x1280 --samples 20
   --frames 1-264`, luego `tools/video_corte.py frames_recintos frames_recintos_post` y
