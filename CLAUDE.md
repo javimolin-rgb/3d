@@ -55,6 +55,12 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
 - Para saber si Blender sigue vivo no usar `pgrep -f` con el mismo texto del comando de espera
   (se encuentra a sí mismo); usar `ps aux | grep "<patrón>" | grep -v grep` y mirar `uptime`
   (0 min = el contenedor se reinició y hay que relanzar).
+- Para acortar un render largo se puede **repartir una sección entre varios contenedores**:
+  `--desde N --hasta M` recorta sólo lo que se renderiza (las poses y la nieve acumulada se
+  calculan igual para toda la sección, así que los cuadros salen idénticos). Cada contenedor arma
+  su tramo con `tools/armar_video.sh` y después se pegan sin recodificar con el demuxer `concat`
+  de ffmpeg: el look de `armar_video.sh` no depende del tiempo (la viñeta va con
+  `lt(t,1000)`), así que los pedazos quedan con la misma corrección de color.
 - Armar el MP4 con `tools/armar_video.sh` (`LOOK=dia` para Casa Lingue).
 - Video de recintos de Lingue: `casa_lingue_3d.py -- --vista corte --res 720x1280 --samples 20
   --frames 1-264`, luego `tools/video_corte.py frames_recintos frames_recintos_post` y

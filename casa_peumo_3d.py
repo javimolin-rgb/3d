@@ -1687,6 +1687,13 @@ def build_drone(cam):
     tramo = opts["tramo"]
     n = SECCIONES[tramo]
     sc.frame_start, sc.frame_end = 1, n
+    # --desde/--hasta recortan sólo lo que se renderiza, no el recorrido: las poses y la
+    # acumulación de nieve se calculan igual para los n cuadros de la sección, así que repartir
+    # una sección entre dos contenedores da exactamente los mismos cuadros que hacerla de corrido.
+    if opts.get("desde"):
+        sc.frame_start = max(1, int(opts["desde"]))
+    if opts.get("hasta"):
+        sc.frame_end = min(n, int(opts["hasta"]))
     sc.frame_step = int(opts.get("step", "1"))   # >1 para previsualizaciones rápidas
     w, h = (int(v) for v in opts["res"].split("x"))
     lens = 30.0
