@@ -61,6 +61,11 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   su tramo con `tools/armar_video.sh` y después se pegan sin recodificar con el demuxer `concat`
   de ffmpeg: el look de `armar_video.sh` no depende del tiempo (la viñeta va con
   `lt(t,1000)`), así que los pedazos quedan con la misma corrección de color.
+  Para repartir bien hay que medir el costo cuadro a cuadro en `render.log`, no suponerlo: en la
+  sección del corte no crece parejo, hace una loma (en Peumo, 3,3 min/cuadro con el techo cerrado,
+  6,5 min con el techo a medio abrir —el interior se ilumina sólo de rebote por una abertura
+  parcial— y 3,3 otra vez cuando queda abierto del todo). Partir por la mitad en cantidad de
+  cuadros le deja toda la meseta cara a un contenedor.
 - Armar el MP4 con `tools/armar_video.sh` (`LOOK=dia` para Casa Lingue).
 - Video de recintos de Lingue: `casa_lingue_3d.py -- --vista corte --res 720x1280 --samples 20
   --frames 1-264`, luego `tools/video_corte.py frames_recintos frames_recintos_post` y
