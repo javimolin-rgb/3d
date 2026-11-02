@@ -10,8 +10,8 @@ primero.
 
 1. ~~Lingue~~ ✅ campo
 2. ~~Huingán~~ ✅ playa
-3. **Peumo** — nieve en el bosque ← **en curso**: casa, escena y fotos de aprobación
-4. **Boldo** — lago
+3. ~~Peumo~~ ✅ nieve en el bosque
+4. **Boldo** — lago ← **la que viene**
 5. **Mañío** — playa urbanizada
 6. **Roble** — nieve tipo centro de ski
 7. **Maitén** — mar roca
@@ -23,7 +23,11 @@ después heredan de ellos, igual que Mañío y Ciprés heredan de Huingán.
 
 ---
 
-## La que viene: Peumo (nieve en el bosque)
+## Hecha: Peumo (nieve en el bosque)
+
+Las cinco secciones y la secuencia de 1008 cuadros / 42 s están en `output/`. El render se repartió
+entre tres contenedores; lo que se aprendió de eso (cómo medir un empalme, por qué el md5 de un PNG
+de Blender nunca coincide, que la vara tiene que ser local) está en `CLAUDE.md`.
 
 ### Lo que se decidió
 
@@ -70,12 +74,18 @@ después heredan de ellos, igual que Mañío y Ciprés heredan de Huingán.
    es la del compositor, con la escala acortada (22 m, 190).
 4. ✅ **Ajustes de render**: `diffuse_bounces` de 2 a 3 por el albedo alto de la nieve, y vigilar
    la exposición para que no se queme con AgX. Única excepción a los ajustes de `RECETA.md` §3.
-5. ✔️ **Verificar en las fotos que las sombras salgan azules**, no grises. Si salen grises, el
-   cielo físico y el HDRI no están calzados. **Pendiente de la revisión del usuario**, junto con
-   el resto de las cuatro fotos de `output/peumo_propuesta/`.
+5. ❌ **Sombras azules**: descartado. El usuario dijo que las sombras le daban lo mismo, así que
+   no se usó como criterio.
+6. ✅ **Sección 4 (la planta de arquitectura)** con `tools/plano_peumo.py`. Las constantes que
+   calzan el dibujo sobre la casa salen de `tools/calibrar_planta.py` (nuevo), **no se heredan de
+   otra casa**: la lámina de Peumo trae las dos plantas y los valores de Huingán caían entre medio.
+   Y sin desvanecimiento diferencial, que sobre nieve deja un contorno encendido alrededor de la casa.
 
-El HDRI elegido es `snowy_forest_path_01` (el recomendado acá): nublado, luz difusa pareja,
-`HDRI_SUN_U = 0.6010`, `SUN_ELEV = 20.6`.
+El HDRI elegido **no** es el nublado que se recomendaba acá. `snowy_forest_path_01` daba luz difusa
+pareja y el usuario lo vio *"muy tétrico"*: la idea es que den ganas de ir a desconectarse a la
+montaña. Quedó `horn-koppe_snow` (`HDRI_SUN_U = 0.6000`, `SUN_ELEV = 28.2`), con sol alto y fuerte.
+Multiplicar el HDRI entero no sirve para ganar sombras, porque escala sol y cielo por igual y la
+razón entre ambos —que es de donde salen— no cambia: hay que elegir un HDRI que ya traiga sol.
 
 ---
 

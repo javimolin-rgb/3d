@@ -13,8 +13,8 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 
 1. Lingue — campo ✅
 2. Huingán — playa ✅
-3. **Peumo — nieve en el bosque** ← la que viene
-4. Boldo — lago
+3. Peumo — nieve en el bosque ✅
+4. **Boldo — lago** ← la que viene
 5. Mañío — playa urbanizada
 6. Roble — nieve tipo centro de ski
 7. Maitén — mar roca
@@ -99,6 +99,12 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
 - Marca Neorigen en gráficas: Azul Origen #011E2F, Niebla #F1F4F3, Verde Pino #3C4A3E, Madera #A9764A
   (sin negro ni blanco puros); Fraunces / Work Sans / IBM Plex Mono desde `assets/fuentes/`
   (instancias con `tools/instanciar_fuentes.py`), logo en `assets/marca/`. Texto mínimo 22 px a 720x1280.
+- Casa Peumo (nieve en el bosque): `casa_peumo_3d.py` (casa desde el STL con `tools/extraer_peumo_stl.py`;
+  recursos de Poly Haven con `tools/get_assets_nieve.sh`, 1,3 GB). Mismas cinco secciones que Huingán:
+  `setsid nohup tools/render_peumo.sh s1 [s2 ...] &`, o Blender directo con `--desde/--hasta` para
+  repartir una sección entre contenedores. s4 = `tools/plano_peumo.py`, con las constantes de la
+  lámina calibradas por `tools/calibrar_planta.py`. La nieve cayendo va **sólo en s5** y en diagonal;
+  `--techo` gradúa cuánta nieve queda en el techo (0,28 es la elegida).
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
