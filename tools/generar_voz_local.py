@@ -31,10 +31,34 @@ DESIGN = (
     "speech, never an advertising or broadcast tone, no grandiosity."
 )
 # Instrucción de interpretación por defecto y por etiqueta del guion.
-INSTRUCT = "Speak at a normal conversational speed, with light natural emphasis."
+# "with clear separation between words" tiene que estar en las tres: medido, es lo que
+# baja la velocidad de ~240 ppm a ~155. Pedir "slowly" sin eso casi no mueve la aguja
+# (239 ppm), y agregar comas al texto tampoco ayuda (177 ppm) — el texto va plano.
+# Medido: con "normal conversational speed" el modelo entrega ~270 ppm, muy por encima
+# del objetivo de 150-165 (LOCUCION.md §1). Hay que pedirle lento explícitamente.
+INSTRUCT = (
+    "Speak slowly and unhurried, taking your time, with clear separation between words "
+    "and light natural emphasis. Relaxed pace, never rushed."
+)
 INSTRUCT_TAGS = {
-    "cálido": "Speak at a normal conversational speed, warm and inviting.",
-    "más suave": "Speak a little softer and slower, settling into a calm close.",
+    "cálido": (
+        "Speak slowly and unhurried, warm and inviting, with clear separation between "
+        "words and light natural emphasis. Relaxed pace, never rushed."
+    ),
+    "más suave": (
+        "Speak softly and slowly, with clear separation between words, settling into a "
+        "calm, gentle close. Relaxed pace, never rushed."
+    ),
+}
+
+# Duración de diseño de cada frase, en segundos: la que sale de repartir 107 palabras a
+# ~158 ppm y es la que hace calzar la tabla de tiempos del guion con los 49,57 s del reel.
+# Qwen VoiceDesign no tiene parámetro de velocidad y entrega ~240 ppm por mucho que se le
+# pida lento en el instruct, así que con --ajustar-tempo cada frase se estira hasta su
+# duración de diseño con ffmpeg atempo (WSOLA, no vocoder de fase: mejor para voz).
+DURACION_DISENO = {
+    1: 3.4, 2: 4.2, 3: 2.7, 4: 3.4, 5: 2.7, 6: 2.3, 7: 2.7,
+    8: 3.4, 9: 3.8, 10: 5.3, 11: 1.5, 12: 1.0, 13: 2.7, 14: 2.2,
 }
 
 RE_BREAK = re.compile(r'<break\s+time="([\d.]+)s"\s*/>')
@@ -68,6 +92,18 @@ def leer_guion(ruta: Path):
     return segmentos
 
 
+def estirar(audio, sr, factor):
+    """Cambia la duración sin cambiar el tono, con el atempo de ffmpeg (WSOLA)."""
+    import subprocess, tempfile, soundfile as sf, numpy as np
+    with tempfile.TemporaryDirectory() as d:
+        ent, sal = f"{d}/i.wav", f"{d}/o.wav"
+        sf.write(ent, audio, sr)
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", ent,
+                        "-filter:a", f"atempo={factor:.4f}", sal], check=True)
+        a, _ = sf.read(sal)
+    return np.asarray(a, dtype=np.float32)
+
+
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("guion", type=Path)
@@ -77,6 +113,13 @@ async def main():
     ap.add_argument("--design", default=DESIGN)
     ap.add_argument("--desde", type=int, default=1, help="primera frase (para reanudar)")
     ap.add_argument("--hasta", type=int, default=0, help="última frase, 0 = todas")
+    ap.add_argument("--ajustar-tempo", action="store_true",
+                    help="estira cada frase hasta su duración de diseño (ver DURACION_DISENO)")
+    ap.add_argument("--tempo-minimo", type=float, default=0.72,
+                    help="estiramiento máximo permitido; por debajo se oye artificial")
+    ap.add_argument("--reintentos", type=int, default=0,
+                    help="si la frase sale apurada, regenerarla con otra semilla hasta N veces "
+                         "y quedarse con la más cercana a su duración de diseño")
     args = ap.parse_args()
 
     if not VOICEBOX.exists():
@@ -110,18 +153,49 @@ async def main():
             print(f"  [{i:2d}/{len(segmentos)}] (cacheada) {texto[:52]}", flush=True)
         else:
             print(f"  [{i:2d}/{len(segmentos)}] {texto[:52]}", flush=True)
-            audio, sr = await motor.generate(
-                text=texto,
-                voice_prompt={"design_prompt": args.design},
-                language=args.idioma,
-                seed=args.semilla,
-                instruct=instruct,
-            )
-            audio = np.asarray(audio, dtype=np.float32)
-            # El modelo deja aire al principio y al final de cada frase. Se saca para
-            # que la pausa que manda sea la del guion y no la del modelo más la nuestra.
-            audio, _ = librosa.effects.trim(audio, top_db=35)
+            objetivo = DURACION_DISENO.get(i)
+            mejor = None
+            # La generación es muestreada: la misma frase sale a 155 ppm o a 245 según la
+            # semilla. Volver a tirar los dados sale mejor que estirar al límite, porque
+            # el estiramiento grande se oye. Se corta apenas una queda dentro de rango.
+            for intento in range(args.reintentos + 1):
+                semilla = args.semilla if intento == 0 or args.semilla is None \
+                          else args.semilla + 1000 * intento
+                audio, sr = await motor.generate(
+                    text=texto,
+                    voice_prompt={"design_prompt": args.design},
+                    language=args.idioma,
+                    seed=semilla,
+                    instruct=instruct,
+                )
+                audio = np.asarray(audio, dtype=np.float32)
+                # El modelo deja aire al principio y al final de cada frase. Se saca para
+                # que la pausa que manda sea la del guion y no la del modelo más la nuestra.
+                audio, _ = librosa.effects.trim(audio, top_db=35)
+                dur = len(audio) / sr
+                if objetivo is None:
+                    mejor = audio
+                    break
+                if mejor is None or abs(dur - objetivo) < abs(len(mejor) / sr - objetivo):
+                    mejor = audio
+                if dur >= objetivo * 0.88:         # ya está suficientemente cerca
+                    break
+                if intento < args.reintentos:
+                    print(f"       {dur:5.2f} s apurada, otra semilla...", flush=True)
+            audio = mejor
             sf.write(parcial, audio, sr)
+        # Aviso inmediato si el modelo se apura: el objetivo es 150-165 ppm dentro de la
+        # frase (LOCUCION.md §1). Sin esto el apuro recién se nota al medir el total.
+        ppm = 60 * len(texto.split()) / max(len(audio) / sr, 0.01)
+        marca = "" if 140 <= ppm <= 175 else "  <- FUERA"
+        print(f"       {len(audio)/sr:5.2f} s  {ppm:3.0f} ppm{marca}", flush=True)
+        if args.ajustar_tempo and i in DURACION_DISENO:
+            objetivo = DURACION_DISENO[i]
+            factor = (len(audio) / sr) / objetivo      # <1 = hay que alargar
+            factor = max(factor, args.tempo_minimo)
+            if abs(factor - 1.0) > 0.03:
+                audio = estirar(audio, sr, factor)
+                print(f"       tempo x{factor:.2f} -> {len(audio)/sr:5.2f} s", flush=True)
         trozos.append((audio, pausa))
 
     if not trozos:

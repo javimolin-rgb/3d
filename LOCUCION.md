@@ -108,11 +108,35 @@ hombre chileno de unos treinta, registro medio, cercano, contando algo que le en
 tono publicitario. Si una toma sale con acento raro o demasiado formal, lo que se toca es ese
 texto, no las pausas — las pausas ya están resueltas por el guion.
 
+**La frase que importa en el `INSTRUCT`.** Qwen VoiceDesign **no tiene parámetro de
+velocidad** (sólo sampling: temperature, top_k, top_p), así que el ritmo se pide por escrito
+— y no todas las formas de pedirlo funcionan igual. Medido sobre la misma frase de 9 palabras,
+misma semilla:
+
+| Instrucción / texto                                     | resultado  |
+| ------------------------------------------------------- | ---------- |
+| "normal conversational speed"                           | 273 ppm    |
+| "Speak slowly and unhurried, taking your time"          | 239 ppm    |
+| + **"with clear separation between words"**             | **155 ppm** |
+| lo mismo, con comas agregadas al texto                  | 177 ppm    |
+| lo mismo, con puntos suspensivos                        | 152 ppm    |
+
+O sea: pedir "lento" casi no mueve la aguja, y **"clear separation between words" sí**. Por eso
+esa frase está en las tres variantes de `INSTRUCT_TAGS` y conviene no sacarla al editarlas.
+Agregar comas al texto no ayuda —incluso lo apuró— así que **el guion va con puntuación
+normal**; las pausas son cosa del script, no del texto.
+
+Como la generación es muestreada, la velocidad varía algo entre frases. `--ajustar-tempo`
+estira la frase que se salga hasta su duración de diseño con el `atempo` de ffmpeg (WSOLA,
+mejor que un vocoder de fase para voz), con tope en `--tempo-minimo 0.72` para que no se oiga
+artificial. El script imprime las ppm de cada frase y marca FUERA las que se pasan.
+
 **Qué hacer según lo que falle:**
 
 | Lo que se escucha            | Qué tocar                                               |
 | ---------------------------- | ------------------------------------------------------- |
 | suena leído, parejo          | las pausas del guion — pero ya vienen calibradas         |
+| una frase sale apurada       | revisar que su `INSTRUCT` traiga "clear separation…"; si no, `--ajustar-tempo` |
 | acento que no es chileno     | `DESIGN`, siendo más específico con el acento            |
 | una frase sale rara o cortada| borrar su `fNN.wav` y regenerar con otra `--semilla`     |
 | cierra demasiado arriba      | la etiqueta `[más suave]` ya baja las dos últimas frases |
