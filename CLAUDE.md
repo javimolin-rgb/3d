@@ -35,6 +35,12 @@ adaptable: correr `python3 tools/medir_stl.py stl/*.stl` antes de escribir cualq
 Huingán, el testero vidriado de Peumo, la pendiente de Roble). El enganche decide qué mira el
 dron, así que conviene leerlo antes de ajustar el recorrido.
 
+**`LOCUCION.md`** tiene cómo se hace la voz en off (ElevenLabs: voz, modelo, ajustes y el
+reparto de respiraciones). Lo que hace que una locución suene a persona y no a locutor es el
+ritmo, no la voz, y eso se mide: `tools/medir_voz.sh <audio> <palabras>` dice si una toma
+sirve antes de discutirla de oído. Para montarla sobre el reel, `tools/montar_voz.sh`. Los
+guiones marcados van en `guiones/`.
+
 **Nunca renderizar video de entrada.** Primero mandar fotos fijas desde varios ángulos (~10 min)
 y esperar el visto bueno del usuario; recién ahí lanzar el render largo (~17 h). Los ajustes de
 luz, materiales o vegetación se hacen sobre las fotos, no sobre el video.

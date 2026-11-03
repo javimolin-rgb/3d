@@ -1,0 +1,56 @@
+Casa Peumo — locución para reel vertical (49,57 s)
+Modelo: eleven_v3   ·   Stability 0,35   ·   Similarity 0,80   ·   Speed 1,05
+Pegar desde la línea de guiones de abajo. Las etiquetas [ ] son Audio Tags de v3:
+si la voz elegida las ignora o las pronuncia, borrarlas y dejar sólo los <break>.
+
+Pronunciación a verificar en la primera toma:
+  Peumo      → PÉU-mo (diptongo, no "pe-u-mo")
+  neorigen   → ne-o-RÍ-gen
+  .cl        → escrito abajo como "punto ce ele"; si suena forzado, probar "punto cl"
+
+---------------------------------------------------------------------------
+
+[cálido]
+Hay lugares que te invitan a bajar el ritmo. <break time="0.5s" />
+Y casas hechas para quedarse en ellos, con espacio para todos. <break time="0.7s" />
+
+Su ventanal sube de piso a techo: <break time="0.35s" />
+el bosque no se mira, se vive desde adentro. <break time="0.55s" />
+
+Pensada para el frío: que afuera nieve, <break time="0.25s" />
+y adentro siempre se esté tibio. <break time="0.4s" />
+
+Arriba, una suite que es solo tuya. <break time="0.35s" />
+Abajo, la cocina, la mesa y la estufa encendida. <break time="0.3s" />
+Y un dormitorio aparte, para los niños o las visitas. <break time="0.8s" />
+
+Dos pisos: el descanso por un lado, el día a día por otro. <break time="0.35s" />
+Ideal para una familia. <break time="0.5s" />
+Casa Peumo. <break time="1.1s" />
+
+[más suave]
+Un refugio para volver a lo esencial. <break time="0.45s" />
+Cotízala en neorigen punto ce ele.
+
+---------------------------------------------------------------------------
+
+Dónde tiene que caer cada línea (tiempos del reel actual de 49,57 s):
+
+  t      línea                                              qué se ve
+  0,8    Hay lugares que te invitan a bajar el ritmo.       dron lejos, rótulo "Casa Peumo"
+  4,7    Y casas hechas para quedarse en ellos...           se acerca, "87,3 m²"
+  9,6    Su ventanal sube de piso a techo:                  rótulo "Doble altura"  ← el enganche
+ 12,65   el bosque no se mira, se vive desde adentro.       testero vidriado de frente
+ 16,6    Pensada para el frío: que afuera nieve,            "Fachada ventilada"
+ 19,55   y adentro siempre se esté tibio.                   "Sobre pilotes"
+ 22,25   Arriba, una suite que es solo tuya.                cenital, "Dormitorio en suite"
+ 25,3    Abajo, la cocina, la mesa y la estufa encendida.   "Estar comedor"
+ 29,0    Y un dormitorio aparte, para los niños...          "Dormitorio y baño"
+ 33,6    Dos pisos: el descanso por un lado...              lámina azul, planta 1er piso
+ 39,25   Ideal para una familia.                            vuelve al 3D, interior encendido
+ 41,25   Casa Peumo.                                        entra "Llave en mano"
+ 43,35   Un refugio para volver a lo esencial.              logo Neorigen
+ 46,5    Cotízala en neorigen punto ce ele.                 "COTIZA EN NEORIGEN.CL"
+
+Las dos respiraciones largas (0,8 s antes de la planta y 1,1 s después de "Casa Peumo")
+no son de relleno: dejan entrar la lámina azul y el cierre de marca sin voz encima.
