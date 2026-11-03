@@ -198,10 +198,37 @@ tools/montar_voz.sh Reel_Casa_Peumo.mp4 tomas/peumo_local.wav output/casa_peumo_
 locutor por linda que sea la voz. Si marca ok en las tres y sigue sin gustar, ahí sí el
 problema es el timbre y hay que tocar `DESIGN`.
 
-`montar_voz.sh` agacha la cama bajo la voz con sidechain (`CAMA_DB=-19` por defecto) y deja el
-total a -14 LUFS / -1,5 dBTP. `RETARDO=0.8` es el aire antes de la primera palabra.
+`montar_voz.sh` nivela voz y cama **por separado** (`VOZ_LUFS=-16`, `CAMA_LUFS=-30`), agacha la
+cama bajo la voz con sidechain y deja el total a -14 LUFS / -1,5 dBTP en dos pasadas.
+`RETARDO=0.8` es el aire antes de la primera palabra.
 
-## 6. Antes de publicar
+Lo que decide si se entiende es **la diferencia entre esos dos números**, no la ganancia que uno
+le ponga a ojo a la cama: la voz quiere quedar unos 12-14 dB sobre la cama. La primera vez puse
+una ganancia fija de -8 dB y, como la voz salía a -20,2 LUFS y la cama del reel ya venía
+masterizada a -14,1, la pausa sonaba igual de fuerte que el habla. Midiendo las dos y fijando el
+objetivo de cada una, las pausas quedan 12-18 dB bajo la voz, que es lo que las hace existir.
+
+La cama no lleva fade propio cuando sale del video: el reel ya termina bajando solo (-32 dB en
+el último segundo) y agregarle otro fade apagaba la cola. El fade queda sólo para una cama que
+venga de archivo, que se repite en bucle y hay que cerrar.
+
+## 6. Resultado de la primera toma
+
+`output/casa_peumo_reel_voz_v2.mp4`, generada con la semilla 7:
+
+| Vara                       | Voz original | Voz nueva   |
+| -------------------------- | ------------ | ----------- |
+| silencio interno           | 8,1 % FUERA  | 19,9 % ok   |
+| pausas / respiraciones reales | 12 / 5    | 21 / 14     |
+| primera pausa              | t=13,4 s FUERA | t=3,2 s ok |
+| velocidad en la frase      | 138 ppm FUERA | 169 ppm (apenas sobre 165) |
+
+Lo que sigue sin estar fino: la velocidad queda justo arriba del rango, y cuatro frases salieron
+a 193-246 ppm y hubo que estirarlas, dos de ellas al tope de 0,72. Esas son las candidatas a
+regenerar con `--reintentos 3`, que tira otra semilla en vez de estirar. El LRA de la voz sola
+es 3,8: expresiva del todo no es, y si eso molesta el camino es tocar `DESIGN`, no las pausas.
+
+## 7. Antes de publicar
 
 - **Subtítulos quemados.** La mayoría lo ve en mudo; la voz acompaña, no carga el reel sola.
   Los tiempos de la tabla de `guiones/peumo_voz.txt` sirven de base para los subtítulos.
