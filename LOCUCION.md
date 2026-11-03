@@ -36,7 +36,22 @@ contra lo que venía antes en el feed.
 > palabras dichas a 155-165 ppm ocupan ~41 s y dejan ~8 s de silencio para repartir en 13
 > respiraciones. Mismo largo, otra persona hablando.
 
-## 2. Voz y modelo (ElevenLabs)
+## 2. Qué hace falta para generarla
+
+Desde este contenedor la red **sí llega** a ElevenLabs (comprobado: `api.elevenlabs.io`
+responde 200). Lo único que falta es la clave:
+
+- **`ELEVENLABS_API_KEY`** en el entorno. Se agrega en la configuración del entorno de la
+  sesión (menú del entorno en la barra de título → Edit), en *Network secrets* / variables de
+  entorno. La toma una sesión nueva. No pegarla en el chat.
+- **Plan Starter (US$6) como mínimo.** El plan gratis obliga a atribuir a ElevenLabs y no da
+  derechos comerciales, así que no sirve para un reel de marca. Starter da 30.000 créditos al
+  mes; el guion de Peumo son **888 caracteres**, o sea ~2.700 créditos por tres tomas. Sobra.
+- **Un `voice_id`.** Lo entrega la Voice Library del sitio al elegir la voz. Las 21 voces que
+  trae la cuenta por defecto son **todas de acento inglés** (lo verifiqué contra la API), así
+  que hay que entrar a la Library sí o sí.
+
+## 3. Voz y modelo (ElevenLabs)
 
 - **Modelo: `eleven_v3`.** Es el expresivo y el que entiende Audio Tags. `multilingual_v2` es
   más estable pero más plano — justo lo que no queremos. Para probar tomas rápido y barato,
@@ -58,7 +73,7 @@ contra lo que venía antes en el feed.
   clonar a alguien conocido. Si en algún momento se hace pauta pagada con esto, la voz de IA
   se declara.
 
-## 3. El guion marcado
+## 4. El guion marcado
 
 `guiones/peumo_voz.txt` tiene el texto listo para pegar, con los `<break>` ya calculados y la
 tabla de en qué segundo cae cada línea sobre la imagen. Dos criterios al repartir el aire:
@@ -74,16 +89,27 @@ tabla de en qué segundo cae cada línea sobre la imagen. Dos criterios al repar
 ElevenLabs **no garantiza la duración exacta** de un `<break>`: hay que generar, medir y
 ajustar. De ahí el bucle del punto 4.
 
-## 4. El bucle de trabajo
+## 5. El bucle de trabajo
 
 ```bash
-# 1. generar la toma en ElevenLabs y bajarla como voz.mp3
-# 2. medirla contra el objetivo (105 = palabras del guion de Peumo)
-tools/medir_voz.sh voz.mp3 105
+ELEVENLABS_API_KEY=... tools/generar_voz.sh guiones/peumo_voz.txt <voice_id> tomas/peumo 3
 ```
 
+Manda sólo el cuerpo del guion (lo que está entre las dos líneas de guiones largos; el
+encabezado y la tabla de tiempos no van al modelo), genera tres tomas y mide cada una.
+Si el modelo `eleven_v3` no está habilitado en la cuenta vía API, reintentar con
+`MODELO=eleven_multilingual_v2` — sale más estable y más plano, hay que compensar bajando
+`STABILITY` a 0,30.
+
+Para medir una toma suelta, o la que llegue hecha desde afuera:
+
 ```bash
-# 3. montarla sobre el video (descarta el audio viejo, deja el máster a -14 LUFS)
+tools/medir_voz.sh voz.mp3 107
+```
+
+Y para montar la elegida sobre el reel:
+
+```bash
 tools/montar_voz.sh Reel_Casa_Peumo.mp4 voz.mp3 output/casa_peumo_reel_v2.mp4 cama.mp3
 ```
 
@@ -94,7 +120,7 @@ ahí sí el problema es la voz y hay que cambiarla.
 `montar_voz.sh` agacha la cama bajo la voz con sidechain (`CAMA_DB=-19` por defecto) y deja el
 total a -14 LUFS / -1,5 dBTP. `RETARDO=0.8` es el aire antes de la primera palabra.
 
-## 5. Antes de publicar
+## 6. Antes de publicar
 
 - **Subtítulos quemados.** La mayoría lo ve en mudo; la voz acompaña, no carga el reel sola.
   Los tiempos de la tabla de `guiones/peumo_voz.txt` sirven de base para los subtítulos.
