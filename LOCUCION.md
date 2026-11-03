@@ -36,42 +36,93 @@ contra lo que venía antes en el feed.
 > palabras dichas a 155-165 ppm ocupan ~41 s y dejan ~8 s de silencio para repartir en 13
 > respiraciones. Mismo largo, otra persona hablando.
 
-## 2. Qué hace falta para generarla
+## 2. Con qué se genera
 
-Desde este contenedor la red **sí llega** a ElevenLabs (comprobado: `api.elevenlabs.io`
-responde 200). Lo único que falta es la clave:
+Dos vías. **La primera es la que usamos**, y salió de un comentario de que probáramos
+[Voicebox](https://github.com/jamiepine/voicebox).
 
-- **`ELEVENLABS_API_KEY`** en el entorno. Se agrega en la configuración del entorno de la
-  sesión (menú del entorno en la barra de título → Edit), en *Network secrets* / variables de
-  entorno. La toma una sesión nueva. No pegarla en el chat.
-- **Plan Starter (US$6) como mínimo.** El plan gratis obliga a atribuir a ElevenLabs y no da
-  derechos comerciales, así que no sirve para un reel de marca. Starter da 30.000 créditos al
-  mes; el guion de Peumo son **888 caracteres**, o sea ~2.700 créditos por tres tomas. Sobra.
-- **Un `voice_id`.** Lo entrega la Voice Library del sitio al elegir la voz. Las 21 voces que
-  trae la cuenta por defecto son **todas de acento inglés** (lo verifiqué contra la API), así
-  que hay que entrar a la Library sí o sí.
+### Voicebox — local, sin clave, sin plan (la que usamos)
 
-## 3. Voz y modelo (ElevenLabs)
+Estudio de voz de código abierto (MIT) que corre en la máquina. Ocho motores de TTS; el que
+sirve acá es **Qwen VoiceDesign 1.7B**, porque arma la voz desde una **descripción escrita**
+—no hay que clonar a nadie ni elegir de un catálogo— y acepta una **instrucción de
+interpretación** por generación, que es justo la perilla que falta en el problema del §1.
 
-- **Modelo: `eleven_v3`.** Es el expresivo y el que entiende Audio Tags. `multilingual_v2` es
-  más estable pero más plano — justo lo que no queremos. Para probar tomas rápido y barato,
-  `flash_v2_5`; el máster siempre en v3.
-- **Ajustes:** Stability **0,35** · Similarity **0,80** · Speed **1,05**.
-  Stability alta (0,7+) es lo que aplana la lectura: para un reel conviene baja y generar
-  dos o tres tomas. Similarity por encima de 0,85 empieza a meter artefactos.
-- **Voz:** filtrar la Voice Library por **español (latinoamericano)**, masculina, y descartar
-  todo lo que esté etiquetado *narration*, *documentary* o *broadcast* — ese es el banco de
-  locutores. Buscar las etiquetadas *conversational* o *casual*. Si ninguna calza, Voice Design
-  con este prompt:
+Ventajas sobre un servicio con API, para este caso concreto:
 
-  > Hombre chileno de unos 30 años, voz cálida y cercana, registro medio, habla relajada y
-  > natural como contándole algo a un amigo, con entusiasmo contenido. Sin tono publicitario,
-  > sin grandilocuencia, sin acento neutro de doblaje.
+- **El silencio lo ponemos nosotros.** En vez de pedirle al modelo un `<break>` y esperar que
+  lo respete, `tools/generar_voz_local.py` genera **frase por frase**, le recorta el aire que
+  el modelo deja en las puntas, y pega los trozos con la pausa exacta del guion. La tabla de
+  tiempos calza al cuadro en vez de aproximadamente.
+- **Nadie clona a nadie.** La voz nace de un texto, así que no hay sample de una persona de
+  por medio. (El repo igual trae `RESPONSIBLE_USE.md`: clonar a alguien pide permiso escrito,
+  y el audio sintético se declara donde corresponda.)
+- Gratis y sin cuota, así que iterar sale lo que cuesta el tiempo de CPU.
 
-  Los IDs de voz de la librería cambian; anotar aquí cuál quedó cuando se elija.
-- **Ética:** sólo voces de librería, diseñadas, o clonadas con consentimiento escrito. Nada de
-  clonar a alguien conocido. Si en algún momento se hace pauta pagada con esto, la voz de IA
-  se declara.
+Lo que cuesta: **es lento sin GPU**. En este contenedor (4 núcleos, sin GPU) el modelo pesa
+3,5 GB de descarga y ~8,5 GB de RAM cargado en float32.
+
+> **Ojo con el motor que se elige.** `OmniVoice` también está en Voicebox y cubre más idiomas,
+> pero sus pesos son **CC-BY-NC**: no se puede usar en un reel de marca. Qwen VoiceDesign y
+> Kokoro (82M, Apache-2.0, dos voces masculinas en español) sí sirven comercialmente.
+
+Montar el entorno en un contenedor nuevo (Voicebox exige **Python 3.12**, ni 3.11 ni 3.13):
+
+```bash
+git clone --depth 1 https://github.com/jamiepine/voicebox /home/user/jamiepine/voicebox
+cd /home/user/jamiepine/voicebox && python3.12 -m venv .venv
+.venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch torchaudio
+.venv/bin/pip install "numpy>=1.24,<2.0" soundfile librosa fastapi \
+  "transformers>=4.36,<=4.57.6" accelerate "huggingface_hub>=0.20" "qwen-tts>=0.1.1"
+apt-get install -y sox
+```
+
+No hace falta el `requirements.txt` completo ni levantar el servidor FastAPI: el script importa
+la clase del motor directo. Tampoco hace falta la app de escritorio.
+
+### ElevenLabs — la alternativa de pago
+
+Si en algún momento se quiere comparar: la red llega desde el contenedor (comprobado), falta
+`ELEVENLABS_API_KEY` en el entorno (se agrega en la configuración del entorno de la sesión →
+Edit; nunca pegarla en el chat) y plan Starter como mínimo, porque el gratis no da derechos
+comerciales. El guion son 888 caracteres, ~2.700 créditos por tres tomas. `tools/generar_voz.sh`
+está escrito y probado hasta el punto de autenticación. Las 21 voces que trae la cuenta por
+defecto son **todas de acento inglés** (verificado contra la API), así que habría que entrar a
+la Voice Library.
+
+## 3. La voz y la interpretación
+
+Con VoiceDesign la voz no se elige de un catálogo: se escribe. Son dos textos distintos y
+conviene no mezclarlos, porque el modelo los usa distinto:
+
+- **`DESIGN`** — *quién habla*. Timbre, edad, acento, actitud. Es estable en todo el reel.
+- **`INSTRUCT`** — *cómo lo dice en esta frase*. Velocidad, énfasis, cuánto baja al cerrar.
+  Se le pega encima del `DESIGN`, no lo reemplaza.
+
+Los dos van **en inglés** aunque la locución sea en español: el modelo obedece bastante mejor
+la instrucción en inglés, y el idioma de salida lo fija el parámetro `--idioma es` aparte. Los
+dos textos están arriba de `tools/generar_voz_local.py`, en `DESIGN` e `INSTRUCT_TAGS`.
+
+El `DESIGN` que quedó es el mismo retrato que ya teníamos escrito para la voz de Neorigen:
+hombre chileno de unos treinta, registro medio, cercano, contando algo que le entusiasma, sin
+tono publicitario. Si una toma sale con acento raro o demasiado formal, lo que se toca es ese
+texto, no las pausas — las pausas ya están resueltas por el guion.
+
+**Qué hacer según lo que falle:**
+
+| Lo que se escucha            | Qué tocar                                               |
+| ---------------------------- | ------------------------------------------------------- |
+| suena leído, parejo          | las pausas del guion — pero ya vienen calibradas         |
+| acento que no es chileno     | `DESIGN`, siendo más específico con el acento            |
+| una frase sale rara o cortada| borrar su `fNN.wav` y regenerar con otra `--semilla`     |
+| cierra demasiado arriba      | la etiqueta `[más suave]` ya baja las dos últimas frases |
+
+**Pronunciación a revisar en cada toma:** *Peumo* (PÉU-mo, diptongo) y el cierre, que va
+escrito "neorigen punto ce ele" porque ".cl" se lee impredecible.
+
+**Si hace falta algo mucho más rápido**, Voicebox trae también Kokoro 82M (350 MB, Apache-2.0,
+rápido en CPU) con dos voces masculinas en español, `em_alex` y `em_santa`. Es un modelo mucho
+más chico y se nota, pero sirve para probar el calce de tiempos sin esperar media hora.
 
 ## 4. El guion marcado
 
@@ -86,36 +137,42 @@ tabla de en qué segundo cae cada línea sobre la imagen. Dos criterios al repar
   el rótulo *Doble altura*. Si la línea llega tarde, se corrige moviendo la pausa anterior, no
   acelerando la frase.
 
-ElevenLabs **no garantiza la duración exacta** de un `<break>`: hay que generar, medir y
-ajustar. De ahí el bucle del punto 4.
+Los `<break>` del archivo cumplen doble función: ElevenLabs los lee como etiqueta, y
+`generar_voz_local.py` los usa como separador de frase y duración del silencio que inserta él
+mismo. Por eso con Voicebox la tabla de tiempos se cumple exacta y con ElevenLabs hay que
+generar, medir y ajustar — la duración de un `<break>` ahí no está garantizada.
 
 ## 5. El bucle de trabajo
 
 ```bash
-ELEVENLABS_API_KEY=... tools/generar_voz.sh guiones/peumo_voz.txt <voice_id> tomas/peumo 3
+VOICEBOX=/home/user/jamiepine/voicebox tools/generar_voz_local.py \
+  guiones/peumo_voz.txt tomas/peumo_local.wav --semilla 7
 ```
 
-Manda sólo el cuerpo del guion (lo que está entre las dos líneas de guiones largos; el
-encabezado y la tabla de tiempos no van al modelo), genera tres tomas y mide cada una.
-Si el modelo `eleven_v3` no está habilitado en la cuenta vía API, reintentar con
-`MODELO=eleven_multilingual_v2` — sale más estable y más plano, hay que compensar bajando
-`STABILITY` a 0,30.
+Genera las 14 frases del guion una por una y las pega con las pausas del guion. Es
+**reanudable**: cada frase queda en `tomas/peumo_local_frases/fNN.wav` y en una segunda pasada
+no se regenera lo que ya está. Para rehacer sólo una frase que salió mal, borrar su `fNN.wav`
+y volver a correr; con `--desde N --hasta M` se acota el tramo. `--semilla` fija la toma, así
+que cambiarla es la forma de pedir una variante.
 
-Para medir una toma suelta, o la que llegue hecha desde afuera:
+La descripción de la voz y las instrucciones de interpretación están arriba del script, en
+`DESIGN` e `INSTRUCT_TAGS`, **en inglés a propósito**: el modelo entiende bastante mejor la
+instrucción en inglés aunque después hable en español. Las etiquetas `[cálido]` y
+`[más suave]` del guion eligen la instrucción de ahí en adelante.
+
+Después, medir y montar:
 
 ```bash
-tools/medir_voz.sh voz.mp3 107
+tools/medir_voz.sh tomas/peumo_local.wav 107
 ```
-
-Y para montar la elegida sobre el reel:
 
 ```bash
-tools/montar_voz.sh Reel_Casa_Peumo.mp4 voz.mp3 output/casa_peumo_reel_v2.mp4 cama.mp3
+tools/montar_voz.sh Reel_Casa_Peumo.mp4 tomas/peumo_local.wav output/casa_peumo_reel_v2.mp4 cama.mp3
 ```
 
-`medir_voz.sh` es la vara: si vuelve a marcar FUERA en silencio o en velocidad, la toma todavía
-suena a locutor por mucho que la voz sea linda. Si marca ok en las tres y sigue sin gustar,
-ahí sí el problema es la voz y hay que cambiarla.
+`medir_voz.sh` es la vara: si marca FUERA en silencio o en velocidad, la toma todavía suena a
+locutor por linda que sea la voz. Si marca ok en las tres y sigue sin gustar, ahí sí el
+problema es el timbre y hay que tocar `DESIGN`.
 
 `montar_voz.sh` agacha la cama bajo la voz con sidechain (`CAMA_DB=-19` por defecto) y deja el
 total a -14 LUFS / -1,5 dBTP. `RETARDO=0.8` es el aire antes de la primera palabra.
