@@ -113,8 +113,8 @@ def afuera(bvh, c, n):
     return False, n          # encerrada (adentro) o suelta: se trata como interior
 
 
-def casco_cara(c, n, bvh, techo):
-    """Material de una cara del casco, por su posición y por hacia dónde da."""
+def casco_cara(c, n, bvh, techo, area=1.0):
+    """Material de una cara del casco, por su posición, hacia dónde da y qué tan grande es."""
     ext, o = afuera(bvh, c, n)
     inclinada = 0.25 < abs(n.z) < 0.98 and c.z > 1.8
     if inclinada:                                            # faldones del techo
@@ -139,7 +139,11 @@ def casco_cara(c, n, bvh, techo):
     if not ext:
         return "muroint"
     if abs(o.y) > 0.7 and (c.y < Y_VID + 0.12 or c.y > Y_ACC - 0.12):
-        return "madera"                                      # testero del ventanal y del porch
+        # En esta franja conviven dos cosas distintas: los paños grandes de tabla (la fachada de
+        # acceso, 42 m² en veinte caras) y los miembros finos (la perfilería del ventanal, 7 m² en
+        # ochenta caras, y el canto del techo sobre el alero). La revisión pidió negros los
+        # ventanales **y no** las maderas de la fachada, así que el corte es por tamaño de cara.
+        return "madera" if area > 0.6 else "marco"
     return "chapa"                                           # el resto de la envolvente
 
 
@@ -253,7 +257,8 @@ if len(faldones) >= 2:
               % (xc, z1 + s1 * xc, abs(np.degrees(np.arctan(s1))), abs(np.degrees(np.arctan(s2)))))
 bvh = BVHTree.FromBMesh(bm)
 for f in bm.faces:
-    f.material_index = ORDEN.index(casco_cara(f.calc_center_median(), f.normal, bvh, techo))
+    f.material_index = ORDEN.index(casco_cara(f.calc_center_median(), f.normal, bvh, techo,
+                                               f.calc_area()))
 bm.to_mesh(casco.data)
 bm.free()
 print("casco: %d caras  dim %.2f %.2f %.2f" % (len(casco.data.polygons), *casco.dimensions))

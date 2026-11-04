@@ -628,6 +628,26 @@ def muelle_mat():
     return m
 
 
+def laja_mat():
+    """Laja de piedra para los peldaños de la bajada: gris parda, con vetas y el canto gastado."""
+    m, n, l = new_mat("Laja")
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    tc = n.new("ShaderNodeTexCoord")
+    grande = N.noise(tc.outputs["Object"], 1.6, 5, 0.6)
+    fino = N.noise(tc.outputs["Object"], 14.0, 5, 0.55)
+    col = N.mix(N.math("MULTIPLY_ADD", grande, 1.5, -0.25), (0.105, 0.1, 0.09), (0.26, 0.245, 0.225))
+    col = N.mix(N.math("MULTIPLY", fino, 0.45), col, (0.075, 0.072, 0.065))
+    l.new(col, b.inputs["Base Color"])
+    l.new(N.math("ADD", 0.72, N.math("MULTIPLY", fino, 0.2)), b.inputs["Roughness"])
+    bmp = n.new("ShaderNodeBump")
+    bmp.inputs["Strength"].default_value = 0.45
+    bmp.inputs["Distance"].default_value = 0.012
+    l.new(N.math("ADD", N.math("MULTIPLY", grande, 0.6), N.math("MULTIPLY", fino, 0.4)), bmp.inputs["Height"])
+    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
 def concrete_mat():
     m, n, l = new_mat("Hormigon")
     N = Nodos(n, l)
@@ -641,9 +661,13 @@ def concrete_mat():
 def materials():
     M = {
         "chapa": chapa_nervada("ChapaNegra"),
-        # Los marcos de ventana y el borde del techo frente al alero: negros, mate y lisos (los
-        # pidió así la revisión, y en el modelo son la misma pieza, ver load_house).
+        # Los marcos de ventana y el canto del techo sobre el alero: negros, mate y lisos.
         "marcoNegro": principled("MarcoNegro", (0.014, 0.014, 0.016), 0.45),
+        # Tabla vertical de la fachada de acceso. Volvió a ser madera: en la primera pasada se
+        # pintó negra junto con la perfilería porque en el STL comparten material, y la revisión
+        # aclaró que sólo van negros los ventanales. Ahora el extractor las separa por tamaño.
+        "fachada": madera_mat("MaderaFachada", "X", 0.155, (9.0, 9.0, 0.22), (0.47, 0.33, 0.185),
+                              (0.32, 0.21, 0.115), (0.185, 0.115, 0.06), 0.6, 0.45),
         "cielo": madera_mat("MaderaCielo", "Y", 0.16, (0.25, 9.0, 9.0)),
         "deck": madera_mat("Deck", "Y", 0.145, (0.25, 9.0, 9.0), (0.4, 0.26, 0.14),
                            (0.26, 0.16, 0.085), (0.145, 0.085, 0.045), 0.62, 0.6),
@@ -664,6 +688,7 @@ def materials():
         "matorral": scrub_mat(),
         "roca": principled("Roca", (0.16, 0.16, 0.15), 0.8),
         "muelle": muelle_mat(),
+        "laja": laja_mat(),
     }
     return M
 
@@ -673,11 +698,10 @@ def load_house(M):
     """Casa del STL con los materiales de la escena (por nombre de material del .blend)."""
     with bpy.data.libraries.load(CASA) as (a, b):
         b.objects = a.objects
-    # "Bo_MaderaFachada" quedó mal bautizado en el extractor: pintando la casa con colores planos
-    # se ve que no es revestimiento, es el **marco del testero y el canto del techo frente al
-    # alero** —el perímetro del frontón y las cruces entre paños de vidrio—. La revisión pidió las
-    # dos cosas negras, así que va con el negro mate de los marcos y no con madera.
-    swap = {"Bo_ChapaNegra": M["chapa"], "Bo_MaderaFachada": M["marcoNegro"], "Bo_MaderaCielo": M["cielo"],
+    # "Bo_MaderaFachada" junta dos cosas en el STL: los paños grandes de tabla de la fachada de
+    # acceso y los miembros finos del ventanal y del canto del techo. El extractor los separa por
+    # tamaño de cara, así que acá la madera va con madera y la perfilería con el negro mate.
+    swap = {"Bo_ChapaNegra": M["chapa"], "Bo_MaderaFachada": M["fachada"], "Bo_MaderaCielo": M["cielo"],
             "Bo_Deck": M["deck"], "Bo_PisoInterior": M["piso"], "Bo_MuroInterior": M["muroint"],
             "Bo_Vidrio": M["vidrio"], "Bo_Pilote": M["hormigon"], "Bo_MarcoNegro": M["marcoNegro"],
             "Bo_VidrioTecho": M["vidrioTecho"]}
@@ -720,34 +744,29 @@ def build_muelle(M, ph=None):
     y lo único vertical que se refleja cerca de la cámara, y es también lo que explica la casa
     (todo apunta al agua).
 
-    El talud **no** lleva pasarela de tablas: la revisión pidió una bajada más natural, así que es
-    la huella de tierra que ya abre la vegetación (atributo 'camino') con pasos de piedra medio
-    enterrados y un par de peldaños de durmiente donde el talud se empina. El entablado arranca
-    recién sobre el agua, que es donde hace falta."""
+    El talud **no** lleva pasarela de tablas: la revisión pidió una bajada más natural. La primera
+    versión fueron piedras sueltas salteadas y no se leía —parecía escombro repartido en el pasto—,
+    así que ahora es una **escalera de lajas**: peldaños alineados sobre el eje de la huella,
+    apenas girados uno respecto de otro y hundidos en el terreno, que es como se ve un sendero
+    hecho a mano. La huella de tierra sigue abriéndola la vegetación (atributo 'camino'). El
+    entablado arranca recién sobre el agua, que es donde hace falta."""
     coll = bpy.data.collections.new("Muelle")
     bpy.context.scene.collection.children.link(coll)
     y_sh = orilla_y(path_x(-12.0))
-    # 1) bajada natural: pasos de piedra sobre la huella, salteados y nunca alineados
+    # 1) escalera de lajas sobre la huella, desde la escalera de la terraza hasta el agua
     rnd = random.Random(17)
-    piedra = ph.get("piedra") if ph else None
-    y = -1.2
+    y = -1.3
     i = 0
-    while y > y_sh + 0.5:
-        xc = path_x(y) + rnd.uniform(-0.35, 0.35)
+    while y > y_sh + 0.35:
+        xc = path_x(y) + rnd.uniform(-0.07, 0.07)
         z = terrain_h(xc, y)
-        if piedra and piedra.objects and i % 2 == 0:
-            o = rnd.choice(list(piedra.objects)).copy()
-            coll.objects.link(o)
-            o.location = (xc, y, z - rnd.uniform(0.1, 0.16))     # medio enterrada
-            o.rotation_euler = (rnd.uniform(-0.1, 0.1), rnd.uniform(-0.08, 0.08), rnd.uniform(0, 6.28))
-            e = rnd.uniform(0.3, 0.45)
-            o.scale = (e, e * rnd.uniform(0.8, 1.2), e * 0.38)   # aplastada: es un paso, no un peñón
-        elif i % 2:
-            # durmiente de madera al sesgo, conteniendo el escalón de tierra
-            d = box(f"Durmiente{i}", -0.62, 0.62, -0.1, 0.0, -0.18, 0.04, M["muelle"], coll)
-            d.location = (xc, y, z)
-            d.rotation_euler = (0, 0, rnd.uniform(-0.25, 0.25))
-        y -= 0.78
+        ancho = rnd.uniform(0.56, 0.72)         # media laja a cada lado del eje
+        largo = rnd.uniform(0.28, 0.34)
+        pel = box(f"Laja{i}", -ancho, ancho, -largo, largo, -0.14, 0.035, M["laja"], coll)
+        pel.location = (xc, y, z)
+        pel.rotation_euler = (rnd.uniform(-0.035, 0.035), rnd.uniform(-0.05, 0.05),
+                              rnd.uniform(-0.09, 0.09))
+        y -= rnd.uniform(0.62, 0.72)
         i += 1
     # 2) muelle: plataforma horizontal 65 cm sobre el agua, que entra 9 m en el lago
     xc = path_x(y_sh)
@@ -779,76 +798,68 @@ def build_muelle(M, ph=None):
 # atravesada donde el camino entra al claro. Lo pidió la revisión para ambientar el campo, y de
 # paso explica el predio: sin cerco, la casa parece puesta en medio de la nada.
 def build_cercos(M):
+    """Cerco de campo: una sola corrida **a lo largo**, paralela a la orilla y casi donde se acaba
+    el pasto —así lo pidió la revisión—, con la tranquera de dos hojas donde el camino la cruza.
+
+    La primera versión iba por los dos lados del camino y cruzaba el claro en tramos cortos: se
+    leía como un corral en medio del prado en vez de un deslinde."""
     coll = bpy.data.collections.new("Cercos")
     bpy.context.scene.collection.children.link(coll)
     rnd = random.Random(23)
     mad = M["muelle"]
+    Y0, PASO = 31.0, 4.4            # línea del cerco y separación de postes
+    HUECO = (3.5, 12.5)             # por donde pasa el camino: ahí va la tranquera
 
-    def poste(x, y, alto=1.25, grosor=0.085, inclina=0.0):
+    def linea(x):
+        return Y0 + 1.8 * math.sin(x / 13.0)
+
+    def poste(x, y, alto=1.3, grosor=0.085):
         z = terrain_h(x, y)
-        o = box(f"Poste_{x:.1f}_{y:.1f}", -grosor, grosor, -grosor, grosor, -0.45, alto, mad, coll)
+        o = box(f"Poste_{x:.1f}", -grosor, grosor, -grosor, grosor, -0.45, alto, mad, coll)
         o.location = (x, y, z)
-        o.rotation_euler = (inclina, rnd.uniform(-0.03, 0.03), rnd.uniform(0, 0.4))
+        o.rotation_euler = (rnd.uniform(-0.025, 0.025), rnd.uniform(-0.03, 0.03), rnd.uniform(0, 0.35))
         return z
 
     def palo(x0, y0, z0, x1, y1, z1, grosor=0.045):
-        """Un palo entre dos postes: una caja girada para que siga la línea del cerco."""
-        lx, ly = x1 - x0, y1 - y0
-        largo = math.hypot(lx, ly)
-        o = box(f"Palo_{x0:.1f}_{y0:.1f}_{z0:.2f}", -largo / 2, largo / 2, -grosor, grosor,
-                -grosor, grosor, mad, coll)
+        """Un palo entre dos postes: caja construida en el origen y después girada en su sitio."""
+        largo = math.hypot(x1 - x0, y1 - y0)
+        o = box(f"Palo_{x0:.1f}_{z0:.2f}", -largo / 2, largo / 2, -grosor, grosor, -grosor, grosor, mad, coll)
         o.location = ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
-        o.rotation_euler = (0, math.atan2(z1 - z0, largo), math.atan2(ly, lx))
+        o.rotation_euler = (0, math.atan2(z1 - z0, largo), math.atan2(y1 - y0, x1 - x0))
 
-    def corrida(pts, alturas=(0.42, 0.78, 1.14)):
-        prev = None
-        for x, y in pts:
-            z = poste(x, y, inclina=rnd.uniform(-0.02, 0.02))
-            if prev is not None:
-                for h in alturas:
-                    palo(prev[0], prev[1], prev[2] + h, x, y, z + h)
-            prev = (x, y, z)
-
-    # a los dos lados del camino, desde el claro hasta que el bosque se lo traga
-    ejes = road_points(2.4)
-    for lado in (-1, 1):
-        pts = []
-        for i, p in enumerate(ejes):
-            if not 17.0 < p.y < 115.0:
-                continue
-            q = ejes[min(i + 1, len(ejes) - 1)] - ejes[max(i - 1, 0)]
-            nr = Vector((-q.y, q.x)).normalized()
-            a = Vector(p) + nr * (3.3 * lado)
-            pts.append((a.x, a.y))
-        corrida(pts[::2])
-    # cerco del deslinde, cruzando el claro hacia el lago
-    corrida([(x, 19.0 + 1.6 * math.sin(x / 9.0)) for x in range(-46, -9, 4)])
-    corrida([(x, 17.5 + 1.4 * math.sin(x / 11.0)) for x in range(16, 56, 4)])
+    prev = None
+    x = -58.0
+    while x < 68.0:
+        y = linea(x)
+        if HUECO[0] < x < HUECO[1]:          # el claro de la tranquera
+            prev = None
+            x += PASO
+            continue
+        z = poste(x, y)
+        if prev is not None:
+            for h in (0.44, 0.82, 1.2):
+                palo(prev[0], prev[1], prev[2] + h, x, y, z + h)
+        prev = (x, y, z)
+        x += PASO
 
     # la tranquera: dos hojas de tres palos con cruz, abiertas contra sus postes
-    ejes2 = road_points(1.0)
-    pc = min(ejes2, key=lambda p: abs(p.y - 19.0))
-    q = ejes2[min(ejes2.index(pc) + 1, len(ejes2) - 1)] - ejes2[max(ejes2.index(pc) - 1, 0)]
-    nr = Vector((-q.y, q.x)).normalized()
-    for lado in (-1, 1):
-        base = Vector(pc) + nr * (3.3 * lado)
-        z = terrain_h(base.x, base.y)
-        pt = box(f"PosteTranquera{lado}", -0.11, 0.11, -0.11, 0.11, -0.5, 1.45, mad, coll)
-        pt.location = (base.x, base.y, z)
+    for lado, xp in ((-1, HUECO[0]), (1, HUECO[1])):
+        yb, zb = linea(xp), terrain_h(xp, linea(xp))
+        pt = box(f"PosteTranquera{lado}", -0.11, 0.11, -0.11, 0.11, -0.5, 1.5, mad, coll)
+        pt.location = (xp, yb, zb)
         hoja = bpy.data.collections.new(f"Hoja{lado}")
         coll.children.link(hoja)
-        for h in (0.45, 0.82, 1.19):
-            box(f"HojaPalo{lado}_{h}", 0.0, 2.3, -0.045, 0.045, h - 0.045, h + 0.045, mad, hoja)
-        cruz = box(f"HojaCruz{lado}", 0.0, 2.42, -0.04, 0.04, -0.04, 0.04, mad, hoja)
-        cruz.location = (0, 0, 0.82)
-        cruz.rotation_euler = (0, math.radians(-18.0), 0)
+        for h in (0.44, 0.82, 1.2):
+            box(f"HojaPalo{lado}_{h}", 0.0, 2.6, -0.045, 0.045, h - 0.045, h + 0.045, mad, hoja)
+        cruz = box(f"HojaCruz{lado}", -1.4, 1.4, -0.04, 0.04, -0.04, 0.04, mad, hoja)
+        cruz.location = (1.3, 0.0, 0.82)
+        cruz.rotation_euler = (0, math.radians(-16.0), 0)
         for o in list(hoja.objects):
-            o.location = (o.location.x + base.x, o.location.y + base.y, o.location.z + z)
-            o.rotation_euler.rotate_axis("Z", math.atan2(q.y, q.x) + lado * 1.15)
+            o.location = (o.location.x + xp, o.location.y + yb, o.location.z + zb)
+            o.rotation_euler.rotate_axis("Z", math.radians(-104.0 * lado))   # abiertas hacia el claro
     return coll
 
 
-# ---------------------------------------------------------------- terreno
 def house_dist(x, y):
     """Distancia (m) al rectángulo de la casa (con un margen de 0,5 m)."""
     dx = max(-0.5 - x, 0, x - (L + 0.5))
