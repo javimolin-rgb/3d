@@ -13,5 +13,8 @@ assets/playa/ph/
 frames_huingan/
 output/*.zip
 assets/nieve/ph/
+assets/lago/ph/
 frames_peumo/
 PROGRESO_RENDER.txt.tmp
+frames_boldo/
+venv-bpy/

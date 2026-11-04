@@ -12,7 +12,7 @@ detenerse en el ventanal.
 | Lingue | 4,40 × 8,50 | 6,15 | dos aguas | la más angosta |
 | Huingán | 12,18 × 9,24 | — | dos aguas asimétrico | mariposa |
 | Peumo | 9,49 × 13,04 | 6,54 | dos aguas 28° | testero vidriado doble altura |
-| Boldo | 7,49 × 14,33 | 6,55 | dos aguas **38°** | la más empinada |
+| Boldo | 7,49 × 14,33 | 6,55 | dos aguas 32°, cumbrera a x = 5,60 | la más angosta y larga; techo muy asimétrico |
 | Mañío | 16,02 × 11,15 | 5,07 | una agua **12°** | fachada vidriada corrida |
 | Roble | 8,79 × 16,81 | 6,55 | dos aguas 32° | angosta y larga |
 | Maitén | 16,27 × 11,84 | **8,10** | 20° | la más alta, dos volúmenes |
@@ -49,9 +49,17 @@ descargan la nieve solos, y el alero protege el vidrio de lo que cae del techo.
 ## Boldo — lago
 
 **Todo apunta al agua.** 7,49 m de ancho por 14,33 de fondo: la más angosta y alargada de todas.
-El vidrio está concentrado en un solo testero, así que la casa funciona como un visor orientado
-al lago — no se dispersa mirando en varias direcciones. Además tiene **la pendiente más empinada
-de las nueve, 38°**, que es lo que descarga nieve y lluvia sin acumular.
+El vidrio está concentrado en un solo testero —y en los dos pisos—, así que la casa funciona como
+un visor orientado al lago: no se dispersa mirando en varias direcciones. El techo acompaña esa
+idea, porque es **muy asimétrico**: la cumbrera corre a lo largo de la casa, corrida casi al borde
+(x = 5,60 de 7,49), y el faldón largo sube 32° desde un alero bajo de 3,00 m hasta los 6,55 de la
+cumbrera, de donde cae un faldón corto al alero alto de 5,38. Visto de frente la casa crece hacia
+un lado, como una cuña apuntando al agua.
+
+> ⚠️ Corrección: este cuadro decía **38°** y que Boldo era *la más empinada de las nueve*. Medido
+> sobre el STL al convertirlo (`tools/extraer_boldo_stl.py` imprime los faldones), los dos faldones
+> dan **32°**, los mismos de Roble. Lo que la distingue no es la pendiente sino la asimetría del
+> techo y que el vidrio esté todo en un testero.
 
 ## Mañío — playa urbanizada
 
@@ -66,9 +74,9 @@ playa ya urbanizada, ese perfil bajo es privacidad.
 que es justo lo que se necesita a esa altura. Angosta (8,79 m) y larga (16,81), con el testero
 vidriado mirando a la pista.
 
-> Enganche aportado por el usuario. Dato para afinarlo: Boldo es aún más empinada (38°), así que
-> si se quiere que lo triangular sea *la* marca de Roble, conviene apoyarlo también en el uso
-> —casa de nieve de verdad— y no solo en el ángulo.
+> Enganche aportado por el usuario. Dato para afinarlo: Boldo tiene la misma pendiente (32°,
+> medida sobre su STL), así que si se quiere que lo triangular sea *la* marca de Roble, conviene
+> apoyarlo también en el uso —casa de nieve de verdad— y no solo en el ángulo.
 
 ## Maitén — mar roca
 
@@ -97,7 +105,8 @@ así que se posa sobre la arena sin aplanar el terreno.
 El enganche decide el recorrido, no al revés:
 
 - Si es **el ventanal** (Peumo, Boldo, Roble), s2 tiene que frenar frente al testero y s5 cerrar
-  mostrando la doble altura desde adentro hacia afuera.
+  mostrando la doble altura desde adentro hacia afuera. En Boldo el testero mira al lago, así que
+  las tomas se plantan sobre el agua.
 - Si es **la horizontal** (Coihue, Mañío), el arco frontal conviene más abierto y más bajo, para
   que la casa cruce la pantalla a lo ancho en vez de quedar centrada y chica.
 - Si es **la forma en planta** (Huingán), la cenital de s3 es el momento clave: ahí se lee la

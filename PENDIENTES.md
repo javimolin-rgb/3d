@@ -11,7 +11,7 @@ primero.
 1. ~~Lingue~~ ✅ campo
 2. ~~Huingán~~ ✅ playa
 3. ~~Peumo~~ ✅ nieve en el bosque
-4. **Boldo** — lago ← **la que viene**
+4. **Boldo** — lago ← **en curso** (escena lista, fotos a la espera del visto bueno)
 5. **Mañío** — playa urbanizada
 6. **Roble** — nieve tipo centro de ski
 7. **Maitén** — mar roca
@@ -188,10 +188,41 @@ el carácter.
   piedra, y agregar salpicadura.
 - 🟢 Rocas CC0: `namaqualand_boulder_02` y `coast_rocks_01` ya los baja el script de assets.
 
-### Lago — para **Boldo**
+### Lago — para **Boldo** — resuelto en `casa_boldo_3d.py`
 
-**Ya está:** el material de agua de Huingán como punto de partida, y los HDRI bajados y medidos
-con `tools/get_assets_hdri.sh lago`:
+**Hecho** (falta sólo el visto bueno del usuario a las fotos, y la planta en PDF para s4):
+
+- ✅ **La casa**, de `stl/Modelo Casa Boldo.stl` con `tools/extraer_boldo_stl.py` →
+  `assets/boldo/casa.blend`. El STL vino limpio (0 restos) pero desplazado (esquina en
+  x = −0,75, y = −0,05, z = −0,55).
+- ✅ **Cotas que el STL no dice**, medidas al convertirlo: piso terminado en z = 0,55, segundo
+  piso en 3,25, cumbrera en x = 5,60 a z = 6,55, testero vidriado en y = 3,10 y acceso en
+  y = 12,40. Los dos faldones dan **32°** (no 38°, ver la corrección en `ENGANCHES.md`), con
+  alero bajo en 3,00 y alto en 5,38: el techo es mucho más asimétrico que el de Huingán.
+- ✅ **Agua calma**: el modificador Ocean casi apagado (escala 0,045, viento 3,2, *choppiness* 0,
+  sin espuma) y el shader con tres bumps mínimos. De la espuma de Huingán queda sólo la línea
+  mojada donde el agua lame la piedra.
+- ✅ **El lago como lago y no como mar**: es una elipse de 1400 × 860 m (`lake_d`), con la orilla
+  cercana a 14 m del testero y la opuesta a 860. Así el agua se cierra contra los cerros por los
+  cuatro lados y **no hay línea de horizonte de agua**, que es lo que delataba el truco.
+- ✅ **Ribera opuesta**: cerros que arrancan en el agua y suben a 150-200 m, con la cordillera
+  detrás (hasta ~740 m, con nieve sobre los 540). Es la mitad de la imagen, porque se refleja.
+- ✅ **Muelle de madera** que entra 9 m al agua, más la pasarela que baja el talud: es lo único
+  vertical cerca de la cámara que el espejo duplica, y da la escala del agua.
+- ✅ **Bosque con árboles de verdad** (`tools/get_assets_lago.sh`, 1,3 GB de Poly Haven CC0):
+  fir, pine, island_tree y tree_small, en dos bandas de detalle, más sotobosque (helechos,
+  nalquilla, matas, renuevos). **Esto no era opcional**: en un lago el bosque se ve dos veces
+  —el real y el reflejado— y las copas de esferas desplazadas que bastaban de fondo en Huingán
+  se notaban el doble. Con árboles reales la escena cambió por completo.
+- ✅ **Bruma recalibrada**: la de Huingán estaba hecha para fundir el mar con el cielo y acá
+  borraba la ribera de enfrente. Quedó en 0,40 con escala 1900 m (era 0,62 y 900).
+
+**Falta:**
+- 🔴 **`assets/boldo/planta_sin_cotas.pdf`** — sin ella no se puede hacer s4 y el recorrido queda
+  en cuatro secciones. Es lo único que bloquea el video.
+- 🟡 El visto bueno del usuario a las fotos de `output/boldo_propuesta/` (RECETA.md §0).
+
+HDRI bajados y medidos con `tools/get_assets_hdri.sh lago` (se eligió **`lakeside`**):
 
 | HDRI | `HDRI_SUN_U` | `SUN_ELEV` | Carácter |
 |---|---|---|---|

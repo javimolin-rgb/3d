@@ -14,7 +14,7 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 1. Lingue — campo ✅
 2. Huingán — playa ✅
 3. Peumo — nieve en el bosque ✅
-4. **Boldo — lago** ← la que viene
+4. **Boldo — lago** ← en curso (escena lista, fotos esperando el visto bueno)
 5. Mañío — playa urbanizada
 6. Roble — nieve tipo centro de ski
 7. Maitén — mar roca
@@ -105,6 +105,12 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   repartir una sección entre contenedores. s4 = `tools/plano_peumo.py`, con las constantes de la
   lámina calibradas por `tools/calibrar_planta.py`. La nieve cayendo va **sólo en s5** y en diagonal;
   `--techo` gradúa cuánta nieve queda en el techo (0,28 es la elegida).
+- Casa Boldo (lago): `casa_boldo_3d.py` (casa desde el STL con `tools/extraer_boldo_stl.py`;
+  árboles y sotobosque de Poly Haven con `tools/get_assets_lago.sh`, 1,3 GB, y el matorral y las
+  rocas con `tools/get_assets_playa.sh`). Fotos de aprobación con `tools/fotos_boldo.sh`
+  (`output/boldo_propuesta/`), secciones con `setsid nohup tools/render_boldo.sh s1 [s2 ...] &`.
+  El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja. **s4 no se puede
+  hacer todavía**, falta `assets/boldo/planta_sin_cotas.pdf`.
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
@@ -135,3 +141,6 @@ renderizar (nada de ello va al repo, son ~650 MB).
   libxfixes3 libsm6 libice6 libxkbcommon0 libwayland-client0`. Los avisos `EGL_BAD_MATCH` que
   quedan son inofensivos (no hay pantalla): el render igual se guarda.
 - Recursos de Poly Haven de Huingan (251 MB, en .gitignore): `tools/get_assets_playa.sh`.
+- Recursos de Boldo: `tools/get_assets_playa.sh` (matorral y rocas) **y**
+  `tools/get_assets_lago.sh` (árboles y sotobosque, 1,3 GB), más
+  `tools/get_assets_hdri.sh lago`.

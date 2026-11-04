@@ -200,8 +200,8 @@ En **orden de trabajo** (el acordado con el usuario; `PENDIENTES.md` dice qué f
 |---|---|---|---|---|---|
 | 1 | **Lingue** | Campo | Campo | `casa_lingue_3d.py` | ✅ hecho |
 | 2 | **Huingán** | Playa | Playa | `casa_huingan_3d.py` | ✅ hecho |
-| 3 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | ← **la que viene** |
-| 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | pendiente |
+| 3 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | ✅ hecho |
+| 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | ← **en curso** (escena lista) |
 | 5 | **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
 | 6 | **Roble** | Nieve tipo centro de ski | Nieve | hereda de Peumo | pendiente |
 | 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
@@ -262,12 +262,26 @@ la piedra**: concentrar la espuma donde el agua golpea la roca y agregar salpica
 oscura y fría que Huingán, roca húmeda con brillo especular en la zona de rompiente.
 `cape_hill` y `white_cliff_top` calzan con ese carácter.
 
-**Lago** (*Boldo*) — se hereda el material de agua pero **no el oleaje de mar**: un lago está
-casi quieto. Bajar muchísimo la escala y la fuerza del modificador Ocean, hasta dejar una
-superficie casi espejo con ondulación mínima. Eso cambia el protagonista: en el mar manda la
-espuma, en el lago mandan **los reflejos**. Hay que construir la **orilla opuesta** (cerros,
-bosque) porque es lo que se ve reflejado, y el reflejo es la mitad de la imagen. Mantener la
-bruma entre la ribera lejana y la cámara.
+**Lago** (*Boldo*) — resuelto en `casa_boldo_3d.py`; lo que se aprendió, por si sirve para otra
+escena de agua quieta:
+- Se hereda el material de agua pero **no el oleaje de mar**: Ocean con escala 0,045, viento 3,2,
+  *choppiness* **0** y sin espuma, más tres bumps mínimos en el shader. De la espuma queda sólo la
+  línea mojada donde el agua toca la piedra. En el mar manda la espuma; en el lago, **los reflejos**.
+- **Un lago tiene que cerrarse.** Si se deja el plano de agua al horizonte del mar de Huingán, se
+  lee como mar. Acá el agua es una elipse (`lake_d`, 1400 × 860 m) con cerros alrededor por los
+  cuatro lados, y la malla del terreno llega más allá del agua en todas direcciones.
+- La **ribera opuesta** no es fondo, es tema: se refleja, así que es media imagen. Cerros que
+  arrancan en el agua, bosque cerrado, y cordillera detrás.
+- **Los árboles de relleno no sirven.** Las copas de esferas desplazadas que bastaban de fondo en
+  Huingán acá se ven dos veces (la real y la del reflejo) y cantan. Hay que usar modelos de verdad,
+  como en Peumo: `tools/get_assets_lago.sh` baja fir, pine, island_tree y tree_small de Poly Haven
+  (1,3 GB), en dos bandas de detalle, más sotobosque. Fue el cambio que más movió la aguja.
+- **Recalibrar la bruma.** La de Huingán (0,62 con escala 900 m) está hecha para fundir el mar con
+  el cielo, y a 860 m dejaba la ribera de enfrente lavada. Quedó en 0,40 con escala 1900 m.
+- **Apagar los rizos del agua con la distancia** (`ShaderNodeCameraData` → *View Z Depth*): a más
+  de 200 m el bump de los rizos se convierte en lija de píxel y el agua pierde el espejo.
+- Un **muelle** que entre al agua: es lo único vertical cerca de la cámara que el reflejo duplica,
+  y de paso cuenta la casa (todo apunta al agua).
 
 **Nieve** (*Peumo* y *Roble*) — familia nueva, sin base hecha. Tres cosas que deciden si la nieve
 se ve real o de plástico:
