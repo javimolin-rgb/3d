@@ -119,6 +119,11 @@ def casco_cara(c, n, bvh, techo, area=1.0):
     inclinada = 0.25 < abs(n.z) < 0.98 and c.z > 1.8
     if inclinada:                                            # faldones del techo
         s, zi = plano(c, n)
+        if c.y < Y_VID - 0.6 or c.y > Y_ACC + 0.6:
+            # El sotecho que vuela por delante del testero: desde afuera no se lee como cielo de
+            # madera sino como el **grosor del techo**, y la revisión fijó que los cantos van
+            # negros. El alero de los muros largos sí queda en madera: ése sí se ve como cielo.
+            return "marco"
         if ext and o.z > 0:
             # Todo lo que mira al cielo va en chapa, sea o no el plano principal del faldón: los
             # retornos de los tragaluces caían fuera del plano por unos centímetros, salían como
@@ -139,11 +144,11 @@ def casco_cara(c, n, bvh, techo, area=1.0):
     if not ext:
         return "muroint"
     if abs(o.y) > 0.7 and (c.y < Y_VID + 0.12 or c.y > Y_ACC - 0.12):
-        # En esta franja conviven dos cosas distintas: los paños grandes de tabla (la fachada de
-        # acceso, 42 m² en veinte caras) y los miembros finos (la perfilería del ventanal, 7 m² en
-        # ochenta caras, y el canto del techo sobre el alero). La revisión pidió negros los
-        # ventanales **y no** las maderas de la fachada, así que el corte es por tamaño de cara.
-        return "madera" if area > 0.6 else "marco"
+        # El corte no es por tamaño sino por plano, que es como lo explicó la revisión: lo que está
+        # **en** el plano de la fachada es cara de tabla y va en madera (incluida la cruz entre
+        # paños del ventanal, por ancha o angosta que sea); lo que vuela por delante es canto y va
+        # negro.
+        return "marco" if c.y < Y_VID - 0.6 or c.y > Y_ACC + 0.6 else "madera"
     return "chapa"                                           # el resto de la envolvente
 
 
@@ -165,6 +170,13 @@ def clasificar(x0, x1, y0, y1, z0, z1, nf, area):
     ext = sorted((dx, dy, dz))
     cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
     piso = PISO2 if cz > PISO2 - 0.25 else PISO       # cota del piso del recinto donde está
+    # Canto a la vista por fuera: pieza fina pegada a un plano exterior y más alta que ancha —el
+    # marco de una ventana del muro largo, el canto del piso que corre al pie de la casa—. Van
+    # negros. La condición de "más alta que ancha" deja fuera las tablas del deck, que son finas
+    # pero horizontales y sí son cara de tabla.
+    if (x1 < 1.15 or x0 > L - 1.15 or y1 < Y_VID - 0.2 or y0 > Y_ACC + 0.2) \
+            and min(dx, dy) < 0.25 and min(dx, dy) < dz:
+        return "marco"
     if en_faldon(cx, cy, cz):
         # tragaluces y pasada de chimenea: el paño va con vidrio de techo (entintado) y el resto
         # en negro. Con el vidrio normal el techo salía con dos rectángulos blancos.

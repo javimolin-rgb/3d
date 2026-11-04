@@ -708,9 +708,9 @@ def load_house(M):
             "Bo_Deck": M["deck"], "Bo_PisoInterior": M["piso"], "Bo_MuroInterior": M["muroint"],
             "Bo_Vidrio": M["vidrio"], "Bo_Pilote": M["hormigon"], "Bo_MarcoNegro": M["marcoNegro"],
             "Bo_VidrioTecho": M["vidrioTecho"],
-            # Estos tres se quedaban con el material plano del extractor, y entre ellos hay piezas
-            # que se ven desde afuera: el canto del piso que corre a lo largo de toda la casa salía
-            # como una faja clara sin textura, que es el "borde sin pintar" que marcó la revisión.
+            # Estos tres se quedaban con el material plano del extractor. Los cantos que se ven
+            # desde afuera (marcos de ventana, canto del piso) ya no están acá: el extractor los
+            # manda a "marco", en negro. Lo que queda es mobiliario y tabla de deck.
             "Bo_MaderaClara": M["deck"], "Bo_MaderaOscura": M["maderaOsc"],
             "Bo_DeckBorde": M["marcoNegro"], "Bo_PuertaMadera": M["maderaOsc"]}
     coll = bpy.data.collections.new("Casa")
