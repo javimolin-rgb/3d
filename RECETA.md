@@ -278,6 +278,14 @@ escena de agua quieta:
   (1,3 GB), en dos bandas de detalle, más sotobosque. Fue el cambio que más movió la aguja.
 - **Recalibrar la bruma.** La de Huingán (0,62 con escala 900 m) está hecha para fundir el mar con
   el cielo, y a 860 m dejaba la ribera de enfrente lavada. Quedó en 0,40 con escala 1900 m.
+- **Mar adentro, agua opaca.** Es lo que se ve en un lago de verdad (el fondo se pierde a los
+  pocos metros) y además arregla una banda de sal y pimienta que salía a media distancia: el agua
+  de Huingán es un Mix Shader entre transparente (fondo casi negro) y reflejo (cielo claro), y la
+  elección de rama se resuelve por rayo, así que con esa diferencia de brillo la varianza no la
+  tapan ni 32 muestras ni el denoiser (recién se limpiaba a 128). Donde el agua pasa de 5 m de
+  hondo va **un solo Principled oscuro**: una rama, sin varianza. Costó cuatro intentos
+  equivocados —rugosidad, bump del lecho, normales del Ocean, rebotes de transparencia—, y lo que
+  lo encontró fue apagar el objeto del agua y ver que la banda desaparecía.
 - **Apagar los rizos del agua con la distancia** (`ShaderNodeCameraData` → *View Z Depth*): a más
   de 200 m el bump de los rizos se convierte en lija de píxel y el agua pierde el espejo.
 - Un **muelle** que entre al agua: es lo único vertical cerca de la cámara que el reflejo duplica,

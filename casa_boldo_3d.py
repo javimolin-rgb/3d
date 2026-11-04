@@ -320,7 +320,9 @@ def lecho_mat():
     h = N.math("ADD", N.math("MULTIPLY", cantos, N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(d, 2.0, 9.0)), 0.8)),
                N.math("MULTIPLY", grano, 0.25))
     bmp = n.new("ShaderNodeBump")
-    bmp.inputs["Strength"].default_value = 0.4
+    cam_d = n.new("ShaderNodeCameraData")
+    cerca = N.math("SUBTRACT", 1.0, N.smooth(cam_d.outputs["View Z Depth"], 50.0, 200.0))
+    l.new(N.math("MULTIPLY", cerca, 0.4), bmp.inputs["Strength"])
     bmp.inputs["Distance"].default_value = 0.05
     l.new(h, bmp.inputs["Height"])
     l.new(bmp.outputs["Normal"], b.inputs["Normal"])
@@ -344,9 +346,15 @@ def lago_mat():
     tr = n.new("ShaderNodeBsdfTransparent")
     tr.inputs["Color"].default_value = (0.78, 0.88, 0.84, 1)   # el agua dulce tira a verde
     gl = n.new("ShaderNodeBsdfGlossy")
-    gl.inputs["Roughness"].default_value = 0.012                # casi espejo
+    gl.inputs["Roughness"].default_value = 0.035                # casi espejo, pero sin sal y pimienta
+    # La banda de sal y pimienta que salía a media distancia no era ni el agua ni el lecho: es el
+    # bosque de la ribera de enfrente **reflejado**, que a esa distancia entra comprimido y cada
+    # copa cae en un píxel. Apagar el relieve con la distancia no basta —y por sí solo empeora,
+    # porque quita el detalle sin devolver nada—: hay que cambiarlo por rugosidad, que es lo mismo
+    # que hacen las normales de sub-píxel en la realidad. De 0,035 en primer plano a 0,11 lejos.
     fr = n.new("ShaderNodeFresnel")
     fr.inputs["IOR"].default_value = 1.333
+    cam_d = n.new("ShaderNodeCameraData")
     wat = n.new("ShaderNodeMixShader")
     geo = n.new("ShaderNodeNewGeometry")
     lpw = n.new("ShaderNodeLightPath")
@@ -357,8 +365,6 @@ def lago_mat():
     l.new(gl.outputs[0], wat.inputs[2])
     # ondulación en tres escalas, toda ella mínima: la larga estira el reflejo de los cerros,
     # la media lo quiebra en bandas y los rizos dan el centelleo del sol
-    cam_d = n.new("ShaderNodeCameraData")
-
     def bump_layer(scale, stretch, strength, dist, normal=None, detail=6, lejos=None):
         mp = n.new("ShaderNodeMapping")
         mp.inputs["Scale"].default_value = stretch
@@ -375,9 +381,15 @@ def lago_mat():
             l.new(normal, bp.inputs["Normal"])
         return bp.outputs["Normal"]
 
+    rug = n.new("ShaderNodeMapRange")
+    rug.interpolation_type = "SMOOTHSTEP"
+    rug.inputs[1].default_value, rug.inputs[2].default_value = 60.0, 420.0
+    rug.inputs[3].default_value, rug.inputs[4].default_value = 0.035, 0.11
+    l.new(cam_d.outputs["View Z Depth"], rug.inputs[0])
+    l.new(rug.outputs[0], gl.inputs["Roughness"])
     nrm = bump_layer(0.035, (0.35, 1.0, 1.0), 0.08, 0.45)                          # ondulación larga
-    nrm = bump_layer(0.45, (0.6, 1.0, 1.0), 0.09, 0.05, nrm, lejos=(150.0, 700.0))  # bandas de brisa
-    nrm = bump_layer(4.5, (1.0, 1.0, 1.0), 0.1, 0.008, nrm, 4, lejos=(40.0, 160.0))  # rizos
+    nrm = bump_layer(0.45, (0.6, 1.0, 1.0), 0.09, 0.05, nrm, lejos=(40.0, 190.0))   # bandas de brisa
+    nrm = bump_layer(4.5, (1.0, 1.0, 1.0), 0.08, 0.008, nrm, 4, lejos=(20.0, 90.0))   # rizos
     l.new(nrm, gl.inputs["Normal"])
     # lo único que queda de espuma: la línea mojada donde el agua lame la piedra
     zrel = N.math("SUBTRACT", sep.outputs["Z"], LAGO)
@@ -385,12 +397,27 @@ def lago_mat():
     grano = N.noise(tc.outputs["Position"], 7.0, 6, 0.7)
     orla = N.math("SUBTRACT", 1.0, N.smooth(prof, 0.005, 0.05))
     orla = N.math("MULTIPLY", orla, N.smooth(grano, 0.42, 0.62))
+    # Mar adentro el agua es opaca. Además de ser lo que se ve en un lago de verdad —el fondo se
+    # pierde a los pocos metros—, arregla la banda de sal y pimienta que salía a media distancia:
+    # el Mix Shader entre "transparente" (fondo casi negro) y "reflejo" (cielo y cerros claros) se
+    # resuelve tirando un rayo por una rama o por la otra, y con esa diferencia de brillo la
+    # varianza es tal que ni 32 muestras ni el denoiser la tapan (a 128 recién se limpiaba). Donde
+    # el agua pasa de 5 m de hondo se usa un solo Principled oscuro: una sola rama, sin varianza.
+    hondo = n.new("ShaderNodeBsdfPrincipled")
+    hondo.inputs["Base Color"].default_value = (0.006, 0.019, 0.018, 1)
+    hondo.inputs["IOR"].default_value = 1.333
+    l.new(rug.outputs[0], hondo.inputs["Roughness"])
+    l.new(nrm, hondo.inputs["Normal"])
+    agua = n.new("ShaderNodeMixShader")
+    l.new(N.smooth(prof, 1.5, 5.0), agua.inputs["Fac"])
+    l.new(wat.outputs[0], agua.inputs[1])
+    l.new(hondo.outputs[0], agua.inputs[2])
     fb = n.new("ShaderNodeBsdfPrincipled")
     fb.inputs["Base Color"].default_value = (0.8, 0.83, 0.82, 1)
     fb.inputs["Roughness"].default_value = 0.75
     mx = n.new("ShaderNodeMixShader")
     l.new(N.math("MULTIPLY", orla, 0.3), mx.inputs["Fac"])
-    l.new(wat.outputs[0], mx.inputs[1])
+    l.new(agua.outputs[0], mx.inputs[1])
     l.new(fb.outputs[0], mx.inputs[2])
     l.new(mx.outputs[0], out.inputs["Surface"])
     return m
@@ -754,7 +781,7 @@ def build_lago(M, coll):
     md.spatial_size = int(OCEAN_TILE)
     md.repeat_x = md.repeat_y = OCEAN_REP
     md.resolution = md.viewport_resolution = OCEAN_RES
-    md.wave_scale = 0.045         # ondulación de pocos centímetros
+    md.wave_scale = 0.028         # ondulación de pocos centímetros
     md.wind_velocity = 3.2        # brisa, no viento
     md.choppiness = 0.0           # sin crestas: una cresta ya sería ola de mar
     md.wave_alignment = 0.25
@@ -975,9 +1002,10 @@ def build_vegetation(ribera, bq, ph):
         Lk.new(ins.outputs[0], join.inputs[0])
 
     # pradera: pasto alto en manchones y pasto bajo parejo
-    scatter(bq["Grass_Tall_A"], 26.0, 1.4, 2.4, 21, 0.26, 0.52)
-    scatter(bq["Grass_Karl-foerster_B"], 7.0, 0.7, 1.2, 24, 0.3, 0.56, 0.25)
-    scatter(ph["flor"], 0.7, 0.8, 1.3, 27, 0.48, 0.62, 0.2)
+    scatter(bq["Grass_Tall_A"], 30.0, 1.3, 2.3, 21, 0.2, 0.42)
+    scatter(bq["Grass_Karl-foerster_B"], 16.0, 0.6, 1.1, 24, 0.22, 0.46, 0.25)
+    scatter(bq["Grass_Tall_A"], 18.0, 0.5, 0.9, 25, 0.3, 0.62, 0.35)      # hierba baja entre matas
+    scatter(ph["flor"], 1.2, 0.8, 1.3, 27, 0.42, 0.6, 0.2)
     # matorral de ribera: matas de hoja ancha agrupadas, más tupidas lejos de la casa
     scatter(ph["mata"], 0.4, 1.0, 1.8, 31, 0.36, 0.58, 0.09, 0.07)
     scatter(ph["mata2"], 0.3, 1.1, 2.0, 33, 0.4, 0.6, 0.08, 0.07)
