@@ -225,6 +225,54 @@ def boards_mat(name, c1, c2, axis, scale, rough=0.6, bump=0.25, distort=2.0):
     return m
 
 
+def madera_mat(name, eje="X", paso=0.14, estira=(9.0, 9.0, 0.22), claro=(0.46, 0.31, 0.17),
+               medio=(0.3, 0.19, 0.1), oscuro=(0.17, 0.1, 0.052), rough=0.55, bump=0.5):
+    """Madera con tablas de tono propio, veta a lo largo y junta marcada.
+
+    `boards_mat` pinta bandas parejas y una veta global, y a pleno sol eso se lee como un plano
+    blanco albayalde en vez de madera —fue lo que pidió corregir la revisión—. Acá cada tabla saca
+    su tono de un ruido blanco sobre el **número de tabla** (floor(coord / paso)): es lo mismo que
+    hace Object Info > Random en el muelle, pero sirviendo para una malla entera, donde no hay un
+    objeto por tabla. `estira` alarga la veta en el sentido de la tabla."""
+    m, n, l = new_mat(name)
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    tc = n.new("ShaderNodeTexCoord")
+    sep = n.new("ShaderNodeSeparateXYZ")
+    l.new(tc.outputs["Object"], sep.inputs[0])
+    u = N.math("DIVIDE", sep.outputs[eje], paso)
+    idx = N.math("FLOOR", u)
+    wn = n.new("ShaderNodeTexWhiteNoise")
+    wn.noise_dimensions = "1D"
+    l.new(idx, wn.inputs["W"])
+    mp = n.new("ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = estira
+    l.new(tc.outputs["Object"], mp.inputs["Vector"])
+    veta = N.noise(mp.outputs["Vector"], 4.0, 8, 0.6, 1.4)
+    fina = N.noise(mp.outputs["Vector"], 20.0, 4, 0.5, 0.7)
+    ramp = n.new("ShaderNodeValToRGB")
+    e = ramp.color_ramp.elements
+    e[0].color, e[1].color = (*oscuro, 1), (*claro, 1)
+    e.new(0.5).color = (*medio, 1)
+    l.new(N.math("ADD", N.math("MULTIPLY", wn.outputs["Value"], 0.62),
+                 N.math("MULTIPLY", veta, 0.38)), ramp.inputs["Fac"])
+    col = N.mix(N.math("MULTIPLY", fina, 0.3), ramp.outputs["Color"], oscuro)
+    # junta entre tablas: una línea oscura y un rebaje
+    f = N.math("FRACT", u)
+    junta = N.math("MAXIMUM", N.math("SUBTRACT", 1.0, N.smooth(f, 0.0, 0.055)),
+                   N.smooth(f, 0.945, 1.0))
+    col = N.mix(N.math("MULTIPLY", junta, 0.75), col, (0.055, 0.035, 0.02))
+    l.new(col, b.inputs["Base Color"])
+    l.new(N.math("ADD", rough, N.math("MULTIPLY", fina, 0.2)), b.inputs["Roughness"])
+    bmp = n.new("ShaderNodeBump")
+    bmp.inputs["Strength"].default_value = bump
+    bmp.inputs["Distance"].default_value = 0.01
+    l.new(N.math("ADD", N.math("MULTIPLY", N.math("SUBTRACT", 1.0, junta), 0.25),
+                 N.math("MULTIPLY", veta, 0.45)), bmp.inputs["Height"])
+    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
 def ribbed_metal(name, pitch=0.30, rib=0.035, flank=0.018, axis="X"):
     """Chapa negra con nervios trapezoidales cada 30 cm (como Casa Lingue)."""
     m, n, l = new_mat(name)
@@ -250,8 +298,50 @@ def ribbed_metal(name, pitch=0.30, rib=0.035, flank=0.018, axis="X"):
     return m
 
 
-def glass_mat():
-    m, n, l = new_mat("Vidrio")
+def chapa_nervada(name, pitch=0.21, rib=0.03, flank=0.016):
+    """Chapa negra mate con nervios, y el eje de los nervios **elegido por la normal de la cara**,
+    no fijado a mano: en los muros corren en vertical (tapajuntas, como en la foto de referencia) y
+    en el techo por la línea de máxima pendiente. Con el eje fijo de Huingán no había forma de
+    acertarle a las dos cosas: los muros largos salían lisos (su coordenada no cambia a lo ancho de
+    la cara) y el techo salía rayado a lo ancho, que fue lo que marcó la revisión.
+
+    La regla es una sola: si la cara mira más en X que en Y —muros largos y faldones del techo,
+    porque la cumbrera corre en Y— las rayas van sobre la coordenada Y; si mira más en Y
+    —los testeros— van sobre la X. En ambos casos la raya queda vertical o bajando el faldón.
+    Mate y con poco metal: el brillo especular de la chapa de Huingán era lo que leía como blanco
+    sobre el techo."""
+    m, n, l = new_mat(name)
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (0.016, 0.016, 0.018, 1)
+    b.inputs["Metallic"].default_value = 0.2
+    tc = n.new("ShaderNodeTexCoord")
+    pos = n.new("ShaderNodeSeparateXYZ")
+    l.new(tc.outputs["Object"], pos.inputs[0])
+    geo = n.new("ShaderNodeNewGeometry")
+    nrm = n.new("ShaderNodeSeparateXYZ")
+    l.new(geo.outputs["Normal"], nrm.inputs[0])
+    usa_y = N.math("GREATER_THAN", N.math("ABSOLUTE", nrm.outputs["X"]),
+                   N.math("ABSOLUTE", nrm.outputs["Y"]))
+    coord = N.math("ADD", pos.outputs["X"],
+                   N.math("MULTIPLY", usa_y, N.math("SUBTRACT", pos.outputs["Y"], pos.outputs["X"])))
+    u = N.math("FRACT", N.math("DIVIDE", coord, pitch))
+    d = N.math("MULTIPLY", N.math("ABSOLUTE", N.math("SUBTRACT", u, 0.5)), pitch)
+    d = N.math("MULTIPLY", N.math("SUBTRACT", d, pitch / 2), -1.0)
+    top = N.math("SUBTRACT", 1.0, N.math("DIVIDE", N.math("MAXIMUM", N.math("SUBTRACT", d, rib / 2), 0.0), flank))
+    top = N.math("MAXIMUM", top, 0.0)
+    bmp = n.new("ShaderNodeBump")
+    bmp.inputs["Strength"].default_value = 0.9
+    bmp.inputs["Distance"].default_value = 0.018
+    l.new(top, bmp.inputs["Height"])
+    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    polvo = N.noise(tc.outputs["Object"], 1.5)
+    l.new(N.math("ADD", 0.52, N.math("MULTIPLY", polvo, 0.12)), b.inputs["Roughness"])
+    return m
+
+
+def glass_mat(entintado=False):
+    m, n, l = new_mat("VidrioTecho" if entintado else "Vidrio")
     n.remove(n["Principled BSDF"])
     out = n["Material Output"]
     fr = n.new("ShaderNodeFresnel")
@@ -261,9 +351,12 @@ def glass_mat():
     att.inputs[1].default_value = 0.5
     l.new(fr.outputs["Fac"], att.inputs[0])
     tr = n.new("ShaderNodeBsdfTransparent")
-    tr.inputs["Color"].default_value = (0.86, 0.9, 0.9, 1)
+    tr.inputs["Color"].default_value = (0.2, 0.23, 0.24, 1) if entintado else (0.86, 0.9, 0.9, 1)
     gl = n.new("ShaderNodeBsdfGlossy")
-    gl.inputs["Roughness"].default_value = 0.02
+    gl.inputs["Roughness"].default_value = 0.12 if entintado else 0.02
+    if entintado:
+        gl.inputs["Color"].default_value = (0.3, 0.32, 0.34, 1)
+        att.inputs[1].default_value = 0.32
     mix = n.new("ShaderNodeMixShader")
     l.new(att.outputs[0], mix.inputs["Fac"])
     l.new(tr.outputs[0], mix.inputs[1])
@@ -309,8 +402,8 @@ def lecho_mat():
     cm = n.new("ShaderNodeAttribute")
     cm.attribute_name = "camino"
     pisado = N.smooth(N.noise(tc.outputs["Object"], 5.0, 3), 0.5, 0.7)
-    col = N.mix(N.math("MULTIPLY", cm.outputs["Fac"], N.math("ADD", 0.65, N.math("MULTIPLY", pisado, 0.3))),
-                col, (0.17, 0.14, 0.1))
+    col = N.mix(N.math("MULTIPLY", cm.outputs["Fac"], N.math("ADD", 0.8, N.math("MULTIPLY", pisado, 0.2))),
+                col, (0.155, 0.125, 0.088))
     l.new(col, b.inputs["Base Color"])
     # la piedra mojada brilla: es lo que dibuja la línea de agua
     l.new(N.math("ADD", 0.92, N.math("MULTIPLY", moj_f, -0.68)), b.inputs["Roughness"])
@@ -547,14 +640,22 @@ def concrete_mat():
 
 def materials():
     M = {
-        "chapa": ribbed_metal("ChapaNegra"),
-        "chapaTecho": ribbed_metal("ChapaTecho", 0.33, 0.03, 0.02, "Y"),
-        "fachada": boards_mat("MaderaFachada", (0.5, 0.37, 0.24), (0.72, 0.56, 0.38), "X", 7.0, 0.65, 0.2),
-        "cielo": boards_mat("MaderaCielo", (0.55, 0.41, 0.27), (0.74, 0.58, 0.4), "X", 7.0, 0.6, 0.15),
-        "deck": boards_mat("Deck", (0.36, 0.25, 0.15), (0.56, 0.41, 0.27), "Y", 7.5, 0.6, 0.35),
-        "piso": boards_mat("PisoInterior", (0.5, 0.37, 0.24), (0.66, 0.5, 0.33), "Y", 5.0, 0.4, 0.1),
-        "muroint": boards_mat("MuroInterior", (0.62, 0.5, 0.36), (0.78, 0.65, 0.48), "X", 6.0, 0.6, 0.1),
+        "chapa": chapa_nervada("ChapaNegra"),
+        # Los marcos de ventana y el borde del techo frente al alero: negros, mate y lisos (los
+        # pidió así la revisión, y en el modelo son la misma pieza, ver load_house).
+        "marcoNegro": principled("MarcoNegro", (0.014, 0.014, 0.016), 0.45),
+        "cielo": madera_mat("MaderaCielo", "Y", 0.16, (0.25, 9.0, 9.0)),
+        "deck": madera_mat("Deck", "Y", 0.145, (0.25, 9.0, 9.0), (0.4, 0.26, 0.14),
+                           (0.26, 0.16, 0.085), (0.145, 0.085, 0.045), 0.62, 0.6),
+        "piso": madera_mat("PisoInterior", "Y", 0.17, (0.25, 9.0, 9.0), (0.47, 0.32, 0.18),
+                           (0.33, 0.21, 0.115), (0.2, 0.12, 0.062), 0.4, 0.3),
+        "muroint": madera_mat("MuroInterior", "X", 0.15, (9.0, 9.0, 0.25), (0.5, 0.35, 0.2),
+                              (0.35, 0.23, 0.125), (0.21, 0.13, 0.068), 0.55, 0.35),
         "vidrio": glass_mat(),
+        # Los tragaluces miran al cielo, así que con el vidrio normal devuelven el cielo entero y
+        # en el render son dos rectángulos blancos sobre el techo —justo lo que pidió sacar la
+        # revisión—. Van entintados y algo más rugosos, como un cristal de techo de verdad.
+        "vidrioTecho": glass_mat(entintado=True),
         "hormigon": concrete_mat(),
         "ribera": lecho_mat(),
         "lago": lago_mat(),
@@ -572,9 +673,14 @@ def load_house(M):
     """Casa del STL con los materiales de la escena (por nombre de material del .blend)."""
     with bpy.data.libraries.load(CASA) as (a, b):
         b.objects = a.objects
-    swap = {"Bo_ChapaNegra": M["chapa"], "Bo_MaderaFachada": M["fachada"], "Bo_MaderaCielo": M["cielo"],
+    # "Bo_MaderaFachada" quedó mal bautizado en el extractor: pintando la casa con colores planos
+    # se ve que no es revestimiento, es el **marco del testero y el canto del techo frente al
+    # alero** —el perímetro del frontón y las cruces entre paños de vidrio—. La revisión pidió las
+    # dos cosas negras, así que va con el negro mate de los marcos y no con madera.
+    swap = {"Bo_ChapaNegra": M["chapa"], "Bo_MaderaFachada": M["marcoNegro"], "Bo_MaderaCielo": M["cielo"],
             "Bo_Deck": M["deck"], "Bo_PisoInterior": M["piso"], "Bo_MuroInterior": M["muroint"],
-            "Bo_Vidrio": M["vidrio"], "Bo_Pilote": M["hormigon"]}
+            "Bo_Vidrio": M["vidrio"], "Bo_Pilote": M["hormigon"], "Bo_MarcoNegro": M["marcoNegro"],
+            "Bo_VidrioTecho": M["vidrioTecho"]}
     coll = bpy.data.collections.new("Casa")
     bpy.context.scene.collection.children.link(coll)
     for o in b.objects:
@@ -583,12 +689,17 @@ def load_house(M):
             if sl.material and sl.material.name in swap:
                 sl.material = swap[sl.material.name]
     # luces interiores tibias (en el día apenas se notan, pero dan vida al interior)
-    # dos pisos con la misma planta: estar y comedor contra el testero, dormitorios al fondo
-    for x, y, z, p in ((3.6, 4.6, PISO + 1.9, 150), (6.0, 5.6, PISO + 1.9, 60), (3.4, 10.4, PISO + 1.8, 55),
-                       (3.6, 4.8, PISO2 + 1.8, 90), (3.4, 10.6, PISO2 + 1.8, 45)):
+    # Dos pisos con la misma planta: estar y comedor contra el testero, dormitorios al fondo.
+    # Las del segundo piso van bajas a propósito: ahí el cielo **es** el faldón, y puestas a 1,8 m
+    # quedaban metidas entre las dos pieles del techo, de modo que iluminaban la chapa por fuera y
+    # en el render aparecían dos rectángulos blancos sobre el techo (se encontró tirando un rayo
+    # desde la cámara: los píxeles daban en la chapa negra, no en otro material).
+    for x, y, z, p, t in ((3.6, 4.6, PISO + 1.9, 150, 1.0), (6.0, 5.6, PISO + 1.9, 60, 1.0),
+                          (3.4, 10.4, PISO + 1.8, 55, 1.0), (2.9, 4.8, PISO2 + 0.95, 70, 0.7),
+                          (2.8, 10.6, PISO2 + 0.95, 40, 0.7)):
         bpy.ops.object.light_add(type="AREA", location=(x, y, z))
         lt = bpy.context.object
-        lt.data.energy, lt.data.size = p, 1.0
+        lt.data.energy, lt.data.size = p, t
         lt.data.color = (1.0, 0.72, 0.45)
     return coll
 
@@ -604,24 +715,39 @@ def orilla_y(x, y0=-30.0, y1=10.0):
     return (y0 + y1) / 2
 
 
-def build_muelle(M):
-    """Pasarela de tablas desde la escalera de la terraza, bajando el talud, y muelle que entra al
-    agua. En un lago el muelle no es decorado: es lo que da escala al espejo y lo único vertical
-    que se refleja cerca de la cámara, y es también lo que explica la casa (todo apunta al agua)."""
+def build_muelle(M, ph=None):
+    """Bajada al agua y muelle. En un lago el muelle no es decorado: es lo que da escala al espejo
+    y lo único vertical que se refleja cerca de la cámara, y es también lo que explica la casa
+    (todo apunta al agua).
+
+    El talud **no** lleva pasarela de tablas: la revisión pidió una bajada más natural, así que es
+    la huella de tierra que ya abre la vegetación (atributo 'camino') con pasos de piedra medio
+    enterrados y un par de peldaños de durmiente donde el talud se empina. El entablado arranca
+    recién sobre el agua, que es donde hace falta."""
     coll = bpy.data.collections.new("Muelle")
     bpy.context.scene.collection.children.link(coll)
     y_sh = orilla_y(path_x(-12.0))
-    # 1) pasarela sobre el talud, desde la escalera de la terraza hasta el borde del agua
-    y = -0.6
+    # 1) bajada natural: pasos de piedra sobre la huella, salteados y nunca alineados
+    rnd = random.Random(17)
+    piedra = ph.get("piedra") if ph else None
+    y = -1.2
     i = 0
-    while y > y_sh + 0.9:
-        xc = path_x(y)
-        z = terrain_base(xc, y) + 0.14
-        box(f"Tabla{i}", xc - 0.75, xc + 0.75, y - 0.14, y, z, z + 0.04, M["muelle"], coll)
-        if i % 8 == 0:
-            for xp in (xc - 0.7, xc + 0.63):
-                box(f"PosteP{i}", xp, xp + 0.07, y - 0.12, y - 0.05, z - 0.6, z, M["muelle"], coll)
-        y -= 0.165
+    while y > y_sh + 0.5:
+        xc = path_x(y) + rnd.uniform(-0.35, 0.35)
+        z = terrain_h(xc, y)
+        if piedra and piedra.objects and i % 2 == 0:
+            o = rnd.choice(list(piedra.objects)).copy()
+            coll.objects.link(o)
+            o.location = (xc, y, z - rnd.uniform(0.1, 0.16))     # medio enterrada
+            o.rotation_euler = (rnd.uniform(-0.1, 0.1), rnd.uniform(-0.08, 0.08), rnd.uniform(0, 6.28))
+            e = rnd.uniform(0.3, 0.45)
+            o.scale = (e, e * rnd.uniform(0.8, 1.2), e * 0.38)   # aplastada: es un paso, no un peñón
+        elif i % 2:
+            # durmiente de madera al sesgo, conteniendo el escalón de tierra
+            d = box(f"Durmiente{i}", -0.62, 0.62, -0.1, 0.0, -0.18, 0.04, M["muelle"], coll)
+            d.location = (xc, y, z)
+            d.rotation_euler = (0, 0, rnd.uniform(-0.25, 0.25))
+        y -= 0.78
         i += 1
     # 2) muelle: plataforma horizontal 65 cm sobre el agua, que entra 9 m en el lago
     xc = path_x(y_sh)
@@ -646,6 +772,79 @@ def build_muelle(M):
             break
         box(f"BarandaP{t}", xc - 0.88, xc - 0.81, yp - 0.09, yp, zt, zt + 1.0, M["muelle"], coll)
     box("BarandaL", xc - 0.88, xc - 0.81, y_pt, y_sh - 0.5, zt + 0.93, zt + 1.0, M["muelle"], coll)
+    return coll
+
+
+# Cerco de campo: postes y tres corridas de palo, a lo largo del camino de acceso, con la tranquera
+# atravesada donde el camino entra al claro. Lo pidió la revisión para ambientar el campo, y de
+# paso explica el predio: sin cerco, la casa parece puesta en medio de la nada.
+def build_cercos(M):
+    coll = bpy.data.collections.new("Cercos")
+    bpy.context.scene.collection.children.link(coll)
+    rnd = random.Random(23)
+    mad = M["muelle"]
+
+    def poste(x, y, alto=1.25, grosor=0.085, inclina=0.0):
+        z = terrain_h(x, y)
+        o = box(f"Poste_{x:.1f}_{y:.1f}", -grosor, grosor, -grosor, grosor, -0.45, alto, mad, coll)
+        o.location = (x, y, z)
+        o.rotation_euler = (inclina, rnd.uniform(-0.03, 0.03), rnd.uniform(0, 0.4))
+        return z
+
+    def palo(x0, y0, z0, x1, y1, z1, grosor=0.045):
+        """Un palo entre dos postes: una caja girada para que siga la línea del cerco."""
+        lx, ly = x1 - x0, y1 - y0
+        largo = math.hypot(lx, ly)
+        o = box(f"Palo_{x0:.1f}_{y0:.1f}_{z0:.2f}", -largo / 2, largo / 2, -grosor, grosor,
+                -grosor, grosor, mad, coll)
+        o.location = ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
+        o.rotation_euler = (0, math.atan2(z1 - z0, largo), math.atan2(ly, lx))
+
+    def corrida(pts, alturas=(0.42, 0.78, 1.14)):
+        prev = None
+        for x, y in pts:
+            z = poste(x, y, inclina=rnd.uniform(-0.02, 0.02))
+            if prev is not None:
+                for h in alturas:
+                    palo(prev[0], prev[1], prev[2] + h, x, y, z + h)
+            prev = (x, y, z)
+
+    # a los dos lados del camino, desde el claro hasta que el bosque se lo traga
+    ejes = road_points(2.4)
+    for lado in (-1, 1):
+        pts = []
+        for i, p in enumerate(ejes):
+            if not 17.0 < p.y < 115.0:
+                continue
+            q = ejes[min(i + 1, len(ejes) - 1)] - ejes[max(i - 1, 0)]
+            nr = Vector((-q.y, q.x)).normalized()
+            a = Vector(p) + nr * (3.3 * lado)
+            pts.append((a.x, a.y))
+        corrida(pts[::2])
+    # cerco del deslinde, cruzando el claro hacia el lago
+    corrida([(x, 19.0 + 1.6 * math.sin(x / 9.0)) for x in range(-46, -9, 4)])
+    corrida([(x, 17.5 + 1.4 * math.sin(x / 11.0)) for x in range(16, 56, 4)])
+
+    # la tranquera: dos hojas de tres palos con cruz, abiertas contra sus postes
+    ejes2 = road_points(1.0)
+    pc = min(ejes2, key=lambda p: abs(p.y - 19.0))
+    q = ejes2[min(ejes2.index(pc) + 1, len(ejes2) - 1)] - ejes2[max(ejes2.index(pc) - 1, 0)]
+    nr = Vector((-q.y, q.x)).normalized()
+    for lado in (-1, 1):
+        base = Vector(pc) + nr * (3.3 * lado)
+        z = terrain_h(base.x, base.y)
+        pt = box(f"PosteTranquera{lado}", -0.11, 0.11, -0.11, 0.11, -0.5, 1.45, mad, coll)
+        pt.location = (base.x, base.y, z)
+        hoja = bpy.data.collections.new(f"Hoja{lado}")
+        coll.children.link(hoja)
+        for h in (0.45, 0.82, 1.19):
+            box(f"HojaPalo{lado}_{h}", 0.0, 2.3, -0.045, 0.045, h - 0.045, h + 0.045, mad, hoja)
+        cruz = box(f"HojaCruz{lado}", 0.0, 2.42, -0.04, 0.04, -0.04, 0.04, mad, hoja)
+        cruz.location = (0, 0, 0.82)
+        cruz.rotation_euler = (0, math.radians(-18.0), 0)
+        for o in list(hoja.objects):
+            o.location = (o.location.x + base.x, o.location.y + base.y, o.location.z + z)
+            o.rotation_euler.rotate_axis("Z", math.atan2(q.y, q.x) + lado * 1.15)
     return coll
 
 
@@ -957,10 +1156,10 @@ def build_vegetation(ribera, bq, ph):
         w = min(1.0, max(0.0, (d - 0.8) / 2.2))
         w *= min(1.0, max(0.0, (house_dist(x, y) - 0.2) / 1.5))
         pd = path_dist(x, y)
-        w *= min(1.0, max(0.0, (pd - 0.9) / 1.3))
+        w *= min(1.0, max(0.0, (pd - 1.15) / 1.3))
         if 8 < y < 95:
             w *= min(1.0, max(0.0, (road_dist(x, y) - 1.6) / 1.5))
-        cam.append(min(1.0, max(0.0, 1.4 - pd / 0.9)) if d > RIBERA - 1 else 0.0)
+        cam.append(min(1.0, max(0.0, 1.5 - pd / 1.35)) if d > RIBERA - 1 else 0.0)
         # piedras sueltas: sólo en la franja mojada, y menos sobre la pasarela
         ori.append(max(0.0, min(1.0, (1.0 - abs(d - 0.6) / 2.2) * min(1.0, max(0.0, (pd - 1.0) / 1.5)))))
         w *= min(1.0, max(0.0, 0.55 + 1.3 * noise.noise(Vector((x / 7.0, y / 7.0, 2.2)))
@@ -1398,8 +1597,8 @@ def build_world():
     l.new(limpio.outputs[2], pick.inputs[6])
     l.new(cam_sky.outputs[2], pick.inputs[7])
     l.new(pick.outputs[2], bg.inputs[0])
-    w.mist_settings.start = 60
-    w.mist_settings.depth = 1400
+    w.mist_settings.start = 80
+    w.mist_settings.depth = 2600
     w.mist_settings.falloff = "LINEAR"
 
 
@@ -1428,7 +1627,7 @@ def setup_render():
     sc.view_settings.white_balance_temperature = WB_TEMP
     sc.view_settings.view_transform = "AgX"
     sc.view_settings.look = "AgX - Medium High Contrast"
-    sc.view_settings.exposure = -0.05
+    sc.view_settings.exposure = 0.18
     sc.view_layers[0].use_pass_mist = True
     # bruma atmosférica azulada en compositor (sólo sobre el terreno lejano)
     nt = bpy.data.node_groups.new("Bruma", "CompositorNodeTree")
@@ -1443,17 +1642,17 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    # bruma = 0,40 · (1 − e^(−(z − 60) / 1900)), sobre todo lo que no es cielo (z < 10 km de cámara
+    # bruma = 0,26 · (1 − e^(−(z − 80) / 2600)), sobre todo lo que no es cielo (z < 10 km de cámara
     # para el cielo no hay superficie: su profundidad es enorme). Crece sin corte hasta el horizonte.
     sc.view_layers[0].use_pass_z = True
-    zrel = mnode("SUBTRACT", 60.0)
+    zrel = mnode("SUBTRACT", 80.0)
     pos = mnode("MAXIMUM", 0.0)
-    sc_ = mnode("DIVIDE", -1900.0)
+    sc_ = mnode("DIVIDE", -2600.0)
     ex = mnode("EXPONENT", 0.0)
     one = mnode("SUBTRACT", 1.0)
     sky = mnode("LESS_THAN", 1.0e7)
     mul = mnode("MULTIPLY", 1.0)
-    amt = mnode("MULTIPLY", 0.40)
+    amt = mnode("MULTIPLY", 0.26)
     one.inputs[0].default_value = 1.0
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
@@ -1472,7 +1671,7 @@ def setup_render():
     far_e = mnode("EXPONENT", 0.0)
     far_1 = mnode("SUBTRACT", 1.0)
     far_1.inputs[0].default_value = 1.0
-    far_a = mnode("MULTIPLY", 0.30)
+    far_a = mnode("MULTIPLY", 0.22)
     far_m = mnode("MULTIPLY", 1.0)
     tot = mnode("ADD", 0.0)
     nt.links.new(pos.outputs[0], far_s.inputs[0])
@@ -1840,7 +2039,8 @@ def main():
     _, scatter = build_vegetation(ribera, bq, ph)
     place_props(bpy.data.collections["Biblioteca"])
     build_context(M, scatter)
-    build_muelle(M)
+    build_muelle(M, ph)
+    build_cercos(M)
     build_world()
     setup_render()
     sc = bpy.context.scene

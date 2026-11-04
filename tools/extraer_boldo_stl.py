@@ -76,6 +76,7 @@ M = {
     "pilote": mat("Bo_Pilote", (0.55, 0.54, 0.52), 0.9),
     "marco": mat("Bo_MarcoNegro", (0.012, 0.012, 0.013), 0.35, 0.6),
     "vidrio": mat("Bo_Vidrio", (0.9, 0.92, 0.92), 0.02),
+    "vidrioTecho": mat("Bo_VidrioTecho", (0.25, 0.28, 0.29), 0.12),
     "puerta": mat("Bo_PuertaMadera", (0.36, 0.23, 0.13), 0.5),
     "telaClara": mat("Bo_TelaClara", (0.62, 0.6, 0.56), 0.95, sheen=0.4),
     "telaMedia": mat("Bo_TelaGris", (0.3, 0.29, 0.28), 0.95, sheen=0.4),
@@ -118,6 +119,11 @@ def casco_cara(c, n, bvh, techo):
     inclinada = 0.25 < abs(n.z) < 0.98 and c.z > 1.8
     if inclinada:                                            # faldones del techo
         s, zi = plano(c, n)
+        if ext and o.z > 0:
+            # Todo lo que mira al cielo va en chapa, sea o no el plano principal del faldón: los
+            # retornos de los tragaluces caían fuera del plano por unos centímetros, salían como
+            # cielo de madera y en el render se leían como dos manchas blancas sobre el techo.
+            return "chapa"
         tapa = zi > techo.get(s, 99) - 0.06
         return "chapa" if tapa else "cielo"
     if abs(n.z) > 0.9:                                       # caras horizontales
@@ -137,12 +143,28 @@ def casco_cara(c, n, bvh, techo):
     return "chapa"                                           # el resto de la envolvente
 
 
+def en_faldon(cx, cy, cz):
+    """¿La pieza se apoya en el plano de un faldón? Los tragaluces y la chimenea sí.
+
+    Hace falta porque la regla de las lámparas —pieza chica, alta dentro del recinto— también
+    atrapa los marcos de los tragaluces, y el material de lámpara emite luz. El acotado en `y` no
+    es decorativo: el plano del faldón, prolongado, pasa por el vidrio alto del testero, así que
+    sin él los paños del frontón salían clasificados como tragaluz."""
+    if not Y_VID + 0.6 < cy < Y_ACC - 0.6:
+        return False
+    return cz > 3.4 and any(abs(cz - (zi + s * cx)) < 0.95 for s, zi in techo.items())
+
+
 def clasificar(x0, x1, y0, y1, z0, z1, nf, area):
     """Material de una pieza suelta, por forma y por recinto."""
     dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
     ext = sorted((dx, dy, dz))
     cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
     piso = PISO2 if cz > PISO2 - 0.25 else PISO       # cota del piso del recinto donde está
+    if en_faldon(cx, cy, cz):
+        # tragaluces y pasada de chimenea: el paño va con vidrio de techo (entintado) y el resto
+        # en negro. Con el vidrio normal el techo salía con dos rectángulos blancos.
+        return "vidrioTecho" if ext[0] < 0.012 and area > 0.25 else "marco"
     if ext[0] < 0.012 and area > 0.25:
         return "vidrio"                                       # paños de cristal y duchas
     if dz > 1.8 and ext[0] < 0.09 and 0.5 < ext[1] < 1.2:
