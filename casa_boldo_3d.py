@@ -689,6 +689,9 @@ def materials():
         "roca": principled("Roca", (0.16, 0.16, 0.15), 0.8),
         "muelle": muelle_mat(),
         "laja": laja_mat(),
+        # Madera oscura de los muebles y de los perfiles de madera que quedan a la vista.
+        "maderaOsc": madera_mat("MaderaOscura", "Y", 0.13, (0.25, 9.0, 9.0), (0.2, 0.125, 0.065),
+                                (0.125, 0.075, 0.038), (0.07, 0.04, 0.02), 0.5, 0.35),
     }
     return M
 
@@ -704,7 +707,12 @@ def load_house(M):
     swap = {"Bo_ChapaNegra": M["chapa"], "Bo_MaderaFachada": M["fachada"], "Bo_MaderaCielo": M["cielo"],
             "Bo_Deck": M["deck"], "Bo_PisoInterior": M["piso"], "Bo_MuroInterior": M["muroint"],
             "Bo_Vidrio": M["vidrio"], "Bo_Pilote": M["hormigon"], "Bo_MarcoNegro": M["marcoNegro"],
-            "Bo_VidrioTecho": M["vidrioTecho"]}
+            "Bo_VidrioTecho": M["vidrioTecho"],
+            # Estos tres se quedaban con el material plano del extractor, y entre ellos hay piezas
+            # que se ven desde afuera: el canto del piso que corre a lo largo de toda la casa salía
+            # como una faja clara sin textura, que es el "borde sin pintar" que marcó la revisión.
+            "Bo_MaderaClara": M["deck"], "Bo_MaderaOscura": M["maderaOsc"],
+            "Bo_DeckBorde": M["marcoNegro"], "Bo_PuertaMadera": M["maderaOsc"]}
     coll = bpy.data.collections.new("Casa")
     bpy.context.scene.collection.children.link(coll)
     for o in b.objects:
