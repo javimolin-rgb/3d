@@ -497,6 +497,44 @@ def meadow_grass_mat():
     return m
 
 
+def muelle_mat():
+    """Madera del muelle y la pasarela: tablas de pino a la intemperie, no entablado gris.
+
+    Cada tabla es un objeto aparte, así que el tono sale de Object Info > Random: una tabla más
+    clara, la de al lado más oscura. Eso es lo que hace que un entablado se lea como madera —en un
+    deck real no hay dos tablas del mismo color— y con `boards_mat` no se podía, porque dibuja
+    bandas parejas sobre toda la superficie. Las juntas, además, ya están en la geometría (cada
+    tabla es una caja con su luz), así que acá no se dibujan: sólo veta, que corre a lo largo de
+    la tabla (eje X), y el relieve sale de esa misma veta."""
+    m, n, l = new_mat("MuelleMadera")
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    tc = n.new("ShaderNodeTexCoord")
+    info = n.new("ShaderNodeObjectInfo")
+    mp = n.new("ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = (0.22, 9.0, 9.0)   # ruido estirado = veta
+    l.new(tc.outputs["Object"], mp.inputs["Vector"])
+    veta = N.noise(mp.outputs["Vector"], 5.0, 8, 0.6, 1.6)
+    fina = N.noise(mp.outputs["Vector"], 24.0, 4, 0.5, 0.8)
+    ramp = n.new("ShaderNodeValToRGB")
+    e = ramp.color_ramp.elements
+    e[0].color, e[1].color = (0.155, 0.09, 0.048, 1), (0.44, 0.295, 0.165, 1)
+    e.new(0.5).color = (0.27, 0.175, 0.095, 1)
+    l.new(N.math("ADD", N.math("MULTIPLY", info.outputs["Random"], 0.68),
+                 N.math("MULTIPLY", veta, 0.32)), ramp.inputs["Fac"])
+    col = N.mix(N.math("MULTIPLY", fina, 0.38), ramp.outputs["Color"], (0.175, 0.115, 0.065))
+    # algo de plata de intemperie en los cantos, sin apagar el tono de la madera
+    col = N.mix(N.math("MULTIPLY", N.smooth(veta, 0.62, 0.78), 0.3), col, (0.3, 0.27, 0.235))
+    l.new(col, b.inputs["Base Color"])
+    l.new(N.math("ADD", 0.64, N.math("MULTIPLY", fina, 0.2)), b.inputs["Roughness"])
+    bmp = n.new("ShaderNodeBump")
+    bmp.inputs["Strength"].default_value = 0.4
+    bmp.inputs["Distance"].default_value = 0.005
+    l.new(N.math("ADD", N.math("MULTIPLY", veta, 0.7), N.math("MULTIPLY", fina, 0.3)), bmp.inputs["Height"])
+    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
 def concrete_mat():
     m, n, l = new_mat("Hormigon")
     N = Nodos(n, l)
@@ -524,7 +562,7 @@ def materials():
         "pastoRibera": meadow_grass_mat(),
         "matorral": scrub_mat(),
         "roca": principled("Roca", (0.16, 0.16, 0.15), 0.8),
-        "muelle": boards_mat("Muelle", (0.3, 0.26, 0.21), (0.46, 0.41, 0.33), "X", 4.0, 0.78, 0.45),
+        "muelle": muelle_mat(),
     }
     return M
 
