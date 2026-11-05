@@ -170,6 +170,12 @@ def clasificar(x0, x1, y0, y1, z0, z1, nf, area):
     ext = sorted((dx, dy, dz))
     cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
     piso = PISO2 if cz > PISO2 - 0.25 else PISO       # cota del piso del recinto donde está
+    if ext[0] < 0.012 and area > 0.25:
+        # El cristal se decide antes que nada. Las dos reglas que siguen —canto exterior y faldón—
+        # también atrapan paños (son finos, pegados a un muro y más altos que anchos), y con el
+        # orden al revés las ventanas de los muros largos salían pintadas de negro entero, como
+        # agujeros ciegos en vez de ventanas.
+        return "vidrioTecho" if en_faldon(cx, cy, cz) else "vidrio"
     # Canto a la vista por fuera: pieza fina pegada a un plano exterior y más alta que ancha —el
     # marco de una ventana del muro largo, el canto del piso que corre al pie de la casa—. Van
     # negros. La condición de "más alta que ancha" deja fuera las tablas del deck, que son finas
@@ -178,11 +184,7 @@ def clasificar(x0, x1, y0, y1, z0, z1, nf, area):
             and min(dx, dy) < 0.25 and min(dx, dy) < dz:
         return "marco"
     if en_faldon(cx, cy, cz):
-        # tragaluces y pasada de chimenea: el paño va con vidrio de techo (entintado) y el resto
-        # en negro. Con el vidrio normal el techo salía con dos rectángulos blancos.
-        return "vidrioTecho" if ext[0] < 0.012 and area > 0.25 else "marco"
-    if ext[0] < 0.012 and area > 0.25:
-        return "vidrio"                                       # paños de cristal y duchas
+        return "marco"                                        # marcos de tragaluz y chimenea
     if dz > 1.8 and ext[0] < 0.09 and 0.5 < ext[1] < 1.2:
         return "puerta"
     fachada = y1 < Y_VID + 0.25 or y0 > Y_ACC - 0.25 or x1 < 0.9 or x0 > L - 0.9

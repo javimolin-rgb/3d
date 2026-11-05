@@ -821,29 +821,24 @@ def build_muelle(M, ph=None):
     y lo único vertical que se refleja cerca de la cámara, y es también lo que explica la casa
     (todo apunta al agua).
 
-    El talud **no** lleva pasarela de tablas: la revisión pidió una bajada más natural. La primera
-    versión fueron piedras sueltas salteadas y no se leía —parecía escombro repartido en el pasto—,
-    así que ahora es una **escalera de lajas**: peldaños alineados sobre el eje de la huella,
-    apenas girados uno respecto de otro y hundidos en el terreno, que es como se ve un sendero
-    hecho a mano. La huella de tierra sigue abriéndola la vegetación (atributo 'camino'). El
-    entablado arranca recién sobre el agua, que es donde hace falta."""
+    La bajada por el talud es la **pasarela de tablas original**. Se probaron dos alternativas más
+    naturales que pidió la revisión —piedras sueltas salteadas, que parecían escombro en el pasto, y
+    una escalera de lajas— y al final se volvió a ésta, que es la que convenció. La huella de
+    tierra que abre la vegetación (atributo 'camino') sigue corriendo debajo."""
     coll = bpy.data.collections.new("Muelle")
     bpy.context.scene.collection.children.link(coll)
     y_sh = orilla_y(path_x(-12.0))
-    # 1) escalera de lajas sobre la huella, desde la escalera de la terraza hasta el agua
-    rnd = random.Random(17)
-    y = -1.3
+    # 1) pasarela sobre el talud, desde la escalera de la terraza hasta el borde del agua
+    y = -0.6
     i = 0
-    while y > y_sh + 0.35:
-        xc = path_x(y) + rnd.uniform(-0.07, 0.07)
-        z = terrain_h(xc, y)
-        ancho = rnd.uniform(0.56, 0.72)         # media laja a cada lado del eje
-        largo = rnd.uniform(0.28, 0.34)
-        pel = box(f"Laja{i}", -ancho, ancho, -largo, largo, -0.14, 0.035, M["laja"], coll)
-        pel.location = (xc, y, z)
-        pel.rotation_euler = (rnd.uniform(-0.035, 0.035), rnd.uniform(-0.05, 0.05),
-                              rnd.uniform(-0.09, 0.09))
-        y -= rnd.uniform(0.62, 0.72)
+    while y > y_sh + 0.9:
+        xc = path_x(y)
+        z = terrain_base(xc, y) + 0.14
+        box(f"Tabla{i}", xc - 0.75, xc + 0.75, y - 0.14, y, z, z + 0.04, M["muelle"], coll)
+        if i % 8 == 0:
+            for xp in (xc - 0.7, xc + 0.63):
+                box(f"PosteP{i}", xp, xp + 0.07, y - 0.12, y - 0.05, z - 0.6, z, M["muelle"], coll)
+        y -= 0.165
         i += 1
     # 2) muelle: plataforma horizontal 65 cm sobre el agua, que entra 9 m en el lago
     xc = path_x(y_sh)
