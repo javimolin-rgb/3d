@@ -1889,7 +1889,11 @@ def s1_setup(w, h, lens):
 
 
 # ------------------------------------------- ruta continua s2 -> s3 -> s5 (spline por claves)
-CUT_TOP, CUT_LOW = 5.2, 1.6      # altura del corte: sobre el techo (casa entera) / a media altura (planta 3D)
+# Altura del corte: sobre el techo (casa entera) / a media altura (planta 3D). El valor heredado de
+# Huingán era 5,2 m, que allá queda sobre la cumbrera pero acá la corta: Boldo llega a 6,55 y el
+# techo habría aparecido rebanado desde el primer cuadro de s2. El bajo, 1,70, deja el corte a un
+# metro del piso terminado (0,55) y muestra la planta baja, igual que en Peumo.
+CUT_TOP, CUT_LOW = 6.8, 1.7
 # claves: (cuadro global, azimut°, elevación°, distancia, altura de corte, parar)
 #   distancia: número (m) o ("fit", factor): la del encuadre adaptable en esa dirección
 #   parar=True: la cámara llega quieta a esa clave (fin de s3, antes del paso a la planta)
@@ -1901,7 +1905,12 @@ RUTA = [
     (352, 88.0, 78.0, ("fit", 1.0), CUT_LOW, False),
     (432, 90.0, 89.5, ("fit", 1.0), CUT_LOW, True),           # fin s3: cenital, casa a lo largo de la pantalla
     (500, 118.0, 55.0, ("fit", 1.15), CUT_TOP, False),
-    (624, 152.0, 16.0, ("fit", 1.0), CUT_TOP, True),          # fin s5: fachada de acceso y el camino
+    # Fin de s5: la fachada de acceso y el camino. Se probó correrlo a 195° para que el sol diera
+    # en el faldón largo —la fachada de acceso queda a contraluz, porque el sol está del lado del
+    # lago para iluminar el ventanal, que es el enganche—. Pero a esa hora el faldón devuelve tanto
+    # brillo que se lee casi blanco, que es lo que la revisión pidió sacar del techo. Queda en 152°:
+    # la casa cierra como silueta oscura contra el lago encendido, igual que en las fotos aprobadas.
+    (624, 152.0, 16.0, ("fit", 1.0), CUT_TOP, True),
 ]
 CUT_KEYS = [(0, CUT_TOP), (250, CUT_TOP), (370, CUT_LOW), (432, CUT_LOW), (460, CUT_LOW), (540, CUT_TOP), (624, CUT_TOP)]
 
