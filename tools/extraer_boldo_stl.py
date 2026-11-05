@@ -170,11 +170,15 @@ def clasificar(x0, x1, y0, y1, z0, z1, nf, area):
     ext = sorted((dx, dy, dz))
     cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
     piso = PISO2 if cz > PISO2 - 0.25 else PISO       # cota del piso del recinto donde está
-    if ext[0] < 0.012 and area > 0.25:
+    if ext[0] < 0.012 and ext[1] * ext[2] > 0.25:
         # El cristal se decide antes que nada. Las dos reglas que siguen —canto exterior y faldón—
         # también atrapan paños (son finos, pegados a un muro y más altos que anchos), y con el
         # orden al revés las ventanas de los muros largos salían pintadas de negro entero, como
         # agujeros ciegos en vez de ventanas.
+        # El tamaño se mide sobre la caja del paño y no sobre `area`, que es la suma de las caras
+        # dividida en dos: eso vale cuando el paño viene modelado con sus dos caras, pero los que
+        # tienen una sola quedaban contados por la mitad. Por esa mitad, la ventana alta del fondo
+        # (1,05 x 0,44) caía bajo el umbral y salía negra mientras las otras dos pasaban.
         return "vidrioTecho" if en_faldon(cx, cy, cz) else "vidrio"
     # Canto a la vista por fuera: pieza fina pegada a un plano exterior y más alta que ancha —el
     # marco de una ventana del muro largo, el canto del piso que corre al pie de la casa—. Van
