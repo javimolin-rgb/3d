@@ -34,6 +34,7 @@ import random
 import sys
 
 import bpy  # noqa: E402  (bpy debe importarse antes que bmesh)
+import bmesh
 from mathutils import Vector, noise
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -62,6 +63,13 @@ HC = Vector((L / 2, D / 2))  # centro de la casa en planta
 GROUND = 0.0                 # terreno de la ribera, bajo la casa
 PISO = 0.55                  # piso terminado
 PISO2 = 3.25                 # segundo piso (las dos plantas repiten el esquema)
+Y_VID, Y_ACC = 3.10, 12.40   # plano del testero vidriado y de la fachada de acceso
+CUMBRERA_X, PEND, ALERO_Z = 5.60, 0.63, 3.02   # cumbrera, pendiente del faldón y alero bajo
+
+
+def techo_z(x):
+    """Altura del faldón sobre la planta, en el plano del testero (la cumbrera corre en Y)."""
+    return ALERO_Z + PEND * x if x < CUMBRERA_X else ALERO_Z + PEND * (2 * CUMBRERA_X - x)
 LAGO = -2.40                 # nivel del agua: la terraza queda 2,4 m sobre el lago
 # El lago es una elipse con el centro mar adentro, así que la orilla cercana pasa justo frente al
 # testero (y = -14) y la opuesta —la que se refleja— a 860 m (y = -874). A los costados el agua se
@@ -733,6 +741,67 @@ def load_house(M):
         lt = bpy.context.object
         lt.data.energy, lt.data.size = p, t
         lt.data.color = (1.0, 0.72, 0.45)
+    return coll
+
+
+def build_marcos(M):
+    """Marco negro alrededor de cada paño del ventanal: sólo el perfil.
+
+    El STL trae los cristales pero no un marco que se lea desde afuera —el vidrio queda metido en
+    el vano, cinco a quince centímetros detrás de la cara de tabla—, así que el ventanal se veía
+    como un hueco sin perfilería. Se arma acá a partir de la caja de cada paño: cuatro perfiles
+    por paño, apenas por delante del cristal, que es lo que subdivide el ventanal como en la foto
+    de referencia. Sólo los paños del testero: los de adentro son las mamparas de los baños."""
+    coll = bpy.data.collections.new("Marcos")
+    bpy.context.scene.collection.children.link(coll)
+    ob = bpy.data.objects.get("Boldo_vidrio")
+    if ob is None:
+        return coll
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    visto, comps = set(), []
+    for v in bm.verts:
+        if v.index in visto:
+            continue
+        pila, comp = [v], []
+        visto.add(v.index)
+        while pila:                       # cada paño es una isla suelta dentro de la malla
+            w = pila.pop()
+            comp.append(w.co.copy())
+            for e in w.link_edges:
+                o = e.other_vert(w)
+                if o.index not in visto:
+                    visto.add(o.index)
+                    pila.append(o)
+        comps.append(comp)
+    bm.free()
+    # El perfil va **en el plano de la cara de tabla**, no hundido junto al cristal: puesto atrás
+    # quedaba negro sobre la sombra del interior y no se leía. Adelante recorta el paño contra la
+    # madera, que es como se ve un marco de verdad.
+    ANCHO = 0.058                                 # media cara del perfil
+    YA, YB = Y_VID - 0.115, Y_VID - 0.038         # el perfil, apenas por delante de la tabla
+    n = 0
+    for comp in comps:
+        xs, ys, zs = [c.x for c in comp], [c.y for c in comp], [c.z for c in comp]
+        x0, x1, y0, y1, z0, z1 = min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
+        if (y1 - y0) > 0.05 or y0 > Y_VID + 0.25:      # sólo paños en el plano del testero
+            continue
+        if (x1 - x0) * (z1 - z0) < 0.5:
+            continue
+        ya, yb = YA, YB
+        for nombre, a, b, c, d in (("sup", x0 - ANCHO, x1 + ANCHO, z1 - ANCHO, z1 + ANCHO),
+                                   ("inf", x0 - ANCHO, x1 + ANCHO, z0 - ANCHO, z0 + ANCHO),
+                                   ("izq", x0 - ANCHO, x0 + ANCHO, z0 - ANCHO, z1 + ANCHO),
+                                   ("der", x1 - ANCHO, x1 + ANCHO, z0 - ANCHO, z1 + ANCHO)):
+            # El paño alto del frontón es triangular y su caja envolvente se sale del faldón: sin
+            # recortar, el marco quedaba asomando al aire por encima del techo. Cada perfil se
+            # corta contra la línea del faldón, y el que queda entero por encima no se dibuja.
+            tope = min(techo_z(a), techo_z(b)) - 0.07
+            if c > tope:
+                continue
+            box(f"Marco{n}_{nombre}", a, b, ya, yb, c, min(d, tope), M["marcoNegro"], coll)
+        n += 1
+    print("marcos de ventana:", n)
     return coll
 
 
@@ -2059,6 +2128,7 @@ def main():
     place_props(bpy.data.collections["Biblioteca"])
     build_context(M, scatter)
     build_muelle(M, ph)
+    build_marcos(M)
     build_cercos(M)
     build_world()
     setup_render()
