@@ -1853,9 +1853,14 @@ def smootherstep(t):
     return t * t * t * (t * (t * 6 - 15) + 10)
 
 
-S1_AZ = (-118.0, -42.0)      # azimut (0 = de frente, la cámara hacia -Y; negativo = lado izquierdo)
-S1_EL = (24.0, 17.0)         # elevación (°)
-S1_D0 = 165.0                # distancia inicial (m)
+# La aproximación entra **sobre el agua**, cruzando el frente de derecha a izquierda. El arco que
+# venía de Huingán arrancaba en azimut -118°, que acá deja la cámara sobre el bosque de la ribera:
+# a 150 m y 22° de elevación el dron volaría rozando las copas y el claro aparecería recién al
+# final. Entrando por el lago no hay nada entre la cámara y la casa, el testero vidriado se ve
+# desde el primer cuadro —es el enganche— y el reflejo acompaña todo el movimiento.
+S1_AZ = (25.0, -42.0)        # azimut (0 = de frente, la cámara hacia -Y; negativo = lado izquierdo)
+S1_EL = (22.0, 17.0)         # elevación (°)
+S1_D0 = 150.0                # distancia inicial (m)
 
 
 def pose_s1(f, n):
