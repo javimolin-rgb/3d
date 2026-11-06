@@ -17,8 +17,11 @@ es dónde cae el origen en la lámina y a qué escala, o sea tres números. Se a
 coordenadas maximizando la correlación entre la tinta del dibujo deformado a pantalla y la magnitud
 del gradiente del render: las líneas de la planta tienen que caer sobre los bordes de la casa.
 
-Uso: python3 tools/calibrar_planta.py <carpeta_de_cuadros_s3> <lamina.pdf|.png> [mitad]
+Uso: python3 tools/calibrar_planta.py <carpeta_de_cuadros_s3> <lamina.pdf|.png> [mitad] [L D]
   mitad = izq | der | todo  (por defecto izq: la lámina suele traer el 1er piso a la izquierda)
+  L D   = ancho y fondo de la casa en metros; por defecto los de Peumo. **Hay que pasarlos**: son
+          los que fijan la afín metros→pantalla junto con plano.json, y con los de otra casa el
+          ajuste converge igual pero a una escala equivocada.
 
 Imprime los tres valores y escribe al lado de la lámina un diagnóstico `calibracion_diag.png` con
 la planta en rojo sobre el render. **Hay que mirarlo**: la correlación es una guía, no una prueba.
@@ -33,16 +36,21 @@ import tempfile
 import numpy as np
 from PIL import Image, ImageFilter
 
-L, D = 9.49, 13.04
+L, D = 9.49, 13.04        # Peumo; se pisan con los argumentos 4 y 5
 
 
-def cargar_lamina(ruta, mitad):
+def cargar_lamina(ruta, mitad, franja=0.0):
+    """La lámina en gris. `franja` recorta una fracción de alto por arriba: las láminas bajadas del
+    sitio traen una banda azul de marca con el logo, que es un bloque de tinta grande y sin
+    estructura y le compite al dibujo en la correlación."""
     if ruta.lower().endswith(".pdf"):
         tmp = tempfile.mkdtemp()
         subprocess.run(["pdftoppm", "-r", "300", "-png", "-singlefile", ruta,
                         os.path.join(tmp, "p")], check=True)
         ruta = os.path.join(tmp, "p.png")
     im = Image.open(ruta).convert("L")
+    if franja > 0:
+        im = im.crop((0, int(im.height * franja), im.width, im.height))
     if mitad == "izq":
         im = im.crop((0, 0, im.width // 2, im.height))
     elif mitad == "der":
@@ -51,9 +59,14 @@ def cargar_lamina(ruta, mitad):
 
 
 def main():
+    global L, D
     s3 = sys.argv[1]
     lamina = sys.argv[2]
     mitad = sys.argv[3] if len(sys.argv) > 3 else "izq"
+    if len(sys.argv) > 5:
+        L, D = float(sys.argv[4]), float(sys.argv[5])
+    franja = float(os.environ.get("FRANJA", "0"))
+    print("casa %.2f x %.2f m" % (L, D))
 
     info = json.load(open(os.path.join(s3, "plano.json")))
     base = Image.open(sorted(glob.glob(os.path.join(s3, "f_*.png")))[-1]).convert("RGB")
@@ -69,7 +82,7 @@ def main():
     E = E - E.mean()          # centrado: si no, gana el encuadre que tape más superficie
 
     # MinFilter engrosa las líneas: a 720 px de ancho una línea de 1 px del dibujo no toca el borde
-    plan = cargar_lamina(lamina, mitad).filter(ImageFilter.MinFilter(9))
+    plan = cargar_lamina(lamina, mitad, franja).filter(ImageFilter.MinFilter(9))
     ppm_scr = float(np.linalg.norm(ex - o)) / L
     cache = {}
 

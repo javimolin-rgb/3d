@@ -14,7 +14,7 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 1. Lingue — campo ✅
 2. Huingán — playa ✅
 3. Peumo — nieve en el bosque ✅
-4. Boldo — lago ✅ (cuatro secciones; falta s4, ver abajo)
+4. Boldo — lago ✅
 5. Mañío — playa urbanizada
 6. Roble — nieve tipo centro de ski
 7. Maitén — mar roca
@@ -116,13 +116,14 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   rocas con `tools/get_assets_playa.sh`). Fotos de aprobación con `tools/fotos_boldo.sh`
   (`output/boldo_propuesta/`), secciones con `setsid nohup tools/render_boldo.sh s1 [s2 ...] &`.
   El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja.
-  **s1, s2, s3 y s5 están hechas** (864 cuadros, `output/casa_boldo_secuencia.mp4`, 36 s).
-  **Falta s4**, y ya no está bloqueada: la lámina está en `assets/boldo/planta_sin_cotas.png`,
-  bajada del sitio con `tools/get_planos_web.py`. Para hacerla: copiar `tools/plano_huingan.py` a
-  `tools/plano_boldo.py` —abriendo el PNG directo, sin el `pdftoppm` que usa la versión de
-  Huingán—, calibrar con `tools/calibrar_planta.py` (las constantes **no** se heredan de otra
-  casa) sobre el último cuadro de s3 y `frames_boldo/s3/plano.json`, que ya está escrito, y
-  rehacer la secuencia con las cinco secciones (1008 cuadros, 42 s).
+  **Completa**: las cinco secciones, `output/casa_boldo_secuencia.mp4`, 1008 cuadros, 42 s.
+  s4 = `tools/plano_boldo.py`, con la lámina en PNG (`assets/boldo/planta_sin_cotas.png`, bajada
+  del sitio): abre la imagen directo en vez de rasterizar un PDF, y por eso engrosa las líneas con
+  MinFilter(3) y no (9) —la lámina del sitio son 76,8 px/m contra los 374 px/m de un PDF a 300 dpi,
+  así que con 9 las paredes salían de doce centímetros—. Las constantes salen de
+  `tools/calibrar_planta.py`, que ahora recibe el ancho y el fondo de la casa por argumento y
+  acepta `FRANJA=0.13` para no dejar que la banda azul de marca de la lámina le compita al dibujo
+  en la correlación.
   Costo medido, útil para repartir: el cuadro no vale lo mismo a lo largo del recorrido. De lejos
   sobre el agua son ~29 cuadros/hora; acercándose baja a 21 (entra más bosque y más reflejo); en
   la cenital sube a 38, porque desde arriba casi no entra bosque. s1 tardó 9,5 h, s2 8 h, s3 7 h

@@ -11,7 +11,7 @@ primero.
 1. ~~Lingue~~ ✅ campo
 2. ~~Huingán~~ ✅ playa
 3. ~~Peumo~~ ✅ nieve en el bosque
-4. ~~Boldo~~ ✅ lago (cuatro secciones hechas; **falta s4**, ver abajo)
+4. ~~Boldo~~ ✅ lago (las cinco secciones, 42 s)
 5. **Mañío** — playa urbanizada
 6. **Roble** — nieve tipo centro de ski
 7. **Maitén** — mar roca
@@ -199,17 +199,17 @@ el carácter.
   piedra, y agregar salpicadura.
 - 🟢 Rocas CC0: `namaqualand_boulder_02` y `coast_rocks_01` ya los baja el script de assets.
 
-### Lago — para **Boldo** — hecho, salvo s4
+### Lago — para **Boldo** — hecho
 
-Fotos aprobadas y **cuatro secciones renderizadas**: s1 (240), s2 (192), s3 (240) y s5 (192), en
-`output/casa_boldo_s*.mp4`, unidas en `output/casa_boldo_secuencia.mp4` (864 cuadros, 36 s).
+Fotos aprobadas y **las cinco secciones**: s1 (240), s2 (192), s3 (240), s4 (144) y s5 (192), en
+`output/casa_boldo_s*.mp4`, unidas en `output/casa_boldo_secuencia.mp4` (1008 cuadros, 42 s).
 
-**Lo único que falta es s4**, y ya **no está bloqueada**: la lámina está en
-`assets/boldo/planta_sin_cotas.png`, bajada del sitio. Para hacerla: copiar `tools/plano_huingan.py` a `tools/plano_boldo.py`, calibrar las
-constantes con `tools/calibrar_planta.py` —**no se heredan de otra casa**, se vio en Peumo— sobre
-el último cuadro de s3 y `frames_boldo/s3/plano.json`, que ya quedó escrito con las tres
-referencias de la casa en pantalla, y rehacer la secuencia con las cinco secciones (1008 cuadros,
-42 s) concatenando sin recodificar.
+s4 se hizo con `tools/plano_boldo.py` y la lámina bajada del sitio
+(`assets/boldo/planta_sin_cotas.png`). Dos cosas que hubo que ajustar y valen para las que vienen:
+el engrosado de líneas baja a MinFilter(3), porque la lámina del sitio tiene 76,8 px/m contra los
+374 px/m de un PDF a 300 dpi; y el recorte en metros deja fuera el rótulo "PRIMER PISO", que cae
+en y 14,6..14,9 mientras el dibujo termina en el borde del porch, y = 14,2 (se midió contando
+tinta por fila, no a ojo).
 
 **Lo que se construyó:**
 
