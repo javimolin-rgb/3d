@@ -124,10 +124,21 @@ en el encabezado del script (12,18 m de ancho, cumbrera en x = 8,9, piso en z = 
 z = −0,31). Alimentan `CASA_BOX` y el encuadre adaptable: si están mal, el dron encuadra mal toda
 la película.
 
-### 3. La planta sin cotas, en PDF — para la sección 4
+### 3. La planta sin cotas — ya no bloquea a nadie
 
-`assets/<nombre>/planta_sin_cotas.pdf`. Se rasteriza a 300 dpi y se calza sobre la cenital.
-Si no la hay, s4 no se puede hacer y el recorrido queda en cuatro secciones.
+`assets/<nombre>/planta_sin_cotas.{pdf,png}`. Se calza sobre la cenital de s3.
+
+**Deja de ser algo que pedirle al usuario**: el propio sitio publica la lámina "Planta y
+Distribución" de cada modelo, y `python3 tools/get_planos_web.py` la baja a
+`assets/<casa>/planta_sin_cotas.png` (1400 px de ancho, de sobra para mostrarla a 720x1280).
+Están **ocho de las nueve**; Ciprés no tiene planta publicada, su página ni siquiera trae el
+rótulo. Huingán y Peumo conservan el PDF del Drive, que es el dibujo calibrado en sus
+`tools/plano_*.py`: la versión web es la misma planta con otra diagramación (vertical y con la
+franja de marca, en vez de apaisada con los dos pisos rotulados), así que cambiarla obligaría a
+recalibrar sin ganar nada.
+
+Las nuevas son PNG, así que el `plano_<casa>.py` abre la imagen directo en vez de pasarla por
+`pdftoppm`, que es la única línea que cambia respecto de `tools/plano_huingan.py`.
 
 ### Y por cada casa hay que escribir
 
@@ -193,8 +204,8 @@ el carácter.
 Fotos aprobadas y **cuatro secciones renderizadas**: s1 (240), s2 (192), s3 (240) y s5 (192), en
 `output/casa_boldo_s*.mp4`, unidas en `output/casa_boldo_secuencia.mp4` (864 cuadros, 36 s).
 
-🔴 **Lo único que falta es s4**, y sigue bloqueada por `assets/boldo/planta_sin_cotas.pdf`. Cuando
-llegue la lámina: copiar `tools/plano_huingan.py` a `tools/plano_boldo.py`, calibrar las
+**Lo único que falta es s4**, y ya **no está bloqueada**: la lámina está en
+`assets/boldo/planta_sin_cotas.png`, bajada del sitio. Para hacerla: copiar `tools/plano_huingan.py` a `tools/plano_boldo.py`, calibrar las
 constantes con `tools/calibrar_planta.py` —**no se heredan de otra casa**, se vio en Peumo— sobre
 el último cuadro de s3 y `frames_boldo/s3/plano.json`, que ya quedó escrito con las tres
 referencias de la casa en pantalla, y rehacer la secuencia con las cinco secciones (1008 cuadros,
@@ -226,6 +237,13 @@ referencias de la casa en pantalla, y rehacer la secuencia con las cinco seccion
   se notaban el doble. Con árboles reales la escena cambió por completo.
 - ✅ **Bruma recalibrada**: la de Huingán estaba hecha para fundir el mar con el cielo y acá
   borraba la ribera de enfrente. Quedó en 0,40 con escala 1900 m (era 0,62 y 900).
+
+**Una diferencia que dejó a la vista la lámina**: la planta real reparte los recintos en dos
+bandas **a lo largo** —estar, cocina y lavadero de un lado; dormitorio 1, baño y dormitorio 2 del
+otro— mientras que `tools/extraer_boldo_stl.py` supuso tres franjas transversales. Eso sólo
+cambia qué material recibe cada mueble del interior (que se ve a través del ventanal), no la
+geometría ni nada del exterior, así que no se rehízo el render. Si alguna vez se vuelve a
+extraer la casa, conviene corregir las zonas de `clasificar()` contra la lámina.
 
 **Lo que se aprendió del render** (sirve para planificar las que vienen): el cuadro no cuesta lo
 mismo a lo largo del recorrido. De lejos sobre el agua son ~29 cuadros/hora; a medida que el dron
@@ -279,7 +297,7 @@ trabajo acordado:
 
 | # | Casa | Lo que bloquea |
 |---|---|---|
-| — | todas | ✅ STL recibidos, salvo **Ciprés** 🔴 |
+| — | todas | ✅ STL recibidos, salvo **Ciprés** 🔴; plantas de s4 bajadas del sitio, salvo Ciprés |
 | 3 | **Peumo** | Material de nieve con SSS + nieve en las ramas |
 | 4 | ~~Boldo~~ | ✅ hecho; sólo falta la lámina de planta para s4 |
 | 5 | **Mañío** | Contexto urbano y vegetación ornamental |

@@ -28,6 +28,12 @@ en `archivo/cipres_v1/`: no partir de ahí, Ciprés se rehace desde Huingán.
 de cada STL. Los STL están en `stl/` (falta solo el de Ciprés) y los HDRI de todas las familias
 ya se bajan con `tools/get_assets_hdri.sh`.
 
+**Las plantas sin cotas de la sección 4 ya no hay que pedirlas**: el sitio las publica y
+`tools/get_planos_web.py` las baja a `assets/<casa>/planta_sin_cotas.png` (ocho de las nueve;
+Ciprés no tiene planta publicada). Huingán y Peumo conservan su PDF del Drive, que es el que está
+calibrado en sus `tools/plano_*.py`. Ojo: las nuevas son **PNG**, así que el `plano_<casa>.py` de
+cada casa abre la imagen directo en vez de pasarla por `pdftoppm`.
+
 Los STL de SketchUp traen **restos sueltos y el origen desplazado**, que rompen el encuadre
 adaptable: correr `python3 tools/medir_stl.py stl/*.stl` antes de escribir cualquier extractor.
 
@@ -111,11 +117,12 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   (`output/boldo_propuesta/`), secciones con `setsid nohup tools/render_boldo.sh s1 [s2 ...] &`.
   El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja.
   **s1, s2, s3 y s5 están hechas** (864 cuadros, `output/casa_boldo_secuencia.mp4`, 36 s).
-  **Falta s4**: necesita `assets/boldo/planta_sin_cotas.pdf`, que el usuario todavía no entrega.
-  Cuando llegue: copiar `tools/plano_huingan.py` a `tools/plano_boldo.py`, calibrar con
-  `tools/calibrar_planta.py` (las constantes **no** se heredan de otra casa) sobre el último
-  cuadro de s3 y `frames_boldo/s3/plano.json`, que ya está escrito, y rehacer la secuencia con
-  las cinco secciones (1008 cuadros, 42 s).
+  **Falta s4**, y ya no está bloqueada: la lámina está en `assets/boldo/planta_sin_cotas.png`,
+  bajada del sitio con `tools/get_planos_web.py`. Para hacerla: copiar `tools/plano_huingan.py` a
+  `tools/plano_boldo.py` —abriendo el PNG directo, sin el `pdftoppm` que usa la versión de
+  Huingán—, calibrar con `tools/calibrar_planta.py` (las constantes **no** se heredan de otra
+  casa) sobre el último cuadro de s3 y `frames_boldo/s3/plano.json`, que ya está escrito, y
+  rehacer la secuencia con las cinco secciones (1008 cuadros, 42 s).
   Costo medido, útil para repartir: el cuadro no vale lo mismo a lo largo del recorrido. De lejos
   sobre el agua son ~29 cuadros/hora; acercándose baja a 21 (entra más bosque y más reflejo); en
   la cenital sube a 38, porque desde arriba casi no entra bosque. s1 tardó 9,5 h, s2 8 h, s3 7 h

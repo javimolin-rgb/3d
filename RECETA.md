@@ -78,7 +78,11 @@ contenedor; los MP4 son el entregable duradero.
    `output/<nombre>_propuesta/`.
 4. **Secciones** → `PY=/opt/bpyvenv/bin/python setsid nohup tools/render_<nombre>.sh s1 &`
    (copiar `tools/render_huingan.sh`). Orden: s1 → s2 → s3 → s4 → s5.
-5. **s4** → `tools/plano_<nombre>.py`, post 2D sobre el último cuadro de s3.
+5. **s4** → `tools/plano_<nombre>.py`, post 2D sobre el último cuadro de s3. La lámina de
+   planta sin cotas la publica el propio sitio: `python3 tools/get_planos_web.py` la baja a
+   `assets/<nombre>/planta_sin_cotas.png` (están las nueve menos Ciprés). Huingán y Peumo usan el
+   PDF del Drive, que es lo que tienen calibrado; las demás son PNG y el `plano_<nombre>.py` las
+   abre directo, sin `pdftoppm`.
 6. **MP4 por sección** → `LOOK=dia tools/armar_video.sh frames_<nombre>/<sec> output/casa_<nombre>_<sec>.mp4 24`
 7. **Secuencia** → concatenar sin recodificar (todas salen h264 720x1280 yuv420p 24fps):
    ```bash
