@@ -201,7 +201,7 @@ En **orden de trabajo** (el acordado con el usuario; `PENDIENTES.md` dice qué f
 | 1 | **Lingue** | Campo | Campo | `casa_lingue_3d.py` | ✅ hecho |
 | 2 | **Huingán** | Playa | Playa | `casa_huingan_3d.py` | ✅ hecho |
 | 3 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | ✅ hecho |
-| 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | ← **en curso** (escena lista) |
+| 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | ✅ hecho (falta s4) |
 | 5 | **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
 | 6 | **Roble** | Nieve tipo centro de ski | Nieve | hereda de Peumo | pendiente |
 | 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |

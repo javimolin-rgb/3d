@@ -11,7 +11,7 @@ primero.
 1. ~~Lingue~~ ✅ campo
 2. ~~Huingán~~ ✅ playa
 3. ~~Peumo~~ ✅ nieve en el bosque
-4. **Boldo** — lago ← **en curso** (escena lista, fotos a la espera del visto bueno)
+4. ~~Boldo~~ ✅ lago (cuatro secciones hechas; **falta s4**, ver abajo)
 5. **Mañío** — playa urbanizada
 6. **Roble** — nieve tipo centro de ski
 7. **Maitén** — mar roca
@@ -188,9 +188,19 @@ el carácter.
   piedra, y agregar salpicadura.
 - 🟢 Rocas CC0: `namaqualand_boulder_02` y `coast_rocks_01` ya los baja el script de assets.
 
-### Lago — para **Boldo** — resuelto en `casa_boldo_3d.py`
+### Lago — para **Boldo** — hecho, salvo s4
 
-**Hecho** (falta sólo el visto bueno del usuario a las fotos, y la planta en PDF para s4):
+Fotos aprobadas y **cuatro secciones renderizadas**: s1 (240), s2 (192), s3 (240) y s5 (192), en
+`output/casa_boldo_s*.mp4`, unidas en `output/casa_boldo_secuencia.mp4` (864 cuadros, 36 s).
+
+🔴 **Lo único que falta es s4**, y sigue bloqueada por `assets/boldo/planta_sin_cotas.pdf`. Cuando
+llegue la lámina: copiar `tools/plano_huingan.py` a `tools/plano_boldo.py`, calibrar las
+constantes con `tools/calibrar_planta.py` —**no se heredan de otra casa**, se vio en Peumo— sobre
+el último cuadro de s3 y `frames_boldo/s3/plano.json`, que ya quedó escrito con las tres
+referencias de la casa en pantalla, y rehacer la secuencia con las cinco secciones (1008 cuadros,
+42 s) concatenando sin recodificar.
+
+**Lo que se construyó:**
 
 - ✅ **La casa**, de `stl/Modelo Casa Boldo.stl` con `tools/extraer_boldo_stl.py` →
   `assets/boldo/casa.blend`. El STL vino limpio (0 restos) pero desplazado (esquina en
@@ -217,10 +227,12 @@ el carácter.
 - ✅ **Bruma recalibrada**: la de Huingán estaba hecha para fundir el mar con el cielo y acá
   borraba la ribera de enfrente. Quedó en 0,40 con escala 1900 m (era 0,62 y 900).
 
-**Falta:**
-- 🔴 **`assets/boldo/planta_sin_cotas.pdf`** — sin ella no se puede hacer s4 y el recorrido queda
-  en cuatro secciones. Es lo único que bloquea el video.
-- 🟡 El visto bueno del usuario a las fotos de `output/boldo_propuesta/` (RECETA.md §0).
+**Lo que se aprendió del render** (sirve para planificar las que vienen): el cuadro no cuesta lo
+mismo a lo largo del recorrido. De lejos sobre el agua son ~29 cuadros/hora; a medida que el dron
+se acerca baja a 21, porque entra más bosque y más reflejo; en la cenital sube a 38, porque desde
+arriba casi no entra bosque. En total: s1 9,5 h, s2 8 h, s3 7 h y s5 6 h en cuatro núcleos. El
+contenedor se reinició dos veces y las dos se retomó sin perder más de 40 minutos, borrando el
+cuadro marcador a medio escribir y relanzando el mismo comando.
 
 HDRI bajados y medidos con `tools/get_assets_hdri.sh lago` (se eligió **`lakeside`**):
 
@@ -269,7 +281,7 @@ trabajo acordado:
 |---|---|---|
 | — | todas | ✅ STL recibidos, salvo **Ciprés** 🔴 |
 | 3 | **Peumo** | Material de nieve con SSS + nieve en las ramas |
-| 4 | **Boldo** | Agua calma + construir la orilla opuesta |
+| 4 | ~~Boldo~~ | ✅ hecho; sólo falta la lámina de planta para s4 |
 | 5 | **Mañío** | Contexto urbano y vegetación ornamental |
 | 6 | **Roble** | Hereda la nieve de Peumo; falta contexto de montaña |
 | 7 | **Maitén** | Reescribir la orilla rocosa y la espuma contra la piedra |

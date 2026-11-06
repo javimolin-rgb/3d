@@ -14,7 +14,7 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 1. Lingue — campo ✅
 2. Huingán — playa ✅
 3. Peumo — nieve en el bosque ✅
-4. **Boldo — lago** ← en curso (escena lista, fotos esperando el visto bueno)
+4. Boldo — lago ✅ (cuatro secciones; falta s4, ver abajo)
 5. Mañío — playa urbanizada
 6. Roble — nieve tipo centro de ski
 7. Maitén — mar roca
@@ -109,8 +109,17 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   árboles y sotobosque de Poly Haven con `tools/get_assets_lago.sh`, 1,3 GB, y el matorral y las
   rocas con `tools/get_assets_playa.sh`). Fotos de aprobación con `tools/fotos_boldo.sh`
   (`output/boldo_propuesta/`), secciones con `setsid nohup tools/render_boldo.sh s1 [s2 ...] &`.
-  El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja. **s4 no se puede
-  hacer todavía**, falta `assets/boldo/planta_sin_cotas.pdf`.
+  El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja.
+  **s1, s2, s3 y s5 están hechas** (864 cuadros, `output/casa_boldo_secuencia.mp4`, 36 s).
+  **Falta s4**: necesita `assets/boldo/planta_sin_cotas.pdf`, que el usuario todavía no entrega.
+  Cuando llegue: copiar `tools/plano_huingan.py` a `tools/plano_boldo.py`, calibrar con
+  `tools/calibrar_planta.py` (las constantes **no** se heredan de otra casa) sobre el último
+  cuadro de s3 y `frames_boldo/s3/plano.json`, que ya está escrito, y rehacer la secuencia con
+  las cinco secciones (1008 cuadros, 42 s).
+  Costo medido, útil para repartir: el cuadro no vale lo mismo a lo largo del recorrido. De lejos
+  sobre el agua son ~29 cuadros/hora; acercándose baja a 21 (entra más bosque y más reflejo); en
+  la cenital sube a 38, porque desde arriba casi no entra bosque. s1 tardó 9,5 h, s2 8 h, s3 7 h
+  y s5 6 h, en cuatro núcleos.
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
