@@ -206,7 +206,7 @@ En **orden de trabajo** (el acordado con el usuario; `PENDIENTES.md` dice qué f
 | 2 | **Huingán** | Playa | Playa | `casa_huingan_3d.py` | ✅ hecho |
 | 3 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | ✅ hecho |
 | 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | ✅ hecho |
-| 5 | **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
+| 5 | **Mañío** | Playa urbanizada | Playa | `casa_manio_3d.py` | 🔨 en curso |
 | 6 | **Roble** | Nieve tipo centro de ski | Nieve | hereda de Peumo | pendiente |
 | 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
 | 8 | **Coihue** | Campo, *que se note el trigo* | Campo | `casa_lingue_3d.py` | pendiente |
@@ -249,10 +249,17 @@ casa), con variación de altura y de tono, y **animarlo con viento** — un trig
 muerto. Las espigas en contraluz con el sol bajo son lo que da el efecto.
 
 **Playa** — base resuelta en Huingán: duna, matorral costero, pasarela, mar con oleaje y espuma.
-- *Mañío* (**urbanizada**): el mar y la arena se reutilizan tal cual; lo que cambia es el
-  contexto y la vegetación. Más casas vecinas y más cerca, costanera o calle pavimentada en vez
-  de camino de tierra, postes y muros de contención, vegetación **domesticada** (césped, palmeras
-  o especies ornamentales) en vez de matorral silvestre. La duna deja de ser salvaje.
+- *Mañío* (**urbanizada**): resuelto en `casa_manio_3d.py`. El mar y la arena se reutilizan tal
+  cual; lo que cambia es tierra adentro: costanera pavimentada con solera, veredas, alumbrado y
+  postes con tendido; muro de contención de hormigón sobre la playa con escalera pública; dos
+  filas de vecinos cerca más el balneario trepando el cerro; y vegetación **domesticada**
+  (césped, setos de deslinde, jacarandás de vereda, maceteros) en vez de matorral silvestre, que
+  queda sólo en los sitios baldíos. La duna deja de ser salvaje: `terrain_h` aterraza el loteo.
+  Tres trampas al heredar esto: la **playa tiene que ser ancha** (con los 13 m de Huingán el
+  encuadre adaptable pone la cámara sobre el muro y el mar queda fuera de cuadro); el **ripple de
+  arena** hay que apagarlo donde hay césped (la rampa de Huingán lo deja encendido tierra adentro
+  y el pasto sale rayado); y la franja húmeda del muro se mide con un **atributo de altura**, no
+  con la z del mundo.
 - *Ciprés* (**norte, seco**): mismo mar, clima opuesto. Casi nada de verde — arena y roca
   desnudas, alguna mata rala y aislada. Luz más dura y vertical: subir `SUN_ELEV`, bajar
   `aerosol_density` del cielo físico y **reducir la bruma** (`mist_settings.depth` más corto),

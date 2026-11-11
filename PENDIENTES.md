@@ -12,7 +12,7 @@ primero.
 2. ~~Huingán~~ ✅ playa
 3. ~~Peumo~~ ✅ nieve en el bosque
 4. ~~Boldo~~ ✅ lago (las cinco secciones, 42 s)
-5. **Mañío** — playa urbanizada
+5. **Mañío** — playa urbanizada 🔨 *en curso: escena armada, fotos de aprobación entregadas*
 6. **Roble** — nieve tipo centro de ski
 7. **Maitén** — mar roca
 8. **Coihue** — campo, que se note el trigo
@@ -106,6 +106,7 @@ Exportados de SketchUp, en mm, en la carpeta `stl/` del repo. Medidos con
 | Mañío | 16,02 × 11,15 × 5,07 | 864.905 | — |
 | Roble | 8,79 × 16,81 × 6,55 | 1.608.021 | 1.224, origen en x −31,5 y +21,4 |
 | Maitén | 16,27 × 11,84 × 8,10 | 1.426.653 | 298 |
+| Mañío (cotas medidas al convertir) | piso 0,53 · aleros 2,90 y 2,84 · cumbrera 4,91 en x = 9,55 · ventanal y = 2,95 · acceso y = 9,35 | | |
 | Coihue | 19,81 × 13,76 × 5,15 | 1.767.804 | — |
 | **Ciprés** | — | — | 🔴 **falta** |
 
@@ -173,11 +174,47 @@ Las nuevas son PNG, así que el `plano_<casa>.py` abre la imagen directo en vez 
 
 Es la familia **más barata de arrancar**: casi todo se hereda.
 
-**Falta para Mañío (urbanizada):**
-- 🟡 Contexto urbano: casas vecinas más densas y cercanas, costanera o calle pavimentada, postes,
-  muros de contención. Hoy `build_context()` hace casas sueltas y camino de tierra.
-- 🟡 Vegetación ornamental (césped, palmeras o especies de jardín). La que hay es matorral
-  silvestre.
+**Mañío (urbanizada) — en curso.** `casa_manio_3d.py` armado y las fotos de aprobación en
+`output/manio_propuesta/` (izq, der, frente, cerca, izq_atras, calle). **Falta el visto bueno del
+usuario antes de renderizar video.**
+
+Lo que se construyó sobre la base de Huingán:
+
+- ✅ **La casa**, de `stl/mañio.stl` con `tools/extraer_manio_stl.py` → `assets/manio/casa.blend`.
+  El STL vino limpio (0 restos) y desplazado (esquina en x = 0,00, y = 0,25, z = −0,32). Es **la
+  más grande de las nueve**: 16,02 × 11,15 (178 m² de huella contra los 113 de Huingán), un piso
+  con tres dormitorios, escritorio y tres baños — nació como la *Huingán familiar*.
+- ✅ **Corrección del techo**: no es de una agua a 12° como decía `ENGANCHES.md`, son **dos
+  faldones de 12° y 18° con la cumbrera en x = 9,55**, justo sobre el muro que separa el living
+  del dormitorio 2. Lo de "una agua" sale de que desde el mar sólo se ve el faldón de 12°.
+- ✅ **Contexto urbano**: costanera pavimentada paralela a la orilla (calzada de asfalto con
+  huellas de rueda, solera, veredas a ambos lados), alumbrado público cada 30 m, postes de
+  hormigón con tendido aéreo cada 36 m, entrada de autos al porch con portón y pandereta, y dos
+  filas de vecinos sobre la costanera más el balneario trepando el cerro (65 casas en total).
+  Los vecinos de la primera fila son **más chicos que Mañío a propósito**, si no deja de leerse
+  como la grande.
+- ✅ **Muro de contención** de hormigón sobre la playa, con escalera pública a la arena y el
+  sendero que la une con la terraza. Es lo que explica que el predio esté plano: `terrain_h`
+  aterraza todo el loteo en vez de ondularlo.
+- ✅ **Vegetación domesticada**: césped de bermuda (tarjetas de 6-10 caras, por eso aguanta
+  55 matas/m²) con el terreno teñido de verde debajo, setos recortados en los deslindes, macizos
+  de arbustos de jardín, jacarandás alineados en la vereda y árboles ornamentales de antejardín.
+  El matorral costero silvestre queda sólo en los **sitios baldíos** y al pie del muro.
+- ✅ **Recursos nuevos**: `tools/get_assets_urbano.sh` (alumbrado, jacarandá, island_tree,
+  arbustos de jardín, maceteros, asfalto y hormigón de Poly Haven CC0).
+
+Tres cosas que costaron y conviene no repetir en Ciprés:
+
+1. **La playa tiene que ser ancha.** Con los 13 m de duna de Huingán, el encuadre adaptable planta
+   la cámara justo sobre el muro de contención y el mar queda **detrás de ella** en todas las
+   tomas. Quedó en 24 m de arena (`MURO_D`), y aun así las vistas que tienen que mostrar la
+   relación con el agua se alejan a factor 2,6 (ver `VISTAS`).
+2. **El ripple de arena hay que apagarlo donde hay césped.** La rampa de Huingán deja las ondas de
+   viento encendidas para todo `shore_d > 10`, o sea tierra adentro también: el pasto de los
+   antejardines salía con rayas paralelas y en la cenital el jardín se veía como pana.
+3. **El liquen del muro se mide con un atributo, no con la z del mundo.** El muro corre a cota
+   variable; con la z cruda la franja húmeda del pie cubría el muro entero y se veía una faja
+   verde oscura cruzando la playa.
 
 **Falta para Ciprés (norte, seco):**
 - 🟢 Nada que descargar: `flamingo_pan_2k.exr` ya está y es el más árido de los cinco. Hay que

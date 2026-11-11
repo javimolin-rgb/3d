@@ -13,7 +13,7 @@ detenerse en el ventanal.
 | Huingán | 12,18 × 9,24 | — | dos aguas asimétrico | mariposa |
 | Peumo | 9,49 × 13,04 | 6,54 | dos aguas 28° | testero vidriado doble altura |
 | Boldo | 7,49 × 14,33 | 6,55 | dos aguas 32°, cumbrera a x = 5,60 | la más angosta y larga; techo muy asimétrico |
-| Mañío | 16,02 × 11,15 | 5,07 | una agua **12°** | fachada vidriada corrida |
+| Mañío | 16,02 × 11,15 | 5,07 | dos aguas 12° y 18°, cumbrera a x = 9,55 | fachada vidriada corrida; la más grande |
 | Roble | 8,79 × 16,81 | 6,55 | dos aguas 32° | angosta y larga |
 | Maitén | 16,27 × 11,84 | **8,10** | 20° | la más alta, dos volúmenes |
 | Coihue | **19,81** × 13,76 | 5,15 | 16° | la más ancha |
@@ -64,9 +64,23 @@ un lado, como una cuña apuntando al agua.
 ## Mañío — playa urbanizada
 
 **Se abre entera al frente.** No es una ventana al mar: es toda la fachada, vidriada y corrida a
-lo largo, con la terraza siguiéndola de punta a punta. Y es la más baja del conjunto (5,07 m,
-techo de una agua a 12°): se tiende en el terreno en vez de asomarse sobre los vecinos. En una
-playa ya urbanizada, ese perfil bajo es privacidad.
+lo largo, con la terraza siguiéndola de punta a punta. Y es la más baja del conjunto (5,07 m):
+se tiende en el terreno en vez de asomarse sobre los vecinos. En una playa ya urbanizada, ese
+perfil bajo es privacidad.
+
+Es además **la más grande de las nueve** —16,02 m de frente por 11,15 de fondo, 178 m² de huella
+contra los 113 de Huingán— y de hecho nació como la *Huingán familiar*: un piso con tres
+dormitorios, escritorio y tres baños, repartidos en dos bandas a lo largo (los recintos que miran
+al mar contra el ventanal, el servicio detrás contra el porch). Eso cambia el encuadre: con el
+`FIT` de Huingán quedaba una franja chica en medio de un cuadro vertical, así que ocupa casi todo
+el ancho de pantalla.
+
+> ⚠️ Corrección: este cuadro decía **una agua a 12°**. Medido sobre el STL al convertirlo
+> (`tools/extraer_manio_stl.py` imprime los faldones), el techo es de **dos aguas muy
+> asimétrico**: un faldón largo de 12° que sube desde el alero del mar (z = 2,90 en x = 0) hasta
+> la cumbrera en x = 9,55 (z = 4,91), y uno corto de 18° que baja al alero de x = 16,02
+> (z = 2,84). La cumbrera cae justo sobre el muro que separa el living del dormitorio 2. Lo de
+> "una agua" viene de que, visto desde el mar, sólo se ve el faldón de 12°.
 
 ## Roble — nieve tipo centro de ski
 

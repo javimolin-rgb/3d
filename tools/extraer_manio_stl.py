@@ -1,0 +1,334 @@
+"""Convierte el modelo STL de Casa Mañío en una casa con materiales, lista para casa_manio_3d.py.
+
+Mismo criterio que tools/extraer_boldo_stl.py (el STL de SketchUp no trae materiales y viene
+desplazado del origen): se recentra con el percentil 0,5-99,5 de los centroides, el casco se pinta
+cara a cara decidiendo con dos rayos sobre un BVH del propio casco cuál lado mira al exterior
+—las normales del STL no son confiables—, y el resto se separa en piezas que se clasifican por
+forma y por recinto. Las piezas densas se simplifican con Decimate.
+
+Cotas medidas al convertir (x = 0..16,02 a lo largo de la fachada, y = 0..11,15 de la terraza al
+porch, z = 0 en la base): piso terminado 0,53 · aleros 2,90 (x = 0) y 2,84 (x = 16,02) · cumbrera
+4,91 en x = 9,55 · testero vidriado corrido en y = 2,95 y acceso en y = 9,35. El STL vino limpio
+(0 restos) y desplazado (esquina en x = 0,00, y = 0,25, z = -0,32).
+
+⚠️ El techo **no es de una agua**, como decía ENGANCHES.md: son dos faldones asimétricos de 12° y
+18° con la cumbrera corrida a x = 9,55 de 16,02 —justo sobre el muro que separa el living del
+dormitorio 2—. El de 12° es el largo y el que se ve desde el mar, que es de donde salía la
+lectura de "una agua".
+
+Planta (un solo piso, leída de assets/manio/planta_sin_cotas.png):
+  terraza   y < 2,95 (corrida de punta a punta frente al mar)
+  día/noche y 2,95..6,10 — dormitorio 1 (x < 3,5) · living y comedor (3,5..9,5) ·
+            dormitorio 2 (9,5..12,6) · dormitorio 3 (x > 12,6)
+  servicio  y 6,10..9,35 — baño 1 (x < 2,6) · lavadero (2,6..4,1) · cocina (4,1..9,5) ·
+            baño visita (9,5..11,2) · closet y escritorio (11,2..13,5) · baño 2 (x > 13,5)
+  porch     y > 9,35 (fachada de acceso, a la calle)
+
+Uso:
+  python tools/extraer_manio_stl.py -- stl/mañio.stl assets/manio/casa.blend
+"""
+import sys
+
+import bpy  # noqa: E402  (bpy debe importarse antes que bmesh)
+import bmesh
+import numpy as np
+from mathutils.bvhtree import BVHTree
+
+stl, out = sys.argv[-2], sys.argv[-1]
+MAX_FACES = 2500
+HOLGURA = 2.0                     # igual que tools/medir_stl.py
+PISO = 0.53                       # piso terminado (un solo piso)
+Y_VID, Y_ACC = 2.95, 9.35         # testero vidriado (terraza) y fachada de acceso (porch)
+Y_DIA = 6.10                      # fondo de la banda de día y dormitorios; atrás va el servicio
+X_D1, X_EST, X_D2 = 3.50, 9.50, 12.60     # dormitorio 1 · estar · dormitorio 2 · dormitorio 3
+X_B1, X_LAV, X_BV, X_ESC = 2.60, 4.10, 11.20, 13.50   # baño 1 · lavadero · baño vis. · escritorio
+bpy.ops.wm.read_factory_settings(use_empty=True)
+
+
+def mat(name, color, rough, metal=0.0, emit=0.0, sheen=0.0):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (*color, 1)
+    b.inputs["Roughness"].default_value = rough
+    b.inputs["Metallic"].default_value = metal
+    if emit:
+        b.inputs["Emission Color"].default_value = (1.0, 0.75, 0.45, 1)
+        b.inputs["Emission Strength"].default_value = emit
+    if sheen:
+        b.inputs["Sheen Weight"].default_value = sheen
+    return m
+
+
+# Paleta Neorigen: casco de chapa negra, fachada y cielo de madera clara, deck de madera,
+# interior forrado en madera. casa_manio_3d.py reemplaza por nombre los materiales con textura.
+M = {
+    "chapa": mat("Ma_ChapaNegra", (0.018, 0.018, 0.02), 0.45, 0.3),
+    "madera": mat("Ma_MaderaFachada", (0.55, 0.4, 0.26), 0.6),
+    "cielo": mat("Ma_MaderaCielo", (0.55, 0.4, 0.26), 0.6),
+    "deck": mat("Ma_Deck", (0.4, 0.27, 0.16), 0.6),
+    "decknegro": mat("Ma_DeckBorde", (0.05, 0.045, 0.04), 0.7),
+    "piso": mat("Ma_PisoInterior", (0.5, 0.36, 0.23), 0.45),
+    "muroint": mat("Ma_MuroInterior", (0.6, 0.46, 0.31), 0.6),
+    "pilote": mat("Ma_Pilote", (0.55, 0.54, 0.52), 0.9),
+    "marco": mat("Ma_MarcoNegro", (0.012, 0.012, 0.013), 0.35, 0.6),
+    "vidrio": mat("Ma_Vidrio", (0.9, 0.92, 0.92), 0.02),
+    "vidrioTecho": mat("Ma_VidrioTecho", (0.25, 0.28, 0.29), 0.12),
+    "puerta": mat("Ma_PuertaMadera", (0.36, 0.23, 0.13), 0.5),
+    "telaClara": mat("Ma_TelaClara", (0.62, 0.6, 0.56), 0.95, sheen=0.4),
+    "telaMedia": mat("Ma_TelaGris", (0.3, 0.29, 0.28), 0.95, sheen=0.4),
+    "sabanas": mat("Ma_Sabanas", (0.82, 0.8, 0.77), 0.9, sheen=0.3),
+    "maderaOsc": mat("Ma_MaderaOscura", (0.14, 0.08, 0.045), 0.5),
+    "maderaClara": mat("Ma_MaderaClara", (0.55, 0.4, 0.26), 0.55),
+    "negro": mat("Ma_NegroMate", (0.025, 0.025, 0.027), 0.6),
+    "ceramica": mat("Ma_Ceramica", (0.85, 0.85, 0.83), 0.15),
+    "acero": mat("Ma_Acero", (0.6, 0.6, 0.62), 0.25, 1.0),
+    "planta": mat("Ma_Planta", (0.06, 0.16, 0.05), 0.6),
+    "lampara": mat("Ma_Lampara", (0.95, 0.85, 0.7), 0.4, emit=6.0),
+}
+ORDEN = list(M)
+
+
+def plano(c, n):
+    """Pendiente e intercepto (z en x = 0) del plano de una cara inclinada. La cumbrera de Mañío
+    corre en el eje Y, igual que la de Boldo, así que los faldones se describen con dz/dx."""
+    s = -n.x / n.z
+    return round(s, 2), c.z - s * c.x
+
+
+def afuera(bvh, c, n):
+    """(exterior, hacia_afuera) de una cara: tira un rayo en el sentido de la normal y otro en
+    contra. El lado por el que el rayo escapa del casco es el lado de afuera."""
+    esc = []
+    for d in (n, -n):
+        hit = bvh.ray_cast(c + d * 0.02, d, 40.0)[0]
+        esc.append(hit is None)
+    if esc[0] and not esc[1]:
+        return True, n
+    if esc[1] and not esc[0]:
+        return True, -n
+    return False, n          # encerrada (adentro) o suelta: se trata como interior
+
+
+def casco_cara(c, n, bvh, techo, area=1.0):
+    """Material de una cara del casco, por su posición y hacia dónde da."""
+    ext, o = afuera(bvh, c, n)
+    # Los faldones de Mañío son muy tendidos (12° y 18°): con el corte de Boldo en |nz| < 0,98 el
+    # de 12° (nz = 0,978) se iba con las caras horizontales y el techo salía pintado de cielo de
+    # madera. Acá el umbral sube a 0,995 y se exige estar por encima del alero más bajo.
+    inclinada = 0.10 < abs(n.z) < 0.995 and c.z > 2.3
+    if inclinada:                                            # faldones del techo
+        s, zi = plano(c, n)
+        if c.y < Y_VID - 0.5 or c.y > Y_ACC + 0.5:
+            return "marco"                                   # canto del sotecho que vuela
+        if ext and o.z > 0:
+            return "chapa"                                   # todo lo que mira al cielo
+        tapa = zi > techo.get(s, 99) - 0.06
+        return "chapa" if tapa else "cielo"
+    if abs(n.z) > 0.9:                                       # caras horizontales
+        if c.z < PISO + 0.15:
+            if o.z < 0:
+                return "decknegro"                           # sotabanco del piso y del deck
+            return "deck" if ext else "piso"                 # deck a cielo abierto / piso interior
+        return "chapa" if ext and o.z > 0 else "cielo"
+    if c.z < PISO - 0.08:                                    # bajo el piso
+        return "pilote" if ext else "decknegro"
+    if not ext:
+        return "muroint"
+    if abs(o.y) > 0.7 and (c.y < Y_VID + 0.12 or c.y > Y_ACC - 0.12):
+        # Lo que está **en** el plano de la fachada es cara de tabla y va en madera; lo que vuela
+        # por delante es canto y va negro (mismo criterio que Boldo).
+        return "marco" if c.y < Y_VID - 0.5 or c.y > Y_ACC + 0.5 else "madera"
+    return "chapa"                                           # el resto de la envolvente
+
+
+def en_faldon(cx, cy, cz):
+    """¿La pieza se apoya en el plano de un faldón? Los tragaluces y la chimenea sí."""
+    if not Y_VID + 0.5 < cy < Y_ACC - 0.5:
+        return False
+    return cz > 2.9 and any(abs(cz - (zi + s * cx)) < 0.6 for s, zi in techo.items())
+
+
+def recinto(cx, cy):
+    """Nombre del recinto en el que cae un punto de la planta."""
+    if cy < Y_VID:
+        return "terraza"
+    if cy > Y_ACC:
+        return "porch"
+    if cy < Y_DIA:
+        if cx < X_D1:
+            return "dormitorio"
+        if cx < X_EST:
+            return "estar"
+        return "dormitorio"
+    if cx < X_B1:
+        return "bano"
+    if cx < X_LAV:
+        return "lavadero"
+    if cx < X_EST:
+        return "cocina"
+    if cx < X_BV:
+        return "bano"
+    if cx < X_ESC:
+        return "escritorio"
+    return "bano"
+
+
+def clasificar(x0, x1, y0, y1, z0, z1, nf, area):
+    """Material de una pieza suelta, por forma y por recinto."""
+    dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
+    ext = sorted((dx, dy, dz))
+    cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
+    if ext[0] < 0.012 and ext[1] * ext[2] > 0.25:
+        # El cristal se decide antes que nada: las reglas de canto y de faldón también atrapan
+        # paños (finos, pegados a un muro y más altos que anchos).
+        return "vidrioTecho" if en_faldon(cx, cy, cz) else "vidrio"
+    if (x1 < 1.15 or x0 > L - 1.15 or y1 < Y_VID - 0.2 or y0 > Y_ACC + 0.2) \
+            and min(dx, dy) < 0.25 and min(dx, dy) < dz:
+        return "marco"                                        # canto a la vista por fuera
+    if en_faldon(cx, cy, cz):
+        return "marco"                                        # marcos de tragaluz y chimenea
+    if dz > 1.8 and ext[0] < 0.09 and 0.5 < ext[1] < 1.2:
+        return "puerta"
+    fachada = y1 < Y_VID + 0.25 or y0 > Y_ACC - 0.25 or x1 < 0.9 or x0 > L - 0.9
+    if fachada and ext[0] < 0.2 and z1 > PISO + 0.4:
+        return "marco"                                        # perfilería del ventanal corrido
+    if ext[2] > 0.4 and ext[1] < 0.08:
+        return "negro" if z1 < PISO + 1.2 else "marco"        # patas, barandas, perfiles
+    if z0 < PISO - 0.2 and (y1 < Y_VID or y0 > Y_ACC):
+        return "deck"                                         # escaleras de terraza y porch
+    r = recinto(cx, cy)
+    if r == "terraza":
+        if nf > 2000:
+            return "telaClara"
+        return "planta" if dz > 0.5 and ext[0] < 0.6 and z0 > PISO else "negro"
+    if r == "porch":
+        return "deck" if dz < 0.2 else "maderaOsc"
+    if r == "estar":                                          # living y comedor
+        if z0 > PISO + 1.6 and ext[2] < 0.6:
+            return "lampara"                                  # colgantes sobre la mesa
+        if dz < 0.09 and PISO + 0.3 < z0 < PISO + 0.55 and area > 0.4:
+            return "vidrio"                                   # cubiertas de las mesas bajas
+        if nf > 1800:
+            return "telaClara" if dx > 0.9 or dy > 0.9 else "telaMedia"
+        return "maderaOsc"
+    if r == "bano":
+        return "ceramica" if nf > 300 else "acero"
+    if r == "cocina":
+        if z0 > PISO + 1.4 and ext[2] < 0.6:
+            return "lampara"
+        return "acero" if nf > 1200 else "maderaOsc"
+    if r == "lavadero":
+        return "acero" if nf > 600 else "maderaClara"
+    if r == "escritorio":
+        return "maderaClara" if dz > 0.5 else "maderaOsc"
+    # ---- dormitorios
+    if nf > 2500 or (dx > 1.0 and dy > 1.4 and z1 < PISO + 0.9):
+        return "sabanas" if z1 > PISO + 0.45 else "maderaOsc"
+    if z0 > PISO + 1.5 and ext[2] < 0.6:
+        return "lampara"
+    return "maderaOsc" if z1 < PISO + 0.9 else "maderaClara"
+
+
+# ------------------------------------------------------------------ importar, limpiar, recentrar
+bpy.ops.wm.stl_import(filepath=stl, global_scale=0.001)
+src = bpy.context.selected_objects[0]
+bpy.ops.object.transform_apply(scale=True)
+me = src.data
+co = np.empty(len(me.vertices) * 3)
+me.vertices.foreach_get("co", co)
+co = co.reshape(-1, 3)
+idx = np.empty(len(me.polygons) * 3, dtype=np.int32)
+me.polygons.foreach_get("vertices", idx)
+ctr = co[idx.reshape(-1, 3)].mean(1)
+lo, hi = np.percentile(ctr, 0.5, axis=0), np.percentile(ctr, 99.5, axis=0)
+dentro = np.all((ctr >= lo - HOLGURA) & (ctr <= hi + HOLGURA), axis=1)
+vv = co[idx.reshape(-1, 3)][dentro].reshape(-1, 3)
+mn, mx = vv.min(0), vv.max(0)
+L, D_CASA, H = mx - mn
+print("CASA  %.2f x %.2f x %.2f m   esquina del STL (%.2f, %.2f, %.2f)  restos: %d tri"
+      % (L, D_CASA, H, *mn, (~dentro).sum()))
+src.location = (-mn[0], -mn[1], -mn[2])
+bpy.ops.object.transform_apply(location=True)
+
+bpy.context.view_layer.objects.active = src
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.separate(type="LOOSE")
+bpy.ops.object.mode_set(mode="OBJECT")
+obs = list(bpy.context.scene.objects)
+print("piezas sueltas:", len(obs))
+
+# ------------------------------------------------------------------ casco
+casco = max(obs, key=lambda o: o.dimensions.x * o.dimensions.y * o.dimensions.z)
+casco.name = "Manio_Casco"
+for k in ORDEN:
+    casco.data.materials.append(M[k])
+bm = bmesh.new()
+bm.from_mesh(casco.data)
+techo = {}
+for f in bm.faces:
+    c = f.calc_center_median()
+    if 0.10 < abs(f.normal.z) < 0.995 and c.z > 2.3 and f.calc_area() > 0.05:
+        s, zi = plano(c, f.normal)
+        techo[s] = max(techo.get(s, -99), zi)
+faldones = sorted(techo.items(), key=lambda kv: -kv[1])
+print("faldones (pendiente -> z en x=0):", [(s, round(zi, 2)) for s, zi in faldones])
+if len(faldones) >= 2:
+    (s1, z1), (s2, z2) = faldones[0], faldones[1]
+    if s1 != s2:
+        xc = (z2 - z1) / (s1 - s2)
+        print("CUMBRERA en x = %.2f, z = %.2f   (faldones %.0f° y %.0f°)"
+              % (xc, z1 + s1 * xc, abs(np.degrees(np.arctan(s1))), abs(np.degrees(np.arctan(s2)))))
+bvh = BVHTree.FromBMesh(bm)
+for f in bm.faces:
+    f.material_index = ORDEN.index(casco_cara(f.calc_center_median(), f.normal, bvh, techo,
+                                              f.calc_area()))
+bm.to_mesh(casco.data)
+bm.free()
+print("casco: %d caras  dim %.2f %.2f %.2f" % (len(casco.data.polygons), *casco.dimensions))
+
+# ------------------------------------------------------------------ piezas sueltas
+groups = {k: [] for k in M}
+fuera = 0
+for ob in obs:
+    if ob is casco:
+        continue
+    vs = np.empty(len(ob.data.vertices) * 3)
+    ob.data.vertices.foreach_get("co", vs)
+    vs = vs.reshape(-1, 3)
+    p0, p1 = vs.min(0), vs.max(0)
+    cx, cy = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
+    if not (-1.5 < cx < L + 1.5 and -1.5 < cy < D_CASA + 1.5):
+        bpy.data.objects.remove(ob, do_unlink=True)        # restos lejos de la casa
+        fuera += 1
+        continue
+    nf = len(ob.data.polygons)
+    area = sum(p.area for p in ob.data.polygons) / 2       # una cara del paño
+    k = clasificar(p0[0], p1[0], p0[1], p1[1], p0[2], p1[2], nf, area)
+    if nf > MAX_FACES:
+        d = ob.modifiers.new("dec", "DECIMATE")
+        d.ratio = max(0.04, MAX_FACES / nf)
+        bpy.context.view_layer.objects.active = ob
+        bpy.ops.object.modifier_apply(modifier="dec")
+    groups[k].append(ob)
+print("restos descartados:", fuera)
+
+keep = [casco]
+for k, lst in groups.items():
+    if not lst:
+        continue
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in lst:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = lst[0]
+    bpy.ops.object.join()
+    j = bpy.context.object
+    j.name = "Manio_" + k
+    j.data.materials.clear()
+    j.data.materials.append(M[k])
+    if k in ("telaClara", "telaMedia", "sabanas", "ceramica", "lampara", "planta", "acero"):
+        bpy.ops.object.shade_smooth()
+    keep.append(j)
+    print("  %-18s %4d piezas  %7d caras" % (j.name, len(lst), len(j.data.polygons)))
+bpy.data.libraries.write(out, set(keep), compress=True)
+print("TOTAL %d caras -> %s" % (sum(len(j.data.polygons) for j in keep), out))
