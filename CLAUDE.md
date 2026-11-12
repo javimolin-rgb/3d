@@ -116,14 +116,21 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   rocas con `tools/get_assets_playa.sh`). Fotos de aprobación con `tools/fotos_boldo.sh`
   (`output/boldo_propuesta/`), secciones con `setsid nohup tools/render_boldo.sh s1 [s2 ...] &`.
   El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja.
-  **Completa**: las cinco secciones, `output/casa_boldo_secuencia.mp4`, 1008 cuadros, 42 s.
+  **Completa**: las cinco secciones, `output/casa_boldo_secuencia.mp4`, 1128 cuadros, 47 s. Dura
+  más que los 42 s de la receta porque s4 muestra **los dos pisos**, no sólo la planta baja: la
+  planta se calza sobre la casa, crece y gira a vertical, se detiene rotulada, pasa al 2do piso y
+  se detiene más rato ahí (es el único momento del recorrido donde ese piso se ve). Los rótulos son
+  los de Casa Lingue: cápsula Azul Origen con punto de anclaje, más un bloque de título por piso.
   s4 = `tools/plano_boldo.py`, con la lámina en PNG (`assets/boldo/planta_sin_cotas.png`, bajada
   del sitio): abre la imagen directo en vez de rasterizar un PDF, y por eso engrosa las líneas con
-  MinFilter(3) y no (9) —la lámina del sitio son 76,8 px/m contra los 374 px/m de un PDF a 300 dpi,
-  así que con 9 las paredes salían de doce centímetros—. Las constantes salen de
-  `tools/calibrar_planta.py`, que ahora recibe el ancho y el fondo de la casa por argumento y
-  acepta `FRANJA=0.13` para no dejar que la banda azul de marca de la lámina le compita al dibujo
-  en la correlación.
+  MinFilter(3) y no (9) —la lámina del sitio son ~77 px/m contra los 374 px/m de un PDF a 300 dpi,
+  así que con 9 las paredes salían de doce centímetros—. Cada piso tiene **sus propias** constantes
+  (76,8 y 79,1 px/m: los dos dibujos de la lámina no están a la misma escala), de
+  `tools/calibrar_planta.py`, que recibe el ancho y el fondo de la casa por argumento y acepta
+  `FRANJA=0.13` para que la banda azul de marca no le compita al dibujo en la correlación; a lo que
+  imprime hay que sumarle lo recortado (210 filas, y 700 columnas para el piso de la derecha).
+  Los rótulos van en **metros del modelo** y se llevan a pantalla con la misma afín que calza la
+  planta, así que no hay que volver a medirlos si cambia el encuadre.
   Costo medido, útil para repartir: el cuadro no vale lo mismo a lo largo del recorrido. De lejos
   sobre el agua son ~29 cuadros/hora; acercándose baja a 21 (entra más bosque y más reflejo); en
   la cenital sube a 38, porque desde arriba casi no entra bosque. s1 tardó 9,5 h, s2 8 h, s3 7 h

@@ -201,8 +201,11 @@ el carácter.
 
 ### Lago — para **Boldo** — hecho
 
-Fotos aprobadas y **las cinco secciones**: s1 (240), s2 (192), s3 (240), s4 (144) y s5 (192), en
-`output/casa_boldo_s*.mp4`, unidas en `output/casa_boldo_secuencia.mp4` (1008 cuadros, 42 s).
+Fotos aprobadas y **las cinco secciones**: s1 (240), s2 (192), s3 (240), s4 (264) y s5 (192), en
+`output/casa_boldo_s*.mp4`, unidas en `output/casa_boldo_secuencia.mp4` (1128 cuadros, 47 s). Son
+cinco segundos más que los 42 de la receta porque s4 muestra los dos pisos con sus recintos
+rotulados, y la pausa sobre el 2do piso es más larga: es el único momento del recorrido donde ese
+piso aparece.
 
 s4 se hizo con `tools/plano_boldo.py` y la lámina bajada del sitio
 (`assets/boldo/planta_sin_cotas.png`). Dos cosas que hubo que ajustar y valen para las que vienen:
