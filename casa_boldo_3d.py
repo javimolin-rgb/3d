@@ -2070,10 +2070,38 @@ for _t in ("s2", "s3", "s5"):
     SETUP[_t] = ruta_setup
 
 
+def pausa_pose(cam):
+    """Un cuadro con la cámara y el corte detenidos en el cuadro --pausaf de s3: es la pausa sobre
+    el segundo piso, donde el video se queda unos segundos para que se puedan rotular los recintos
+    de arriba (es el único momento del recorrido en que ese piso se ve en 3D). Se renderiza un solo
+    cuadro y el video lo repite: en ese encuadre no hay nada en movimiento —el lago no entra en
+    cuadro—, así que la pausa es idéntica a renderizarla cuadro a cuadro, y además sale sin el
+    arrastre de movimiento que traería congelar un cuadro de la sección (el motion blur de la
+    cámara en marcha se vería como una mancha fija durante los tres segundos)."""
+    sc = bpy.context.scene
+    k = int(opts.get("pausaf", "121"))
+    g = INICIO["s3"] + k - 1
+    w, h = (int(v) for v in opts["res"].split("x"))
+    lens = 30.0
+    cam.data.lens = lens
+    ruta_setup(w, h, lens)
+    direc, tgt, dist = ruta_pose(g)
+    cam.location = tgt + direc * dist
+    cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
+    sc.frame_start = sc.frame_end = 1
+    md = bpy.data.objects["LagoOleaje"].modifiers["Oleaje"]
+    md.time = float(opts.get("t_agua", "3.0")) + (SECCIONES["s1"] + SECCIONES["s2"] + k - 1) / FPS
+    apply_section(1, g)
+    sc.render.use_persistent_data = True
+
+
 def build_drone(cam):
     """Anima la cámara cuadro a cuadro según la sección pedida y el oleaje en el tiempo."""
     sc = bpy.context.scene
     tramo = opts["tramo"]
+    if tramo == "pausa":
+        pausa_pose(cam)
+        return
     n = SECCIONES[tramo]
     sc.frame_start, sc.frame_end = 1, n
     sc.frame_step = int(opts.get("step", "1"))   # >1 para previsualizaciones rápidas
