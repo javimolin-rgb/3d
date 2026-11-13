@@ -51,6 +51,17 @@ Archivos: `output/casa_<nombre>_s1..s5.mp4` y `output/casa_<nombre>_secuencia.mp
 Se commitean al repo. Los PNG (`frames_<nombre>/`) van en `.gitignore` y se pierden con el
 contenedor; los MP4 son el entregable duradero.
 
+**Si la casa es de dos pisos el recorrido se alarga** (Casa Boldo: 1214 cuadros, 50 s), por dos
+cosas que pidió la revisión y conviene hacer de entrada:
+- El barrido del corte de s3 pasa por el piso de arriba en un suspiro —es el único momento en que
+  ese piso se ve en 3D—, así que ahí va una **pausa de tres segundos** para poder rotularlo con
+  flechas en edición. Se renderiza **un solo cuadro** con la cámara y el corte detenidos y el video
+  lo repite (`tools/pausa_boldo.sh`): si en ese encuadre no entra el agua no hay nada en
+  movimiento, la pausa sale idéntica a renderizarla cuadro a cuadro y además queda sin el arrastre
+  del motion blur, que congelando un cuadro de la sección se vería como una mancha fija.
+- s4 muestra **las dos plantas** lado a lado, no sólo la baja, como la lámina con la que cierra
+  Casa Lingue.
+
 ---
 
 ## 2. Flujo
