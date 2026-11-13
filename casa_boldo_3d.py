@@ -2006,7 +2006,7 @@ def section_groups():
     return groups
 
 
-def apply_section(frames, g0):
+def apply_section(frames, g0, gs=None):
     """Corte animado de la casa: shader en sus materiales (no en el paisaje) y, en las piezas, se
     borran con nodos de geometría las caras enteras sobre el corte (no se apilan transparencias)."""
     house = list(bpy.data.collections["Casa"].objects)
@@ -2053,7 +2053,7 @@ def apply_section(frames, g0):
     socks = [zval.outputs[0]] + [g.nodes["AlturaCorte"].outputs[0] for g in groups.values()]
     for f in range(frames):
         for sk in socks:
-            sk.default_value = cut_z(g0 + f)
+            sk.default_value = cut_z(gs[f] if gs else g0 + f)
             sk.keyframe_insert("default_value", frame=f + 1)
     for o in house:   # con el techo abierto entra el día: luces interiores suaves
         if o.type == "LIGHT":
@@ -2070,48 +2070,82 @@ for _t in ("s2", "s3", "s5"):
     SETUP[_t] = ruta_setup
 
 
-def pausa_pose(cam):
-    """Un cuadro con la cámara y el corte detenidos en el cuadro --pausaf de s3: es la pausa sobre
-    el segundo piso, donde el video se queda unos segundos para que se puedan rotular los recintos
-    de arriba (es el único momento del recorrido en que ese piso se ve en 3D). Se renderiza un solo
-    cuadro y el video lo repite: en ese encuadre no hay nada en movimiento —el lago no entra en
-    cuadro—, así que la pausa es idéntica a renderizarla cuadro a cuadro, y además sale sin el
-    arrastre de movimiento que traería congelar un cuadro de la sección (el motion blur de la
-    cámara en marcha se vería como una mancha fija durante los tres segundos)."""
-    sc = bpy.context.scene
-    k = int(opts.get("pausaf", "121"))
-    g = INICIO["s3"] + k - 1
-    w, h = (int(v) for v in opts["res"].split("x"))
-    lens = 30.0
-    cam.data.lens = lens
-    ruta_setup(w, h, lens)
-    direc, tgt, dist = ruta_pose(g)
-    cam.location = tgt + direc * dist
-    cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
-    sc.frame_start = sc.frame_end = 1
-    md = bpy.data.objects["LagoOleaje"].modifiers["Oleaje"]
-    md.time = float(opts.get("t_agua", "3.0")) + (SECCIONES["s1"] + SECCIONES["s2"] + k - 1) / FPS
-    apply_section(1, g)
-    sc.render.use_persistent_data = True
+# --- Pausa sobre el segundo piso, dentro de s3 --------------------------------------------------
+# El barrido del corte pasa por el 2do piso en un suspiro y es el único momento del recorrido en que
+# ese piso se ve: la revisión pidió quedarse ahí unos segundos para poder rotularlo con flechas en
+# edición, pero **con el dron andando**, no congelado. Así que lo que se detiene es el corte, no la
+# cámara: durante PAUSA_N cuadros el corte se queda en la altura donde el 2do piso se ve entero
+# mientras la cámara sigue su recorrido —más lenta, para que el momento dure, con PAUSA_FRENO
+# cuadros de frenada al entrar y de aceleración al salir— y después el corte retoma desde donde
+# quedó, tantos cuadros de ruta más atrás como avanzó la cámara mientras tanto.
+#
+# La sección pasa a durar SECCIONES["s3"] + PAUSA_N cuadros recorriendo la misma ruta, así que la
+# cámara va a PAUSA_V en la pausa y a ~0,8 en el resto. Los cuadros hasta PAUSA_DESDE quedan a
+# velocidad 1 y con el mismo corte, o sea **idénticos a los de s3**: se reaprovechan tal cual
+# (`use_overwrite = False` los salta) y sólo hay que renderizar de ahí en adelante.
+PAUSA_DESDE = 121     # cuadro de s3 donde se para el corte (z = 4,1 m: el techo ya salió entero)
+PAUSA_N = 72          # 3 s a 24 fps
+PAUSA_FRENO = 18      # cuadros de frenada y de aceleración de la cámara
+PAUSA_V = 0.40        # velocidad de la cámara durante la pausa, fracción de la de s3
+
+
+def _vel_pausa(v2, n):
+    """Velocidad de la cámara cuadro a cuadro de s3 con pausa (1,0 = la de s3), suavizada."""
+    ks = [(1, 1.0), (PAUSA_DESDE, 1.0), (PAUSA_DESDE + PAUSA_FRENO, PAUSA_V),
+          (PAUSA_DESDE + PAUSA_N, PAUSA_V), (PAUSA_DESDE + PAUSA_N + PAUSA_FRENO, v2), (n, v2)]
+    out = []
+    for f in range(1, n + 1):
+        i = min(max(j for j in range(len(ks) - 1) if ks[j][0] <= f), len(ks) - 2)
+        (f0, a), (f1, b) = ks[i], ks[i + 1]
+        t = min(max((f - f0) / (f1 - f0), 0.0), 1.0)
+        out.append(a + (b - a) * t * t * (3 - 2 * t))
+    return out
+
+
+def pausa_mapas():
+    """Posición en la ruta de la cámara y del corte, cuadro a cuadro de s3 con la pausa.
+
+    La cámara recorre lo mismo que s3 (de INICIO["s3"] al cenital) pero en más cuadros: la velocidad
+    de crucero del tramo final se despeja por bisección para que el recorrido cierre justo en el
+    cenital, así que el último cuadro es el mismo que el de s3 y la sección 4 (que se arma sobre él)
+    no cambia."""
+    n = SECCIONES["s3"] + PAUSA_N
+    g0, g1 = INICIO["s3"], INICIO["s3"] + SECCIONES["s3"]
+    lo, hi, cam = 0.1, 1.0, None
+    for _ in range(50):
+        v2 = (lo + hi) / 2
+        cam = [float(g0)]
+        for v in _vel_pausa(v2, n)[1:]:
+            cam.append(cam[-1] + v)
+        if cam[-1] < g1:
+            lo = v2
+        else:
+            hi = v2
+    quieto = cam[PAUSA_DESDE - 1]                      # altura de corte durante la pausa
+    desfase = cam[PAUSA_DESDE + PAUSA_N - 1] - quieto  # lo que avanzó la cámara mientras tanto
+    corte = [g if f + 1 <= PAUSA_DESDE else
+             quieto if f + 1 <= PAUSA_DESDE + PAUSA_N else
+             g - desfase for f, g in enumerate(cam)]
+    return cam, corte
 
 
 def build_drone(cam):
     """Anima la cámara cuadro a cuadro según la sección pedida y el oleaje en el tiempo."""
     sc = bpy.context.scene
     tramo = opts["tramo"]
-    if tramo == "pausa":
-        pausa_pose(cam)
-        return
-    n = SECCIONES[tramo]
+    pausa = tramo == "s3p"              # s3 con la pausa sobre el 2do piso
+    base = "s3" if pausa else tramo
+    cam_g, corte_g = pausa_mapas() if pausa else (None, None)
+    n = SECCIONES[base] + (PAUSA_N if pausa else 0)
     sc.frame_start, sc.frame_end = 1, n
     sc.frame_step = int(opts.get("step", "1"))   # >1 para previsualizaciones rápidas
     w, h = (int(v) for v in opts["res"].split("x"))
     lens = 30.0
     cam.data.lens = lens
-    if tramo in SETUP:
-        SETUP[tramo](w, h, lens)
+    if base in SETUP:
+        SETUP[base](w, h, lens)
     for f in range(n):
-        pose = POSES[tramo](f, n)
+        pose = ruta_pose(cam_g[f]) if pausa else POSES[base](f, n)
         direc, tgt = pose[0], pose[1]
         dist = pose[2] if len(pose) > 2 else fit_distance(direc, tgt, lens, w / h)
         cam.location = tgt + direc * dist
@@ -2120,7 +2154,7 @@ def build_drone(cam):
         cam.keyframe_insert("rotation_euler", frame=f + 1)
     # el tiempo del agua avanza con el video (cada sección sigue donde quedó la anterior)
     md = bpy.data.objects["LagoOleaje"].modifiers["Oleaje"]
-    t0 = float(opts.get("t_agua", "3.0")) + sum(SECCIONES[k] for k in sorted(SECCIONES) if k < tramo) / FPS
+    t0 = float(opts.get("t_agua", "3.0")) + sum(SECCIONES[k] for k in sorted(SECCIONES) if k < base) / FPS
     for f, t in ((1, t0), (n, t0 + (n - 1) / FPS)):
         md.time = t
         md.keyframe_insert("time", frame=f)
@@ -2131,12 +2165,12 @@ def build_drone(cam):
     for fc in getattr(act, "fcurves", []):
         for kp in fc.keyframe_points:
             kp.interpolation = "LINEAR"
-    if tramo in ("s3", "s5"):
-        apply_section(n, INICIO[tramo])
-    if tramo == "s3":   # dónde cae la casa en la cenital final: para calzar la planta (tools/plano_boldo.py)
+    if base in ("s3", "s5"):
+        apply_section(n, INICIO[base], corte_g)
+    if base == "s3":   # dónde cae la casa en la cenital final: para calzar la planta (tools/plano_boldo.py)
         import json
         from bpy_extras.object_utils import world_to_camera_view
-        direc, tgt, dist = ruta_pose(INICIO["s3"] + n - 1)
+        direc, tgt, dist = ruta_pose(cam_g[-1] if pausa else INICIO["s3"] + n - 1)
         cam.location = tgt + direc * dist
         cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
         bpy.context.view_layer.update()
