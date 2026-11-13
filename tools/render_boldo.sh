@@ -13,7 +13,13 @@ progreso() {
       echo "Actualizado: $(TZ=America/Santiago date '+%d-%m %H:%M') (hora de Chile)"
       echo
       for t in "$@"; do
-        n=$(python3 -c "import re;print(re.search(r'\"$t\": (\d+)', open('casa_boldo_3d.py').read()).group(1))")
+        n=$(python3 -c "
+import re
+src = open('casa_boldo_3d.py').read()
+t = '$t'
+g = lambda k: int(re.search(r'\"%s\": (\d+)' % k, src).group(1))
+# s3p = s3 con la pausa sobre el 2do piso: dura PAUSA_N cuadros más que s3
+print(g('s3') + int(re.search(r'PAUSA_N = (\d+)', src).group(1)) if t == 's3p' else g(t))")
         k=$(find frames_boldo/$t -name 'f_*.png' -size +10k 2>/dev/null | wc -l)
         printf "  %s: %3d / %3d cuadros (%3d %%)\n" "$t" "$k" "$n" $((100 * k / n))
       done

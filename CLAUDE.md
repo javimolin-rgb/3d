@@ -119,16 +119,25 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   **Completa**: las cinco secciones, `output/casa_boldo_secuencia.mp4`, 1214 cuadros, 50 s. Dura
   más que los 42 s de la receta porque es de dos pisos y los dos se muestran:
   - **Pausa en el segundo piso, dentro de s3.** El barrido del corte pasa por el 2do piso en un
-    suspiro; la revisión pidió quedarse ahí para poder rotularlo con flechas en edición. Son tres
-    segundos quietos en el cuadro 121 de s3 (corte en z = 4,1 m: el techo ya salió y las camas de
-    arriba se ven enteras). Se renderiza **un solo cuadro**, con
-    `casa_boldo_3d.py -- --vista dron --tramo pausa --pausaf 121 --cuadro 1`, y el video lo repite
-    72 veces: en ese encuadre no entra el lago, así que no hay nada en movimiento y la pausa sale
-    idéntica a renderizarla cuadro a cuadro —y sin el arrastre del motion blur, que congelando un
-    cuadro de la sección se vería como una mancha fija durante los tres segundos (el cuadro de la
-    pausa difiere del 121 de s3 en 2,0 contra los 7,9 que hay entre vecinos de la toma, o sea que
-    el empalme entra por debajo del paso normal de la toma)—. Los cuadros de s3 se arman con enlaces
-    duros en `frames_boldo/s3_pausa/` (121 + 72 + 119 = 312) y de ahí sale el MP4.
+    suspiro; la revisión pidió quedarse ahí para poder rotularlo con flechas en edición, **con el
+    dron andando, no congelado**. Así que lo que se detiene es el corte, no la cámara: desde el
+    cuadro 121 de s3 (`PAUSA_DESDE`, corte en z = 4,1 m —el techo ya salió entero y las camas de
+    arriba se ven— ) el corte se queda quieto 72 cuadros (`PAUSA_N`, 3 s) mientras la cámara sigue
+    su recorrido, y después el corte retoma desde donde quedó, tantos cuadros de ruta más atrás como
+    avanzó la cámara mientras tanto. La sección pasa a durar 312 cuadros recorriendo **la misma
+    ruta**: la cámara va a `PAUSA_V` = 0,40 de su velocidad durante la pausa (sube de 63° a 76° de
+    elevación: se nota de sobra que vuela) y a ~0,8 en el resto, con 18 cuadros de frenada y de
+    aceleración. La velocidad de crucero del tramo final se despeja por **bisección** para que el
+    recorrido cierre justo en el cenital: el último cuadro es el mismo que el de s3 y la sección 4,
+    que se arma sobre él, no cambia (`plano.json` coincide a 0,01 px). Los cuadros hasta el 121
+    quedan a velocidad 1 y con el mismo corte, o sea **idénticos a los de s3**: se reaprovechan tal
+    cual (`use_overwrite = False` los salta) y sólo se renderizan los 191 de ahí en adelante.
+    Es la sección `s3p`: `setsid nohup tools/render_boldo.sh s3p &`, después de poblar
+    `frames_boldo/s3p/` con enlaces duros a los 121 primeros cuadros de `frames_boldo/s3/`.
+    No sirve congelar un cuadro —se probó y el usuario lo rechazó: el dron se queda pegado— ni
+    frenar la cámara junto con el corte, porque para estirar a 3 s la ventana en que el 2do piso se
+    ve limpio (corte entre 4,3 y 3,9 m, siete cuadros de ruta) la cámara tendría que ir a un décimo
+    de su velocidad, que a ojo es lo mismo que estar detenida.
   - **s4 muestra las dos plantas, sin girarlas.** Es la lámina con la que cierra Casa Lingue: 1er
     piso a la izquierda, 2do entrando por la derecha, bloque de título y logo, en Azul Origen con
     líneas Niebla. La planta aparece primero calzada sobre la casa de la cenital y el paso a la

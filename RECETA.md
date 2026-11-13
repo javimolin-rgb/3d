@@ -55,10 +55,15 @@ contenedor; los MP4 son el entregable duradero.
 cosas que pidió la revisión y conviene hacer de entrada:
 - El barrido del corte de s3 pasa por el piso de arriba en un suspiro —es el único momento en que
   ese piso se ve en 3D—, así que ahí va una **pausa de tres segundos** para poder rotularlo con
-  flechas en edición. Se renderiza **un solo cuadro** con la cámara y el corte detenidos y el video
-  lo repite (`tools/pausa_boldo.sh`): si en ese encuadre no entra el agua no hay nada en
-  movimiento, la pausa sale idéntica a renderizarla cuadro a cuadro y además queda sin el arrastre
-  del motion blur, que congelando un cuadro de la sección se vería como una mancha fija.
+  flechas en edición. Lo que se detiene es **el corte, no la cámara**: el dron tiene que seguir
+  volando (congelar un cuadro y repetirlo se probó en Boldo y el usuario lo rechazó al toque). El
+  corte se queda quieto a la altura donde ese piso se ve entero, la cámara sigue su recorrido más
+  lenta, y después el corte retoma desde donde quedó, tantos cuadros de ruta más atrás como avanzó
+  la cámara. La sección se alarga lo que dure la pausa recorriendo la misma ruta, con la velocidad
+  de crucero del tramo final despejada por bisección para que cierre justo en el cenital: así el
+  último cuadro no cambia y la sección 4, que se arma sobre él, queda igual. Y si los cuadros
+  anteriores a la pausa se dejan a velocidad 1, son idénticos a los de la sección sin pausa y se
+  reaprovechan: sólo hay que renderizar de la pausa en adelante.
 - s4 muestra **las dos plantas** lado a lado, no sólo la baja, como la lámina con la que cierra
   Casa Lingue.
 
