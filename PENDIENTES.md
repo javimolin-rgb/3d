@@ -206,8 +206,10 @@ Lo que se construyó sobre la base de Huingán:
   55 matas/m²) con el terreno teñido de verde debajo, setos recortados en los deslindes, macizos
   de arbustos de jardín, jacarandás alineados en la vereda y árboles ornamentales de antejardín.
   El matorral costero silvestre queda sólo en los **sitios baldíos** y al pie del muro.
-- ✅ **Recursos nuevos**: `tools/get_assets_urbano.sh` (alumbrado, jacarandá, island_tree,
-  arbustos de jardín, maceteros, asfalto y hormigón de Poly Haven CC0).
+- ✅ **Recursos nuevos**: `tools/get_assets_urbano.sh` (jacarandá, island_tree, arbustos de
+  jardín, maceteros, asfalto y hormigón de Poly Haven CC0) y `tools/get_assets_lago.sh`, que
+  ya existía para Boldo y acá trae los **árboles de verdad** (pino, ciprés, island_tree,
+  tree_small) en dos bandas de detalle.
 
 Tres cosas que costaron y conviene no repetir en Ciprés:
 
@@ -228,6 +230,11 @@ Tres cosas que costaron y conviene no repetir en Ciprés:
 5. **El césped no admite mucha variación.** La modulación de ruido que sirve para el matorral
    (0,75 + 0,9·ruido) deja medio jardín a mitad de verde y se ve pajoso; un césped regado va con
    0,92 + 0,5·ruido, o sea casi parejo.
+6. **Los árboles de relleno de Huingán no sirven acá**, igual que no servían en Boldo. El tronco
+   de cilindro con copas de ico-esferas desplazadas pasa a 300 m y con bruma; en un condominio
+   hay pinos a treinta metros de la cámara y se leen como brócoli. Cuesta 1,3 GB de descarga
+   (`tools/get_assets_lago.sh`) y unos segundos más por cuadro, y es de los cambios que más mueve
+   la aguja. **Si la escena tiene árboles cerca, se bajan los modelos y punto.**
 
 **Falta para Ciprés (norte, seco):**
 - 🟢 Nada que descargar: `flamingo_pan_2k.exr` ya está y es el más árido de los cinco. Hay que

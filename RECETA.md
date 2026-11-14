@@ -265,6 +265,12 @@ muerto. Las espigas en contraluz con el sol bajo son lo que da el efecto.
   Sacadas esas tres cosas la misma escena se lee como condominio. Para Ciprés, partir de la
   segunda versión.
 
+  **Y los árboles van con modelos reales.** El truco de Huingán (tronco de cilindro + copas de
+  ico-esferas desplazadas) pasa a 300 m con bruma, pero en un condominio hay pinos a treinta
+  metros de la cámara y se leen como brócoli. Es la misma lección del lago de Boldo, y vale para
+  cualquier escena con árboles cerca: `build_trees()` carga pino y ciprés de
+  `tools/get_assets_lago.sh` en dos bandas de detalle (LOD1 cerca, LOD2 en el cerro).
+
   Otras tres trampas: la **playa tiene que ser ancha** (con los 13 m de Huingán el encuadre
   adaptable pone la cámara sobre el muro y el mar queda fuera de cuadro); el **ripple de arena**
   hay que apagarlo donde hay césped (la rampa de Huingán lo deja encendido tierra adentro y el

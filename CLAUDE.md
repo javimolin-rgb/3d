@@ -141,6 +141,11 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   La primera versión era una costanera urbana y la revisión la rechazó: lo que la delataba eran
   los postes con tendido aéreo, la calzada ancha con solera y vereda de hormigón, y los vecinos
   repetidos en filas. Al heredar esto en Ciprés, partir de la **segunda** versión.
+  **Los árboles van con modelos reales, no con el truco de Huingán.** Acá hay grupos de pinos a
+  los dos lados del camino, a treinta metros de la cámara: las copas de ico-esferas desplazadas
+  se leen como brócoli (la revisión lo dijo así: "los árboles se ven muy falsos"). Es el mismo
+  problema que ya había aparecido en el lago de Boldo. `build_trees()` carga pino y ciprés en dos
+  bandas de detalle (LOD1 cerca, LOD2 para el cerro) de `tools/get_assets_lago.sh`.
   Ojo además con tres cosas: la playa tiene que ser **ancha** (con la duna angosta de Huingán la
   cámara se planta sobre el muro y el mar queda fuera de cuadro), el ripple de arena hay que
   apagarlo donde hay césped, y la franja húmeda del muro se mide con un atributo de altura y no
@@ -175,8 +180,10 @@ renderizar (nada de ello va al repo, son ~650 MB).
   libxfixes3 libsm6 libice6 libxkbcommon0 libwayland-client0`. Los avisos `EGL_BAD_MATCH` que
   quedan son inofensivos (no hay pantalla): el render igual se guarda.
 - Recursos de Poly Haven de Huingan (251 MB, en .gitignore): `tools/get_assets_playa.sh`.
-- Recursos de Mañío: `tools/get_assets_playa.sh` **y** `tools/get_assets_urbano.sh` (alumbrado,
-  jacarandá, arbustos de jardín, maceteros y texturas de pavimento; ~60 MB más).
+- Recursos de Mañío: `tools/get_assets_playa.sh`, `tools/get_assets_urbano.sh` (jacarandá,
+  arbustos de jardín, maceteros y texturas de pavimento; ~60 MB) **y**
+  `tools/get_assets_lago.sh` (los árboles de verdad: pino, ciprés, island_tree y tree_small,
+  1,3 GB). Los árboles no son opcionales: ver la nota de abajo.
 - Recursos de Boldo: `tools/get_assets_playa.sh` (matorral y rocas) **y**
   `tools/get_assets_lago.sh` (árboles y sotobosque, 1,3 GB), más
   `tools/get_assets_hdri.sh lago`.

@@ -69,6 +69,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 CASA = os.path.join(ROOT, "assets", "manio", "casa.blend")
 CAMPO = os.path.join(ROOT, "assets", "campo", "pastos_botaniq.blend")
 PH = os.path.join(ROOT, "assets", "playa", "ph")   # Poly Haven (get_assets_playa.sh + get_assets_urbano.sh)
+PHL = os.path.join(ROOT, "assets", "lago", "ph")   # árboles de verdad (tools/get_assets_lago.sh)
 HDRI = os.path.join(PH, "hdri", "secluded_beach_2k.exr")   # tarde de verano en la costa, CC0
 HDRI_SUN_U = 0.6420          # columna del sol en el HDRI (0-1), medida con tools/medir_sol_hdri.py
 SUN_ELEV = 32.0              # elevación del sol en el HDRI (más alto que en Huingán: es verano)
@@ -1055,12 +1056,12 @@ def build_landscape(M):
 
 
 # ---------------------------------------------------------------- vegetación
-def load_ph(lib, ident, lod="LOD1", tag=None, nombres=None):
+def load_ph(lib, ident, lod="LOD1", tag=None, nombres=None, base=None):
     """Variantes de un modelo de Poly Haven (una por letra), en el nivel de detalle pedido, como
     colección para instanciar al azar. Se dejan en el origen. `nombres` pide objetos exactos, que
     es lo que hace falta con los árboles: sus .blend traen además ramas, hojas y troncos sueltos
     que no son el árbol entero (si se toman todos, el Pick Instance planta troncos pelados)."""
-    path = os.path.join(PH, ident, ident + ".blend")
+    path = os.path.join(base or PH, ident, ident + ".blend")
     with bpy.data.libraries.load(path) as (a, b):
         if nombres is not None:
             names = [n for n in a.objects if n in set(nombres)]
@@ -1428,14 +1429,15 @@ def build_cierros(M, coll):
         z + 1.14, z + 1.30, M["fachada"], coll)
 
 
-def place_ornamentales(coll, orn, pinos):
+def place_ornamentales(coll, orn, cerca):
     """Arbolado del condominio. **No hay hilera de árboles de vereda**: la versión anterior
     alineaba jacarandás cada 30 m sobre la vereda y eso es lo que hace que una calle se lea como
     calle de ciudad. Acá los árboles van en grupos irregulares entre los predios y a lo largo del
     camino, con pinos y cipreses —que es lo que hay en la costa central— y algún ornamental de
     hoja ancha en los antejardines."""
-    arb = list(orn.objects)
-    pin = list(pinos)
+    # las coníferas hacen la masa del condominio; la copa ancha va en los antejardines
+    pin = [o for o in cerca.objects if "fir_" in o.name or "pine_" in o.name]
+    arb = [o for o in cerca.objects if o not in pin] + list(orn.objects)
     rnd = random.Random(17)
 
     def poner(x, y, s, fuente=None, giro=None):
@@ -1463,7 +1465,7 @@ def place_ornamentales(coll, orn, pinos):
             xx = x + rnd.uniform(-5, 5)
             poner(xx, lote_y(xx, dd), rnd.uniform(9.0, 16.0), pin)
     # nuestro antejardín: a los costados, nunca delante del ventanal corrido
-    for x, dd, s in ((-7.5, 40.0, 6.5), (23.5, 43.0, 5.0), (-8.5, 62.0, 7.0), (24.5, 66.0, 6.0),
+    for x, dd, s in ((-9.5, 36.0, 6.5), (23.5, 43.0, 5.0), (-8.5, 62.0, 7.0), (24.5, 66.0, 6.0),
                      (-7.0, 72.0, 9.0), (24.0, 76.0, 8.5)):
         poner(x, lote_y(x, dd), s, pin if s > 8 else None)
     # jardines de los vecinos, en grupos sueltos
@@ -1570,68 +1572,47 @@ def build_neighbors(coll):
             ob.rotation_euler = (0, 0, math.radians(rot))
 
 
-def foliage_mat(name, c1, c2):
-    m, n, l = new_mat(name)
-    N = Nodos(n, l)
-    b = n["Principled BSDF"]
-    info = n.new("ShaderNodeObjectInfo")
-    tc = n.new("ShaderNodeTexCoord")
-    v = N.math("ADD", N.math("MULTIPLY", info.outputs["Random"], 0.6), N.math("MULTIPLY", N.noise(tc.outputs["Object"], 3.0, 4), 0.4))
-    l.new(N.mix(v, c1, c2), b.inputs["Base Color"])
-    b.inputs["Roughness"].default_value = 0.85
-    bmp = n.new("ShaderNodeBump")
-    bmp.inputs["Strength"].default_value = 0.8
-    l.new(N.noise(tc.outputs["Object"], 4.0, 4), bmp.inputs["Height"])
-    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
-    return m
+def build_trees(lib):
+    """Árboles reales de Poly Haven (CC0, tools/get_assets_lago.sh), en dos bandas de detalle:
+      cerca  LOD1, para los grupos del condominio y los antejardines (hasta ~120 m)
+      lejos  LOD2 en las coníferas, para el cerro y el fondo
+
+    **No son de relleno.** La primera versión usaba el truco de Huingán —tronco de cilindro más
+    copas de ico-esferas desplazadas con ruido— que allá pasaba porque el bosque quedaba a 300 m
+    y con bruma. Acá los árboles están **dentro** de la escena: grupos de pinos a los dos lados
+    del camino, a treinta metros de la cámara en el arco frontal, y ahí las bolas desplazadas se
+    leen como brócoli. Es exactamente lo que ya había pasado en el lago de Boldo (ver RECETA.md
+    §5): con modelos de verdad la escena cambia por completo.
+
+    Pino y ciprés para la masa (que es lo que hay en la costa central: pino insigne y ciprés
+    macrocarpa de cortina), island_tree y tree_small para la copa ancha de los jardines."""
+    cerca = bpy.data.collections.new("ArbolesCerca")
+    lejos = bpy.data.collections.new("ArbolesLejos")
+    for c in (cerca, lejos):
+        lib.children.link(c)
+    conif = [f"{t}_tree_01_{v}" for t in ("fir", "pine") for v in "abc"]
+    ancha = ["island_tree_01", "island_tree_02", "island_tree_03"]
+    for dest, lod_c in ((cerca, "LOD1"), (lejos, "LOD2")):
+        for ident in ("fir_tree_01", "pine_tree_01"):
+            load_ph(dest, ident, base=PHL, nombres=[f"{n}_{lod_c}" for n in conif])
+        for ident in ancha:
+            load_ph(dest, ident, base=PHL, nombres=[f"{ident}_LOD1", f"{ident}_a_LOD1"])
+        load_ph(dest, "tree_small_02", base=PHL, nombres=["tree_small_02_LOD1"])
+    for c in (cerca, lejos):
+        # las colecciones de load_ph quedan anidadas; se aplanan para que Pick Instance las vea
+        for sub in list(c.children):
+            for o in list(sub.objects):
+                sub.objects.unlink(o)
+                c.objects.link(o)
+            c.children.unlink(sub)
+            bpy.data.collections.remove(sub)
+        print("  %-14s %2d árboles  alturas %s"
+              % (c.name, len(c.objects), sorted(round(o.dimensions.z, 1) for o in c.objects)))
+    return cerca, lejos
 
 
-def make_trees(lib):
-    """Pinos y cipreses macrocarpa simples (sólo se ven a lo lejos): tronco + copas irregulares."""
-    bark = principled("Corteza", (0.08, 0.06, 0.045), 0.9)
-    pino = foliage_mat("CopaPino", (0.018, 0.03, 0.016), (0.045, 0.06, 0.03))
-    cipres = foliage_mat("CopaCipres", (0.022, 0.036, 0.018), (0.055, 0.07, 0.033))
-    out = []
-    rnd = random.Random(3)
-    for k in range(4):
-        parts = []
-        h = rnd.uniform(9, 15)
-        bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=0.22, depth=h, location=(0, 0, h / 2))
-        parts.append(bpy.context.object)
-        parts[-1].data.materials.append(bark)
-        cyp = k >= 2
-        for j in range(5 if cyp else 4):
-            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1.0)
-            c = bpy.context.object
-            if cyp:   # macrocarpa: copa ancha y aplanada, en capas
-                c.location = (rnd.uniform(-1.5, 1.5), rnd.uniform(-1.5, 1.5), h * rnd.uniform(0.55, 0.95))
-                c.scale = (rnd.uniform(2.5, 3.5), rnd.uniform(2.5, 3.5), rnd.uniform(1.3, 1.9))
-            else:     # pino: copa alta y redondeada
-                c.location = (rnd.uniform(-0.8, 0.8), rnd.uniform(-0.8, 0.8), h * (0.72 + 0.08 * j))
-                c.scale = (rnd.uniform(1.8, 2.6), rnd.uniform(1.8, 2.6), rnd.uniform(0.9, 1.3))
-            dsp = c.modifiers.new("d", "DISPLACE")
-            tex = bpy.data.textures.new(f"copa{k}{j}", "CLOUDS")
-            tex.noise_scale = 0.6
-            dsp.texture, dsp.strength = tex, 0.6
-            c.data.materials.append(cipres if cyp else pino)
-            parts.append(c)
-        bpy.ops.object.select_all(action="DESELECT")
-        for o in parts:
-            o.select_set(True)
-        bpy.context.view_layer.objects.active = parts[0]
-        bpy.ops.object.convert(target="MESH")
-        bpy.ops.object.join()
-        t = bpy.context.object
-        t.name = f"Arbol{k}"
-        for c in t.users_collection:
-            c.objects.unlink(t)
-        lib.objects.link(t)
-        out.append(t)
-    return out
-
-
-def build_far_trees(far, trees):
-    """Arboledas del paisaje lejano: pinos y macrocarpas entre las casas del balneario y en los
+def build_far_trees(far, arboles):
+    """Arboledas del paisaje lejano: pinos y cipreses entre las casas del condominio y en los
     cerros del fondo; nunca en la playa ni dentro del predio (atributo 'bosque'). En un balneario
     costero el arbolado **sigue a las casas**, así que el término que más pesa es la cercanía a un
     vecino: es lo que hace que el cerro se lea poblado y no como un bosque virgen."""
@@ -1650,12 +1631,6 @@ def build_far_trees(far, trees):
         w.append(a * min(1.0, max(0.0, (clump - 0.42) * 2.8 + 1.1 * hill + 1.0 * near_house)))
     at = me.attributes.new("bosque", "FLOAT", "POINT")
     at.data.foreach_set("value", w)
-    lib_c = bpy.data.collections.new("Arboles")
-    bpy.data.collections["Biblioteca"].children.link(lib_c)
-    for t in trees:
-        for c in t.users_collection:
-            c.objects.unlink(t)
-        lib_c.objects.link(t)
     ng = bpy.data.node_groups.new("Arboleda", "GeometryNodeTree")
     ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
     ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
@@ -1664,7 +1639,7 @@ def build_far_trees(far, trees):
     dist = N.new("GeometryNodeDistributePointsOnFaces")
     dist.distribute_method = "POISSON"
     dist.inputs["Distance Min"].default_value = 4.0
-    dist.inputs["Density Max"].default_value = 0.022
+    dist.inputs["Density Max"].default_value = 0.075
     na = N.new("GeometryNodeInputNamedAttribute")
     na.data_type = "FLOAT"
     na.inputs["Name"].default_value = "bosque"
@@ -1672,7 +1647,7 @@ def build_far_trees(far, trees):
     Lk.new(gi.outputs[0], dist.inputs["Mesh"])
     ins = N.new("GeometryNodeInstanceOnPoints")
     ci = N.new("GeometryNodeCollectionInfo")
-    ci.inputs["Collection"].default_value = lib_c
+    ci.inputs["Collection"].default_value = arboles
     ci.inputs["Separate Children"].default_value = True
     ci.inputs["Reset Children"].default_value = True
     ins.inputs["Pick Instance"].default_value = True
@@ -1680,7 +1655,7 @@ def build_far_trees(far, trees):
     ri.data_type = "INT"
     for sk in ri.inputs:
         if sk.type == "INT" and sk.name in ("Min", "Max"):
-            sk.default_value = 0 if sk.name == "Min" else len(trees) - 1
+            sk.default_value = 0 if sk.name == "Min" else len(arboles.objects) - 1
     rr = N.new("FunctionNodeRandomValue")
     rr.data_type = "FLOAT_VECTOR"
     rr.inputs["Max"].default_value = (0.05, 0.05, 6.28)
@@ -1688,7 +1663,7 @@ def build_far_trees(far, trees):
     rs.data_type = "FLOAT"
     for sk in rs.inputs:
         if sk.type == "VALUE" and sk.name in ("Min", "Max"):
-            sk.default_value = 0.7 if sk.name == "Min" else 1.3
+            sk.default_value = 0.6 if sk.name == "Min" else 1.25
     Lk.new(dist.outputs["Points"], ins.inputs["Points"])
     Lk.new(ci.outputs[0], ins.inputs["Instance"])
     Lk.new(next(o for o in ri.outputs if o.type == "INT"), ins.inputs["Instance Index"])
@@ -1711,9 +1686,9 @@ def build_context(M, orn):
     build_camino(M, coll)
     build_cierros(M, coll)
     build_neighbors(coll)
-    arboles = make_trees(bpy.data.collections["Biblioteca"])
-    place_ornamentales(coll, orn, arboles)
-    build_far_trees(bpy.data.objects["Lejos"], arboles)
+    cerca, lejos = build_trees(bpy.data.collections["Biblioteca"])
+    place_ornamentales(coll, orn, cerca)
+    build_far_trees(bpy.data.objects["Lejos"], lejos)
 
 
 # ---------------------------------------------------------------- cielo, render y cámara
