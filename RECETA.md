@@ -250,16 +250,27 @@ muerto. Las espigas en contraluz con el sol bajo son lo que da el efecto.
 
 **Playa** — base resuelta en Huingán: duna, matorral costero, pasarela, mar con oleaje y espuma.
 - *Mañío* (**urbanizada**): resuelto en `casa_manio_3d.py`. El mar y la arena se reutilizan tal
-  cual; lo que cambia es tierra adentro: costanera pavimentada con solera, veredas, alumbrado y
-  postes con tendido; muro de contención de hormigón sobre la playa con escalera pública; dos
-  filas de vecinos cerca más el balneario trepando el cerro; y vegetación **domesticada**
-  (césped, setos de deslinde, jacarandás de vereda, maceteros) en vez de matorral silvestre, que
-  queda sólo en los sitios baldíos. La duna deja de ser salvaje: `terrain_h` aterraza el loteo.
-  Tres trampas al heredar esto: la **playa tiene que ser ancha** (con los 13 m de Huingán el
-  encuadre adaptable pone la cámara sobre el muro y el mar queda fuera de cuadro); el **ripple de
-  arena** hay que apagarlo donde hay césped (la rampa de Huingán lo deja encendido tierra adentro
-  y el pasto sale rayado); y la franja húmeda del muro se mide con un **atributo de altura**, no
-  con la z del mundo.
+  cual; lo que cambia es tierra adentro: un **condominio de costa estilo Maitencillo**. Camino
+  angosto de asfalto (4,6 m) con bermas de maicillo, sin solera, sin vereda, sin alumbrado
+  público y sin postes con tendido, a 42 m del frente de la casa; muro de contención de hormigón
+  sobre la playa con escalera pública; vecinos cerca pero **todos distintos**, sembrados
+  irregulares entre grupos de pinos; cierro de listones de madera hacia el camino; y vegetación
+  **domesticada** (césped, setos de deslinde, ornamentales, maceteros) en vez de matorral
+  silvestre, que queda sólo en los sitios baldíos. La duna deja de ser salvaje: `terrain_h`
+  aterraza el loteo.
+
+  ⚠️ **"Urbanizada" no es "urbana".** La primera versión era una costanera de ciudad y la
+  revisión la rechazó. Lo que la delataba, en orden de peso: los **postes con tendido aéreo**, la
+  **calzada ancha con solera y vereda de hormigón**, y los **vecinos repetidos en filas**.
+  Sacadas esas tres cosas la misma escena se lee como condominio. Para Ciprés, partir de la
+  segunda versión.
+
+  Otras tres trampas: la **playa tiene que ser ancha** (con los 13 m de Huingán el encuadre
+  adaptable pone la cámara sobre el muro y el mar queda fuera de cuadro); el **ripple de arena**
+  hay que apagarlo donde hay césped (la rampa de Huingán lo deja encendido tierra adentro y el
+  pasto sale rayado); y la franja húmeda del muro se mide con un **atributo de altura**, no con
+  la z del mundo. Y las luces interiores van bajas: a plena potencia la casa se ve con **luz de
+  noche a pleno día**.
 - *Ciprés* (**norte, seco**): mismo mar, clima opuesto. Casi nada de verde — arena y roca
   desnudas, alguna mata rala y aislada. Luz más dura y vertical: subir `SUN_ELEV`, bajar
   `aerosol_density` del cielo físico y **reducir la bruma** (`mist_settings.depth` más corto),

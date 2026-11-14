@@ -132,14 +132,19 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   recursos de Poly Haven con `tools/get_assets_playa.sh` **y** `tools/get_assets_urbano.sh`).
   Es la más grande de las nueve (16,02 × 11,15; era la "Huingán familiar"), así que el `FIT` del
   encuadre sube a 0,88 y el arco frontal va más bajo: el enganche es que se abre entera al frente.
-  Hereda el mar y la arena de Huingán; lo que cambia es tierra adentro (costanera pavimentada con
-  alumbrado y postes, muro de contención sobre la playa, vecinos cerca, césped y setos en vez de
-  matorral). Fotos de aprobación con `PY=$PWD/venv-bpy/bin/python tools/fotos_manio.sh`
-  (`output/manio_propuesta/`), secciones con `setsid nohup tools/render_manio.sh s1 [s2 ...] &`.
-  Ojo con tres cosas al heredar esta escena en Ciprés: la playa tiene que ser **ancha** (con la
-  duna angosta de Huingán la cámara se planta sobre el muro y el mar queda fuera de cuadro), el
-  ripple de arena hay que apagarlo donde hay césped, y la franja húmeda del muro se mide con un
-  atributo de altura y no con la z del mundo.
+  Hereda el mar y la arena de Huingán; lo que cambia es tierra adentro: **condominio de costa
+  estilo Maitencillo**, con camino angosto de asfalto y bermas de maicillo (sin solera, sin
+  vereda, sin alumbrado ni postes), muro de contención sobre la playa, vecinos cerca pero todos
+  distintos, cierro de listones de madera y césped con setos en vez de matorral. Fotos de
+  aprobación con `PY=$PWD/venv-bpy/bin/python tools/fotos_manio.sh` (`output/manio_propuesta/`),
+  secciones con `setsid nohup tools/render_manio.sh s1 [s2 ...] &`.
+  La primera versión era una costanera urbana y la revisión la rechazó: lo que la delataba eran
+  los postes con tendido aéreo, la calzada ancha con solera y vereda de hormigón, y los vecinos
+  repetidos en filas. Al heredar esto en Ciprés, partir de la **segunda** versión.
+  Ojo además con tres cosas: la playa tiene que ser **ancha** (con la duna angosta de Huingán la
+  cámara se planta sobre el muro y el mar queda fuera de cuadro), el ripple de arena hay que
+  apagarlo donde hay césped, y la franja húmeda del muro se mide con un atributo de altura y no
+  con la z del mundo.
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en

@@ -187,12 +187,18 @@ Lo que se construyó sobre la base de Huingán:
 - ✅ **Corrección del techo**: no es de una agua a 12° como decía `ENGANCHES.md`, son **dos
   faldones de 12° y 18° con la cumbrera en x = 9,55**, justo sobre el muro que separa el living
   del dormitorio 2. Lo de "una agua" sale de que desde el mar sólo se ve el faldón de 12°.
-- ✅ **Contexto urbano**: costanera pavimentada paralela a la orilla (calzada de asfalto con
-  huellas de rueda, solera, veredas a ambos lados), alumbrado público cada 30 m, postes de
-  hormigón con tendido aéreo cada 36 m, entrada de autos al porch con portón y pandereta, y dos
-  filas de vecinos sobre la costanera más el balneario trepando el cerro (65 casas en total).
-  Los vecinos de la primera fila son **más chicos que Mañío a propósito**, si no deja de leerse
-  como la grande.
+- ✅ **Contexto: condominio de costa, no calle urbana.** Camino angosto de asfalto (4,6 m) con
+  bermas de maicillo, sin solera ni vereda, a 42 m del frente de la casa; acceso de maicillo al
+  porch con portón y cierro de listones de madera; ochenta vecinos **todos distintos**, los dos
+  contiguos puestos a mano (más chicos que Mañío a propósito, si no deja de leerse como la
+  grande) y el resto sembrado irregular entre grupos de pinos y cipreses.
+
+  ⚠️ **Esto es la segunda versión.** La primera era una costanera urbana —7,2 m de calzada,
+  soleras, dos veredas de hormigón, alumbrado público cada 30 m y postes con tendido aéreo, todo
+  a 25 m de la casa, con los vecinos en filas regulares— y la revisión del 12-11 la rechazó: la
+  idea es *"más condominio estilo Maitencillo"*. Lo que se sacó y por qué está anotado en el
+  encabezado de `casa_manio_3d.py`. **Para Ciprés hay que partir de la segunda versión**, no de
+  la lógica de costanera.
 - ✅ **Muro de contención** de hormigón sobre la playa, con escalera pública a la arena y el
   sendero que la une con la terraza. Es lo que explica que el predio esté plano: `terrain_h`
   aterraza todo el loteo en vez de ondularlo.
@@ -215,6 +221,13 @@ Tres cosas que costaron y conviene no repetir en Ciprés:
 3. **El liquen del muro se mide con un atributo, no con la z del mundo.** El muro corre a cota
    variable; con la z cruda la franja húmeda del pie cubría el muro entero y se veía una faja
    verde oscura cruzando la playa.
+4. **"Urbanizada" no es "urbana".** Lo que delata una calle de ciudad son tres cosas, en este
+   orden: los postes con tendido aéreo, el ancho de la calzada con solera y vereda de hormigón, y
+   los vecinos repetidos en filas. Sacadas esas tres, la misma escena se lee como condominio de
+   costa sin tocar nada más.
+5. **El césped no admite mucha variación.** La modulación de ruido que sirve para el matorral
+   (0,75 + 0,9·ruido) deja medio jardín a mitad de verde y se ve pajoso; un césped regado va con
+   0,92 + 0,5·ruido, o sea casi parejo.
 
 **Falta para Ciprés (norte, seco):**
 - 🟢 Nada que descargar: `flamingo_pan_2k.exr` ya está y es el más árido de los cinco. Hay que

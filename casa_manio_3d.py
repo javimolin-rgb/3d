@@ -17,17 +17,36 @@ vidriada y corrida con la terraza siguiéndola de punta a punta, y es la más ba
 (5,07 m): en una playa ya urbanizada ese perfil bajo es privacidad. Por eso el arco frontal del
 dron va más abierto y más bajo que en Huingán, para que la casa cruce la pantalla a lo ancho.
 
-Paisaje: **balneario de la costa chilena**, no playa salvaje. Se heredan de casa_huingan_3d.py el
-mar con oleaje y espuma y la arena; lo que cambia es todo lo de tierra adentro:
+Paisaje: **condominio de costa estilo Maitencillo**, no playa salvaje ni calle de ciudad. Se
+heredan de casa_huingan_3d.py el mar con oleaje y espuma y la arena; lo que cambia es todo lo de
+tierra adentro:
   - la duna salvaje deja lugar a un terreno aterrazado y plano, con **muro de contención** de
     hormigón sobre la playa y una escalera pública que baja a la arena;
-  - en vez del camino de tierra hay una **costanera pavimentada** con solera, vereda, alumbrado
-    público y postes de electricidad con tendido;
-  - los **vecinos están cerca y son muchos**: dos predios contiguos, una segunda fila al otro
-    lado de la costanera y el resto del balneario subiendo por la ladera;
+  - en vez del camino de tierra hay un **camino angosto de asfalto** (4,6 m) con bermas de
+    maicillo, sin solera ni vereda, a 42 m del frente de la casa;
+  - los **vecinos están cerca pero son todos distintos**: dos predios contiguos puestos a mano y
+    el resto sembrado irregular entre los pinos, con tamaño, giro, retranqueo, pendiente de techo
+    y color variables;
   - la vegetación es **domesticada**: césped recortado en los antejardines, setos de deslinde,
-    jacarandás y árboles ornamentales de calle, maceteros en la terraza. El matorral costero
-    silvestre queda sólo del muro hacia la playa.
+    cierro de listones de madera hacia el camino, grupos irregulares de pinos y cipreses, algún
+    ornamental de hoja ancha y maceteros en la terraza. El matorral costero silvestre queda sólo
+    en los sitios baldíos y del muro hacia la playa.
+
+⚠️ **Lo que pidió la revisión (Maca, 12-11) y por qué el script quedó así.** La primera versión
+era una costanera urbana y se leyó mal; los cambios no son de gusto, son de lectura:
+  - **Sin alumbrado público ni postes con tendido.** Eran la firma más fuerte de "calle de
+    ciudad" y además hoy el cableado va bajo tierra. Se borró `build_alumbrado()` entero.
+  - **El camino, angosto y lejos.** Era de 7,2 m con soleras y dos veredas de hormigón, a 25 m de
+    la casa: "calle grande de cemento". Ahora `CALLE_W` es 2,30 (4,6 m de calzada), no hay solera
+    ni vereda —bermas de maicillo— y `CALLE_Y` pasó de 25 a 42.
+  - **Vecinos todos distintos.** Venían en filas regulares a distancias fijas de la orilla, con
+    el mismo volumen y los mismos tres colores. Ver el comentario sobre `VECINOS`.
+  - **La casa manda.** La vista `calle` tenía el camino ocupando media pantalla; todas las vistas
+    se acercaron, y `calle` pasó de factor 1,45 a 1,32 con la cámara más alta.
+  - **Nada de luz de noche a pleno día.** Las luces interiores bajaron a un quinto: son relleno
+    para que el interior no sea una caja negra detrás del vidrio, no iluminación nocturna.
+  - **Cierro de madera, no pandereta.** En un condominio de costa el deslinde a la calle es
+    madera o vegetación, nunca un muro de bloques con pilares.
 Recursos CC0 de Poly Haven: tools/get_assets_playa.sh (mar, arena, matorral, rocas) y
 tools/get_assets_urbano.sh (alumbrado, postes, jacarandá, arbustos de jardín, maceteros, asfalto).
 """
@@ -69,9 +88,12 @@ LOTE = (-11.0, 27.0)         # deslindes del predio en x; el vecino empieza ahí
 # la duna de Huingán. No es un detalle de paisaje: con la playa angosta la cámara del encuadre
 # adaptable se planta justo sobre el muro y el mar queda detrás de ella en todas las tomas.
 MURO_D = 25.0                # distancia a la orilla donde va el muro de contención (m)
-CALLE_Y = 25.0               # eje de la costanera, detrás de la casa
-CALLE_W = 3.6                # medio ancho de la calzada
-VEREDA = 2.0                 # ancho de la vereda a cada lado
+# El camino es de condominio, no costanera: angosto, sin solera ni vereda, y **lejos de la casa**.
+# La primera versión lo tenía a 25 m del frente con 7,2 m de calzada y dos veredas de hormigón, y
+# la revisión lo leyó como "calle grande de cemento" pegada a la casa por atrás.
+CALLE_Y = 42.0               # eje del camino del condominio, detrás de la casa
+CALLE_W = 2.30               # medio ancho de la calzada (4,6 m: cruzan dos autos justos)
+VEREDA = 0.90                # berma de maicillo a cada lado, en vez de vereda de hormigón
 FPS = 24
 
 
@@ -336,8 +358,8 @@ def sand_mat():
     h = N.math("ADD", h, N.math("MULTIPLY", N.math("MULTIPLY", N.noise(tc.outputs["Object"], 26.0, 4),
                                                    pa.outputs["Fac"]), 0.5))
     bmp = n.new("ShaderNodeBump")
-    bmp.inputs["Strength"].default_value = 0.35
-    bmp.inputs["Distance"].default_value = 0.03
+    bmp.inputs["Strength"].default_value = 0.22   # el ripple marcado se veía como pana
+    bmp.inputs["Distance"].default_value = 0.025
     l.new(h, bmp.inputs["Height"])
     l.new(bmp.outputs["Normal"], b.inputs["Normal"])
     return m
@@ -511,7 +533,7 @@ def concrete_mat():
 def asphalt_mat():
     """Calzada de asfalto: árido fino, huellas de rueda algo más claras y pulidas, parches y
     borde deshilachado que se funde con el terreno (la costanera no tiene cuneta en todo el largo).
-    La UV la pone build_costanera: u a lo largo, v = 0..1 a lo ancho."""
+    La UV la pone build_camino: u a lo largo, v = 0..1 a lo ancho."""
     m, n, l = new_mat("Asfalto")
     N = Nodos(n, l)
     b = n["Principled BSDF"]
@@ -614,6 +636,29 @@ def seawall_mat():
     return m
 
 
+def gravel_mat():
+    """Maicillo: la gravilla compactada con que se hacen las bermas y los accesos en los
+    condominios de la costa. Reemplaza al hormigón de las veredas, que es lo que hacía leer el
+    camino como calle de ciudad. Color tierra claro, grano grueso y borde que se funde con el
+    pasto, para que no quede una cinta recortada sobre el terreno."""
+    m, n, l = new_mat("Maicillo")
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    tc = n.new("ShaderNodeTexCoord")
+    gr = N.noise(tc.outputs["Object"], 38.0, 4)
+    col = N.mix(N.math("MULTIPLY_ADD", N.noise(tc.outputs["Object"], 1.6, 5), 1.3, -0.15),
+                (0.17, 0.13, 0.085), (0.30, 0.24, 0.16))
+    col = N.mix(N.math("MULTIPLY", gr, 0.55), col, (0.24, 0.20, 0.14))
+    l.new(col, b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.95
+    bmp = n.new("ShaderNodeBump")
+    bmp.inputs["Strength"].default_value = 0.6
+    bmp.inputs["Distance"].default_value = 0.012
+    l.new(gr, bmp.inputs["Height"])
+    l.new(bmp.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
 def hedge_mat():
     """Seto recortado: verde oscuro parejo con hojas por bump. Lo que lo hace leer como seto y no
     como un bloque verde es el perfil irregular que le da el Displace, no el material."""
@@ -674,15 +719,11 @@ def materials():
         "pasarela": boards_mat("Pasarela", (0.38, 0.32, 0.25), (0.55, 0.48, 0.38), "X", 4.0, 0.75, 0.4),
         # ---- el balneario
         "asfalto": asphalt_mat(),
-        "vereda": paving_mat("Vereda", 1.2),
-        "radier": paving_mat("Radier", 1.6, (0.58, 0.56, 0.52)),
-        "solera": principled("Solera", (0.52, 0.51, 0.48), 0.85),
+        "radier": paving_mat("Radier", 1.6, (0.58, 0.56, 0.52)),   # escalera pública a la playa
+        "maicillo": gravel_mat(),                                  # bermas, acceso y huellas
         "muroMar": seawall_mat(),
         "seto": hedge_mat(),
         "cesped": lawn_mat(),
-        "panderete": principled("Panderete", (0.56, 0.54, 0.5), 0.9),   # muro de albañilería del deslinde
-        "poste": principled("PosteHormigon", (0.46, 0.45, 0.43), 0.85),
-        "cable": principled("Cable", (0.02, 0.02, 0.02), 0.6),
     }
     return M
 
@@ -704,8 +745,11 @@ def load_house(M):
                 sl.material = swap[sl.material.name]
     # luces interiores tibias (en el día apenas se notan, pero dan vida al interior). Son más que
     # en Huingán porque la casa mide 16 m de largo: una por recinto de la banda que da al ventanal.
-    for x, y, z, p in ((6.5, 4.6, 2.6, 190), (1.8, 4.5, 2.3, 70), (11.0, 4.5, 2.3, 70),
-                       (14.3, 4.5, 2.3, 70), (6.8, 7.8, 2.6, 110), (12.5, 7.8, 2.4, 60)):
+    # Potencias bajas: son un relleno para que el interior no quede como una caja negra detrás
+    # del vidrio, no iluminación de noche. En la primera versión iban cinco veces más fuertes y
+    # la revisión vio "la casa con luces de noche y afuera de día".
+    for x, y, z, p in ((6.5, 4.6, 2.6, 38), (1.8, 4.5, 2.3, 14), (11.0, 4.5, 2.3, 14),
+                       (14.3, 4.5, 2.3, 14), (6.8, 7.8, 2.6, 22), (12.5, 7.8, 2.4, 12)):
         bpy.ops.object.light_add(type="AREA", location=(x, y, z))
         lt = bpy.context.object
         lt.data.energy, lt.data.size = p, 1.0
@@ -1141,14 +1185,16 @@ def build_vegetation(sand, bq, ph):
         # El césped llega **hasta** la casa: con el margen de 1,2 m que usaba Huingán para el
         # matorral, alrededor de la casa quedaba un ruedo de tierra pelada de dos metros que en la
         # cenital se veía como una obra sin terminar.
-        libre = min(1.0, max(0.0, (house_dist(x, y) - 0.05) / 0.45))
+        libre = min(1.0, max(0.0, (house_dist(x, y) - 0.0) / 0.30))
         libre *= min(1.0, max(0.0, (pd - 0.75) / 0.5))          # senda a la playa
         libre *= min(1.0, max(0.0, (dd - DRIVE_W) / 0.6))       # entrada de autos
         libre *= min(1.0, max(0.0, (abs(d - CALLE_D) - CALLE_W - VEREDA) / 1.0))   # calzada y vereda
         lote = en_lote(x, y)
         cerca = min(1.0, max(0.0, (150.0 - math.hypot(x - HC.x, y - HC.y)) / 40.0))
         p = lote * libre * cerca
-        p *= min(1.0, max(0.0, 0.75 + 0.9 * noise.noise(Vector((x / 9.0, y / 9.0, 6.3)))))
+        # Variación suave: un césped regado no tiene claros. Con la amplitud anterior
+        # (0,75 + 0,9·ruido) medio jardín quedaba a mitad de verde y se leía pajoso.
+        p *= min(1.0, max(0.0, 0.92 + 0.5 * noise.noise(Vector((x / 9.0, y / 9.0, 6.3)))))
         pas.append(max(0.0, min(1.0, p)))
         # matorral: en los sitios baldíos y en la franja de arena al pie del muro
         w = (1.0 - lote) * min(1.0, max(0.0, (d - BEACH - 0.5) / 3.0)) * libre
@@ -1288,58 +1334,48 @@ def cinta(name, x0, x1, half_lo, half_hi, dz, mat, coll, step=4.0, uv=False, cer
     return o
 
 
-def build_costanera(M, coll):
-    """La costanera: calzada de asfalto, solera a cada lado y vereda de hormigón, más el acceso
-    pavimentado que entra al predio. Es lo que reemplaza al camino de tierra de Huingán y lo que
-    de un vistazo dice que la playa está urbanizada."""
+def build_camino(M, coll):
+    """El camino del condominio: una calzada **angosta** de asfalto, sin solera ni vereda, que se
+    deshilacha contra el pasto, más el acceso de maicillo que entra al predio.
+
+    La primera versión era una costanera urbana (7,2 m de calzada, soleras, dos veredas de
+    hormigón y alumbrado): la revisión la leyó como "calle grande de cemento" y pidió un
+    condominio estilo Maitencillo. En un condominio el camino es angosto, no tiene solera ni
+    vereda y el pasto llega hasta el borde del asfalto."""
     X0, X1 = -420.0, 460.0
-    cinta("Calzada", X0, X1, -CALLE_W, CALLE_W, 0.07, M["asfalto"], coll, 4.0, uv=True)
+    cinta("Calzada", X0, X1, -CALLE_W, CALLE_W, 0.05, M["asfalto"], coll, 4.0, uv=True)
+    # berma de maicillo a cada lado: es lo único que separa el asfalto del pasto
     for sgn in (-1, 1):
-        s = sgn * CALLE_W
-        cinta(f"Solera{sgn}", X0, X1, s, s + sgn * 0.16, 0.20, M["solera"], coll, 4.0)   # cara superior
-        cinta(f"Vereda{sgn}", X0, X1, s + sgn * 0.16, s + sgn * (0.16 + VEREDA), 0.19,
-              M["vereda"], coll, 4.0)
-    # cara vertical de la solera (una tira angosta, para que el pavimento tenga canto y no sea
-    # una calcomanía sobre el terreno)
-    for sgn in (-1, 1):
-        verts, faces = [], []
-        n = int((X1 - X0) / 4.0) + 1
-        for i in range(n):
-            x = X0 + i * 4.0
-            y = calle_y(x) + sgn * CALLE_W
-            z = terrain_h(x, y)
-            verts += [(x, y, z + 0.05), (x, y, z + 0.20)]
-            if i:
-                faces.append((2 * i - 2, 2 * i - 1, 2 * i + 1, 2 * i))
-        mesh_obj(f"SoleraCanto{sgn}", verts, faces, M["solera"], coll)
-    # entrada de autos: del borde de la vereda al porch
-    y0, y1 = D - 0.5, calle_y(DRIVE_X) - CALLE_W - 0.16
+        s_ = sgn * CALLE_W
+        cinta(f"Berma{sgn}", X0, X1, s_, s_ + sgn * VEREDA, 0.03, M["maicillo"], coll, 4.0)
+    # acceso al predio: del borde del camino al porch, en maicillo y no en hormigón
+    y0, y1 = D - 0.5, calle_y(DRIVE_X) - CALLE_W - VEREDA + 0.3
     verts, faces = [], []
     ny = max(2, int((y1 - y0) / 1.5))
     for k in range(ny + 1):
         y = y0 + (y1 - y0) * k / ny
         for sgn in (-1, 1):
             x = DRIVE_X + sgn * (DRIVE_W - 0.35)
-            verts.append((x, y, terrain_h(x, y) + 0.05))
+            verts.append((x, y, terrain_h(x, y) + 0.03))
         if k:
             faces.append((2 * k - 2, 2 * k - 1, 2 * k + 1, 2 * k))
-    mesh_obj("Acceso", verts, faces, M["radier"], coll)
-    # vereda de servicio entre el porch y la terraza, por el costado -X
+    mesh_obj("Acceso", verts, faces, M["maicillo"], coll)
+    # huella de maicillo entre el porch y la terraza, por el costado -X
     verts, faces = [], []
     for k in range(9):
         y = -1.2 + k * 1.6
         for sgn in (-1, 1):
             x = -1.9 + sgn * 0.45
-            verts.append((x, y, terrain_h(x, y) + 0.05))
+            verts.append((x, y, terrain_h(x, y) + 0.03))
         if k:
             faces.append((2 * k - 2, 2 * k - 1, 2 * k + 1, 2 * k))
-    mesh_obj("Pasillo", verts, faces, M["radier"], coll)
+    mesh_obj("Pasillo", verts, faces, M["maicillo"], coll)
 
 
 def build_cierros(M, coll):
-    """Deslindes: seto recortado entre predios y pandereta de albañilería hacia la calle, con el
-    portón de entrada. Un predio sin cierro no se lee como predio, y sin deslindes la fila de
-    casas se vería como casas sueltas en un campo en vez de como un loteo."""
+    """Deslindes: seto recortado entre predios y, hacia el camino, un cierro de **listones de
+    madera** con su portón. Antes era una pandereta de albañilería con pilares; en un condominio
+    de costa el deslinde a la calle es madera o vegetación, nunca un muro de bloques."""
     seto_h, seto_w = 1.55, 0.75
     for xl in (LOTE[0], LOTE[1]):
         d0, d1 = BEACH + 1.2, LOTE_FONDO - 0.2
@@ -1366,89 +1402,47 @@ def build_cierros(M, coll):
         dsp.texture, dsp.strength = tex, 0.16
         for p in o.data.polygons:
             p.use_smooth = True
-    # pandereta y portón hacia la costanera
-    ym = calle_y(0.0) - CALLE_W - VEREDA - 0.5
+    # cierro de madera hacia el camino, con el portón al eje del acceso
+    ym = calle_y(0.0) - CALLE_W - VEREDA - 1.2
     for x0, x1 in ((LOTE[0], DRIVE_X - DRIVE_W - 0.3), (DRIVE_X + DRIVE_W + 0.3, LOTE[1])):
-        y = ym + 0.0
-        z = terrain_h((x0 + x1) / 2, y)
-        box("Pandereta", x0, x1, y - 0.14, y + 0.14, z - 0.2, z + 1.70, M["panderete"], coll)
-        box("PanderetaCoron", x0 - 0.06, x1 + 0.06, y - 0.2, y + 0.2, z + 1.70, z + 1.78,
-            M["solera"], coll)
-    for sgn in (-1, 1):                                   # pilares del portón
+        n = max(2, int((x1 - x0) / 0.22))
+        for k in range(n):
+            x = x0 + (x1 - x0) * k / n
+            z = terrain_h(x, ym)
+            box(f"Cierro{k}", x, x + 0.11, ym - 0.03, ym + 0.03, z - 0.05, z + 1.25,
+                M["fachada"], coll)
+        z = terrain_h((x0 + x1) / 2, ym)
+        for zt in (z + 0.45, z + 1.22):          # travesaños
+            box("CierroTrav", x0, x1, ym - 0.045, ym + 0.045, zt - 0.07, zt, M["fachada"], coll)
+    for sgn in (-1, 1):                          # pilares del portón, también de madera
         x = DRIVE_X + sgn * (DRIVE_W + 0.3)
         z = terrain_h(x, ym)
-        box(f"Pilar{sgn}", x - 0.22, x + 0.22, ym - 0.22, ym + 0.22, z - 0.2, z + 2.0,
-            M["panderete"], coll)
+        box(f"Pilar{sgn}", x - 0.11, x + 0.11, ym - 0.11, ym + 0.11, z - 0.2, z + 1.55,
+            M["fachada"], coll)
     z = terrain_h(DRIVE_X, ym)
-    for k in range(13):                                   # portón de listones de madera
-        x = DRIVE_X - DRIVE_W + 0.25 + k * (2 * DRIVE_W - 0.5) / 12
-        box(f"Liston{k}", x - 0.055, x + 0.055, ym - 0.03, ym + 0.03, z + 0.1, z + 1.72,
+    for k in range(11):                          # portón de listones
+        x = DRIVE_X - DRIVE_W + 0.25 + k * (2 * DRIVE_W - 0.5) / 10
+        box(f"Liston{k}", x - 0.055, x + 0.055, ym - 0.03, ym + 0.03, z + 0.08, z + 1.30,
             M["fachada"], coll)
     box("PortonTrav", DRIVE_X - DRIVE_W + 0.2, DRIVE_X + DRIVE_W - 0.2, ym - 0.04, ym + 0.04,
-        z + 1.55, z + 1.72, M["fachada"], coll)
+        z + 1.14, z + 1.30, M["fachada"], coll)
 
 
-def build_alumbrado(M, coll, lamp_src):
-    """Alumbrado público sobre la vereda de tierra adentro y postes de electricidad con tendido
-    sobre la del mar. Las líneas aéreas son la firma de la urbanización chilena: sin ellas la
-    calle se ve de maqueta."""
-    # luminarias (modelo CC0 de Poly Haven), cada 30 m
-    hv = CALLE_W + 0.16 + VEREDA * 0.75
-    for k in range(-9, 13):
-        x = k * 30.0 + 4.0
-        y = calle_y(x) + hv
-        o = lamp_src.copy()
-        o.data = lamp_src.data
-        coll.objects.link(o)
-        o.location = (x, y, terrain_h(x, y) + 0.19)
-        o.rotation_euler = (0, 0, math.radians(180 if k % 2 else 0))
-    # postes de hormigón con crucetas y cables, cada 36 m, en la vereda del mar
-    hp = -(CALLE_W + 0.16 + VEREDA * 0.35)
-    postes = []
-    for k in range(-11, 15):
-        x = k * 36.0 - 8.0
-        y = calle_y(x) + hp
-        z = terrain_h(x, y) + 0.19
-        box(f"Poste{k}", x - 0.11, x + 0.11, y - 0.11, y + 0.11, z, z + 8.2, M["poste"], coll)
-        box(f"Cruceta{k}", x - 1.05, x + 1.05, y - 0.05, y + 0.05, z + 7.55, z + 7.65,
-            M["poste"], coll)
-        postes.append((x, y, z))
-    # tendido: catenaria entre poste y poste, tres hilos
-    for (x0, y0, z0), (x1, y1, z1) in zip(postes, postes[1:]):
-        for off, zh in ((-0.9, 7.6), (0.0, 7.6), (0.9, 7.6), (0.0, 6.6)):
-            verts, edges = [], []
-            n = 8
-            for k in range(n + 1):
-                t = k / n
-                comba = 0.55 * math.sin(math.pi * t)
-                verts.append((x0 + (x1 - x0) * t + off * 0.0,
-                              y0 + (y1 - y0) * t + off,
-                              z0 + (z1 - z0) * t + zh - comba))
-                if k:
-                    edges.append((k - 1, k))
-            me = bpy.data.meshes.new("Cable")
-            me.from_pydata(verts, edges, [])
-            me.update()
-            c = link(bpy.data.objects.new("Cable", me), coll)
-            c.data.materials.append(M["cable"])
-            sk = c.modifiers.new("hilo", "SKIN")
-            for v in c.data.skin_vertices[0].data:
-                v.radius = (0.016, 0.016)
-            sk.use_smooth_shade = True
-
-
-def place_ornamentales(coll, orn):
-    """Árboles ornamentales puestos a mano: jacarandás de vereda alternados con las luminarias, y
-    árboles de antejardín en nuestro predio y en los vecinos. A mano y no esparcidos, porque en un
-    barrio los árboles están **alineados**: es justamente lo que se ve de un vuelo de dron."""
+def place_ornamentales(coll, orn, pinos):
+    """Arbolado del condominio. **No hay hilera de árboles de vereda**: la versión anterior
+    alineaba jacarandás cada 30 m sobre la vereda y eso es lo que hace que una calle se lea como
+    calle de ciudad. Acá los árboles van en grupos irregulares entre los predios y a lo largo del
+    camino, con pinos y cipreses —que es lo que hay en la costa central— y algún ornamental de
+    hoja ancha en los antejardines."""
     arb = list(orn.objects)
+    pin = list(pinos)
     rnd = random.Random(17)
 
-    def poner(x, y, s, giro=None):
+    def poner(x, y, s, fuente=None, giro=None):
         """`s` es la altura pedida en metros: los modelos de Poly Haven vienen en escalas muy
         distintas (19,5 m el jacarandá, 3,4 el island_tree_02) y mezclarlos por factor deja
         arbolitos de maqueta al lado de árboles gigantes."""
-        o = rnd.choice(arb).copy()
+        o = rnd.choice(fuente or arb).copy()
         coll.objects.link(o)
         o.location = (x, y, terrain_h(x, y) - 0.08)
         o.rotation_euler = (0, 0, giro if giro is not None else rnd.uniform(0, 6.28))
@@ -1456,77 +1450,84 @@ def place_ornamentales(coll, orn):
         o.scale = (f, f, f * rnd.uniform(0.94, 1.08))
         return o
 
-    jac = next((o for o in arb if "jacaranda" in o.name), arb[0])
-    # el modelo de Poly Haven mide 19,5 m: un jacarandá de vereda adulto anda en 11-13, así que
-    # va escalado a 0,6. Sin esto los árboles de la calle le pasan por encima a las casas.
-    jac_s = 11.5 / max(0.1, jac.dimensions.z)
-    hv = CALLE_W + 0.16 + VEREDA * 0.5
-    for k in range(-10, 14):                       # arbolado de vereda: jacarandás alineados
-        x = k * 30.0 + 19.0
-        y = calle_y(x) + hv
-        o = jac.copy()
-        coll.objects.link(o)
-        o.location = (x, y, terrain_h(x, y) - 0.05)
-        o.rotation_euler = (0, 0, rnd.uniform(0, 6.28))
-        s = jac_s * rnd.uniform(0.88, 1.12)
-        o.scale = (s, s, s)
-    # nuestro antejardín (alturas en metros): a los costados, nunca delante del ventanal corrido,
-    # que taparían el enganche de la casa
-    for x, dd, s in ((-7.5, 44.0, 6.5), (23.5, 48.0, 5.0), (-8.5, 56.0, 7.0), (24.5, 58.0, 6.0)):
-        poner(x, lote_y(x, dd), s)
-    # jardines de los vecinos
-    for x, dd, s in ((-34.0, 44.0, 7.0), (-26.0, 51.0, 5.0), (42.0, 42.0, 6.0), (52.0, 49.0, 7.5),
-                     (-62.0, 46.0, 6.5), (78.0, 45.0, 6.0), (-100.0, 48.0, 7.0), (114.0, 47.0, 6.5),
-                     (-44.0, 92.0, 7.0), (-6.0, 94.0, 6.0), (30.0, 91.0, 7.5), (66.0, 95.0, 6.5),
-                     (-82.0, 93.0, 6.0), (102.0, 92.0, 7.0)):
-        poner(x, lote_y(x, dd), s)
+    # grupos de pinos y cipreses a lo largo del camino, a distancias irregulares y a los dos
+    # lados: es lo que da la sombra moteada de un condominio entre pinos
+    x = -300.0
+    while x < 360.0:
+        x += rnd.uniform(14.0, 34.0)
+        if abs(x - DRIVE_X) < 12:
+            continue                               # no tapar el acceso del predio
+        for _ in range(rnd.randint(1, 3)):
+            lado = rnd.choice((-1, -1, 1))
+            dd = CALLE_D + lado * rnd.uniform(CALLE_W + VEREDA + 1.5, CALLE_W + VEREDA + 9.0)
+            xx = x + rnd.uniform(-5, 5)
+            poner(xx, lote_y(xx, dd), rnd.uniform(9.0, 16.0), pin)
+    # nuestro antejardín: a los costados, nunca delante del ventanal corrido
+    for x, dd, s in ((-7.5, 40.0, 6.5), (23.5, 43.0, 5.0), (-8.5, 62.0, 7.0), (24.5, 66.0, 6.0),
+                     (-7.0, 72.0, 9.0), (24.0, 76.0, 8.5)):
+        poner(x, lote_y(x, dd), s, pin if s > 8 else None)
+    # jardines de los vecinos, en grupos sueltos
+    for k in range(26):
+        xx = rnd.uniform(-190, 210)
+        if -14 < xx < 30:
+            continue
+        dd = rnd.choice((rnd.uniform(34, 80), rnd.uniform(100, 140)))
+        poner(xx, lote_y(xx, dd), rnd.uniform(5.0, 13.0), pin if rnd.random() < 0.6 else None)
 
 
-# ---- vecinos: dos filas sobre la costanera y el resto del balneario trepando el cerro.
-# (x, distancia a la orilla, giro°, ancho, fondo, alto de muro, muro, techo). Los de la primera
-# fila son más chicos que Casa Mañío a propósito: con 16 m de frente es la más grande del conjunto
-# —era la "Huingán familiar"— y si los vecinos fueran iguales dejaría de leerse.
+# ---- vecinos del condominio. La revisión pidió sacar las "casas todas iguales atrás": antes
+# venían en filas regulares a distancias fijas de la orilla, con el mismo volumen a dos aguas y
+# los mismos tres colores. Ahora las dos contiguas están puestas a mano (son las que se ven en el
+# arco frontal y las que fijan la escala: más chicas que Mañío a propósito, que con 16 m de frente
+# es la más grande del conjunto) y el resto se siembra irregular, con tamaño, giro, retranqueo,
+# pendiente de techo y color variables, y algunas con volumen anexo.
+# (x, distancia a la orilla, giro°, ancho, fondo, alto de muro, muro, techo, pendiente, anexo)
 VECINOS = [
-    (-30.0, 40.0, 2, 11, 8, 2.9, "blanco", "gris"), (46.0, 38.0, -3, 13, 9, 3.1, "madera", "gris"),
-    (-66.0, 42.0, 5, 10, 7, 2.8, "negro", "teja"), (82.0, 41.0, -6, 12, 8, 3.0, "blanco", "gris"),
-    (-104.0, 39.0, 0, 11, 8, 2.9, "madera", "teja"), (118.0, 43.0, 8, 10, 7, 2.7, "blanco", "gris"),
-    (-142.0, 41.0, -4, 12, 8, 3.0, "blanco", "teja"), (154.0, 40.0, 3, 11, 8, 2.9, "negro", "gris"),
-    (-48.0, 88.0, 0, 12, 8, 3.0, "blanco", "teja"), (-10.0, 90.0, 4, 10, 7, 2.8, "madera", "gris"),
-    (26.0, 87.0, -2, 11, 8, 2.9, "blanco", "gris"), (62.0, 91.0, 2, 13, 9, 3.1, "negro", "teja"),
-    (-86.0, 89.0, -5, 10, 7, 2.7, "blanco", "gris"), (98.0, 88.0, 6, 12, 8, 3.0, "madera", "teja"),
-    (-124.0, 90.0, 0, 11, 8, 2.9, "blanco", "teja"), (134.0, 92.0, -3, 10, 7, 2.8, "blanco", "gris"),
-    (-28.0, 120.0, 3, 12, 8, 3.0, "madera", "gris"), (10.0, 122.0, 0, 11, 8, 2.9, "blanco", "teja"),
-    (48.0, 119.0, -4, 10, 7, 2.8, "blanco", "gris"), (-66.0, 121.0, 5, 12, 8, 3.0, "negro", "teja"),
-    (86.0, 123.0, 2, 11, 8, 2.9, "madera", "gris"),
+    (-32.0, 52.0, -14, 11, 8, 2.9, "madera", "gris", 0.30, True),
+    (48.0, 46.0, 9, 13, 9, 3.1, "negro", "gris", 0.22, False),
 ]
 _rnd_v = random.Random(29)
-for _k in range(44):          # el balneario trepando el cerro, cada vez más suelto
-    _dd = 136.0 + _k * 10.0 + _rnd_v.uniform(-22, 22)
-
-    _x = _rnd_v.uniform(-340, 360)
-    VECINOS.append((_x, _dd, _rnd_v.uniform(-25, 25), _rnd_v.uniform(9, 13), _rnd_v.uniform(6, 9),
-                    _rnd_v.uniform(2.6, 3.1), _rnd_v.choice(("blanco", "madera", "negro", "blanco")),
-                    _rnd_v.choice(("gris", "teja", "gris"))))
+# Paleta de la costa central: madera y tonos oscuros. El blanco con techo de teja es lo que
+# hacía que un par de vecinos se leyeran como loteo de ciudad, así que queda como excepción.
+_MUROS = ("madera", "madera", "madera", "negro", "piedra", "piedra", "blanco")
+_TECHOS = ("gris", "gris", "gris", "madera", "teja")
+for _k in range(78):
+    if _k < 16:                      # vecinos de la primera línea, a lo largo de la playa
+        _x = (-1) ** _k * (72.0 + _k * 27.0) + _rnd_v.uniform(-9, 9)
+        _dd = _rnd_v.uniform(40.0, 74.0)
+    elif _k < 36:                    # del camino hacia adentro, sueltos entre los pinos
+        _x = _rnd_v.uniform(-230, 250)
+        _dd = _rnd_v.uniform(100.0, 170.0)
+    else:                            # el condominio trepando el cerro
+        _x = _rnd_v.uniform(-340, 360)
+        _dd = 170.0 + (_k - 36) * 7.0 + _rnd_v.uniform(-30, 30)
+    VECINOS.append((_x, _dd, _rnd_v.uniform(-45, 45), _rnd_v.uniform(8, 16),
+                    _rnd_v.uniform(6, 10), _rnd_v.uniform(2.5, 3.4),
+                    _rnd_v.choice(_MUROS if _k < 36 else _MUROS[:5]),
+                    _rnd_v.choice(_TECHOS if _k < 36 else _TECHOS[:4]),
+                    _rnd_v.uniform(0.16, 0.42), _rnd_v.random() < 0.35))
 
 
 def build_neighbors(coll):
-    """Casas vecinas: volúmenes a dos aguas con ventanas, chimenea y, las de la primera fila,
-    terraza al mar y cierro de deslinde. Más detalle que en Huingán porque acá no están a 300 m:
-    las dos de al lado quedan a 23 m de la casa y se ven en el arco frontal."""
+    """Casas vecinas del condominio: volúmenes a dos aguas con ventanas, chimenea y, las de la
+    primera línea, terraza al mar. Cada una con su pendiente de techo, su giro y su color, y
+    algunas con un volumen anexo; todas distintas, que es lo que pidió la revisión."""
     mats = {"blanco": principled("VecMuroBlanco", (0.62, 0.6, 0.56), 0.8),
-            "madera": principled("VecMuroMadera", (0.32, 0.22, 0.14), 0.7),
-            "negro": principled("VecMuroNegro", (0.03, 0.03, 0.03), 0.6),
-            "gris": principled("VecTechoGris", (0.08, 0.08, 0.085), 0.5),
-            "teja": principled("VecTechoTeja", (0.22, 0.09, 0.05), 0.7),
+            "madera": principled("VecMuroMadera", (0.26, 0.18, 0.11), 0.75),
+            "negro": principled("VecMuroNegro", (0.035, 0.034, 0.032), 0.6),
+            "piedra": principled("VecMuroPiedra", (0.30, 0.28, 0.25), 0.9),
+            "gris": principled("VecTechoGris", (0.075, 0.075, 0.08), 0.5),
+            "teja": principled("VecTechoTeja", (0.20, 0.085, 0.05), 0.7),
             "vidrio": principled("VecVentana", (0.02, 0.025, 0.03), 0.1),
-            "deck": principled("VecDeck", (0.34, 0.24, 0.15), 0.7),
-            "seto": bpy.data.materials.get("Seto") or principled("VecSeto", (0.03, 0.07, 0.025), 0.9)}
+            "deck": principled("VecDeck", (0.34, 0.24, 0.15), 0.7)}
+    mats["madera_techo"] = mats["madera"]
     rnd = random.Random(7)
-    for k, (x, dd, rot, w, d, h, wall, roof) in enumerate(VECINOS):
+    for k, (x, dd, rot, w, d, h, wall, roof, pend, anexo) in enumerate(VECINOS):
         y = lote_y(x, dd)
-        cerca = dd < 60 and abs(x) < 130          # primera fila, en cuadro
+        cerca = dd < 80 and abs(x) < 140          # primera línea, en cuadro
         z = min(terrain_h(x + ddx, y + ddy) for ddx in (-w / 2, w / 2) for ddy in (-d / 2, d / 2)) - 0.3
-        r = h + w * 0.26
+        r = h + w * pend
+        roof_mat = mats["madera_techo" if roof == "madera" else roof]
         verts = [(-w / 2, -d / 2, 0), (w / 2, -d / 2, 0), (w / 2, d / 2, 0), (-w / 2, d / 2, 0),
                  (-w / 2, -d / 2, h), (w / 2, -d / 2, h), (w / 2, d / 2, h), (-w / 2, d / 2, h),
                  (0, -d / 2, r), (0, d / 2, r)]
@@ -1535,7 +1536,7 @@ def build_neighbors(coll):
         roof_v = [(-w / 2 - 0.4, -d / 2 - 0.4, h - 0.2), (0, -d / 2 - 0.4, r), (0, d / 2 + 0.4, r),
                   (-w / 2 - 0.4, d / 2 + 0.4, h - 0.2), (w / 2 + 0.4, -d / 2 - 0.4, h - 0.2),
                   (w / 2 + 0.4, d / 2 + 0.4, h - 0.2)]
-        t = mesh_obj(f"VecinoTecho{k}", roof_v, [(0, 1, 2, 3), (1, 4, 5, 2)], mats[roof], coll)
+        t = mesh_obj(f"VecinoTecho{k}", roof_v, [(0, 1, 2, 3), (1, 4, 5, 2)], roof_mat, coll)
         t.modifiers.new("e", "SOLIDIFY").thickness = 0.15
         piezas.append(t)
         # ventanal al mar (-Y) y ventanas a los costados
@@ -1543,6 +1544,14 @@ def build_neighbors(coll):
                                [(-w * 0.32, -d / 2 - 0.03, 0.9), (w * 0.32, -d / 2 - 0.03, 0.9),
                                 (w * 0.32, -d / 2 - 0.03, h - 0.35), (-w * 0.32, -d / 2 - 0.03, h - 0.35)],
                                [(0, 1, 2, 3)], mats["vidrio"], coll))
+        if anexo:                                  # volumen menor adosado, con techo propio
+            aw, ad, ah = w * rnd.uniform(0.3, 0.45), d * rnd.uniform(0.5, 0.7), h * 0.78
+            ax = (w / 2 + aw / 2 - 0.1) * rnd.choice((-1, 1))
+            ay = rnd.uniform(-d * 0.15, d * 0.2)
+            piezas.append(box(f"VecinoAnexo{k}", ax - aw / 2, ax + aw / 2, ay - ad / 2, ay + ad / 2,
+                              0.0, ah, mats[wall], coll))
+            piezas.append(box(f"VecinoAnexoTecho{k}", ax - aw / 2 - 0.3, ax + aw / 2 + 0.3,
+                              ay - ad / 2 - 0.3, ay + ad / 2 + 0.3, ah, ah + 0.14, roof_mat, coll))
         if cerca:
             for sgn in (-1, 1):                    # ventanas laterales
                 vx = sgn * (w / 2 + 0.03)
@@ -1550,8 +1559,8 @@ def build_neighbors(coll):
                                        [(vx, -d * 0.18, 1.1), (vx, d * 0.22, 1.1),
                                         (vx, d * 0.22, h - 0.5), (vx, -d * 0.18, h - 0.5)],
                                        [(0, 1, 2, 3)], mats["vidrio"], coll))
-            dk = box(f"VecinoDeck{k}", -w * 0.42, w * 0.42, -d / 2 - 3.2, -d / 2, -0.12, 0.04,
-                     mats["deck"], coll)
+            dk = box(f"VecinoDeck{k}", -w * 0.42, w * 0.42, -d / 2 - rnd.uniform(2.2, 3.6), -d / 2,
+                     -0.12, 0.04, mats["deck"], coll)
             piezas.append(dk)
             cx = rnd.uniform(-w * 0.25, w * 0.25)  # chimenea
             piezas.append(box(f"VecinoChim{k}", cx - 0.3, cx + 0.3, -0.3, 0.3, h, r + 0.5,
@@ -1693,15 +1702,18 @@ def build_far_trees(far, trees):
     md.node_group = ng
 
 
-def build_context(M, orn, lamp_src):
+def build_context(M, orn):
+    """El condominio. Ya no hay alumbrado público ni postes con tendido: la revisión pidió
+    sacarlos ("ahora se hacen bajo tierra"), y además eran lo que más empujaba la lectura de
+    calle urbana."""
     coll = bpy.data.collections.new("Contexto")
     bpy.context.scene.collection.children.link(coll)
-    build_costanera(M, coll)
+    build_camino(M, coll)
     build_cierros(M, coll)
-    build_alumbrado(M, coll, lamp_src)
     build_neighbors(coll)
-    place_ornamentales(coll, orn)
-    build_far_trees(bpy.data.objects["Lejos"], make_trees(bpy.data.collections["Biblioteca"]))
+    arboles = make_trees(bpy.data.collections["Biblioteca"])
+    place_ornamentales(coll, orn, arboles)
+    build_far_trees(bpy.data.objects["Lejos"], arboles)
 
 
 # ---------------------------------------------------------------- cielo, render y cámara
@@ -1872,13 +1884,13 @@ def setup_render():
 # Con el factor 1,0 del encuadre adaptable la cámara se planta **dentro** del predio y el mar
 # queda fuera de cuadro, porque la playa de un balneario mide 32 m y no 13.
 VISTAS = {
-    "izq": (-32.0, 18.0, 2.6),         # diagonal frontal izquierda, desde el agua
-    "der": (36.0, 17.0, 2.6),          # diagonal frontal derecha
-    "frente": (2.0, 15.0, 2.2),        # de frente al ventanal corrido: el enganche
+    "izq": (-32.0, 18.0, 2.1),         # diagonal frontal izquierda, desde el agua
+    "der": (36.0, 17.0, 2.1),          # diagonal frontal derecha
+    "frente": (2.0, 15.0, 1.9),        # de frente al ventanal corrido: el enganche
     "cerca": (-50.0, 13.0, 1.12),      # la casa de cerca, con el jardín y los vecinos
-    "izq_atras": (-142.0, 19.0, 2.0),   # desde el balneario, hacia el mar
-    "der_atras": (146.0, 17.0, 2.0),
-    "calle": (163.0, 24.0, 1.45),      # la fachada de acceso con la costanera y el portón
+    "izq_atras": (-142.0, 19.0, 1.7),   # desde el condominio, hacia el mar
+    "der_atras": (146.0, 17.0, 1.7),
+    "calle": (158.0, 22.0, 1.32),      # la fachada de acceso: la casa manda, el camino acompaña
     "cenital": (90.0, 72.0, 1.30),     # la planta, con el loteo alrededor
 }
 
@@ -2152,7 +2164,7 @@ def apply_section(frames, g0):
     for o in house:   # con el techo abierto entra el día: luces interiores suaves
         if o.type == "LIGHT":
             o.visible_camera = False
-            o.data.energy *= 0.3
+            o.data.energy *= 0.6
     bpy.context.scene.cycles.transparent_max_bounces = 24
 
 
@@ -2230,10 +2242,9 @@ def main():
     bq, ph = load_assets(M)
     lib = bpy.data.collections["Biblioteca"]
     orn = load_ornamentales(lib)
-    lamp = load_ph(lib, "street_lamp_01").objects[0]
     build_vegetation(sand, bq, ph)
     place_props(lib, M)
-    build_context(M, orn, lamp)
+    build_context(M, orn)
     build_world()
     setup_render()
     sc = bpy.context.scene
