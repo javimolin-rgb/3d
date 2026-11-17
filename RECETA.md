@@ -51,19 +51,43 @@ Archivos: `output/casa_<nombre>_s1..s5.mp4` y `output/casa_<nombre>_secuencia.mp
 Se commitean al repo. Los PNG (`frames_<nombre>/`) van en `.gitignore` y se pierden con el
 contenedor; los MP4 son el entregable duradero.
 
-**Si la casa es de dos pisos el recorrido se alarga** (Casa Boldo: 1214 cuadros, 50 s), por dos
-cosas que pidió la revisión y conviene hacer de entrada:
-- El barrido del corte de s3 pasa por el piso de arriba en un suspiro —es el único momento en que
-  ese piso se ve en 3D—, así que ahí va una **pausa de tres segundos** para poder rotularlo con
-  flechas en edición. Lo que se detiene es **el corte, no la cámara**: el dron tiene que seguir
-  volando (congelar un cuadro y repetirlo se probó en Boldo y el usuario lo rechazó al toque). El
-  corte se queda quieto a la altura donde ese piso se ve entero, la cámara sigue su recorrido más
-  lenta, y después el corte retoma desde donde quedó, tantos cuadros de ruta más atrás como avanzó
-  la cámara. La sección se alarga lo que dure la pausa recorriendo la misma ruta, con la velocidad
-  de crucero del tramo final despejada por bisección para que cierre justo en el cenital: así el
-  último cuadro no cambia y la sección 4, que se arma sobre él, queda igual. Y si los cuadros
-  anteriores a la pausa se dejan a velocidad 1, son idénticos a los de la sección sin pausa y se
-  reaprovechan: sólo hay que renderizar de la pausa en adelante.
+**Si la casa es de dos pisos el recorrido se alarga**, por dos cosas que pidió la revisión y que
+hay que hacer de entrada:
+
+- **El barrido de s3 pausa en cada piso, uno por uno.** El corte pasa por cada nivel en un
+  suspiro —es el único momento en que ese piso se ve en 3D—, así que en **todos** los pisos va una
+  pausa de tres segundos para poder rotularlos con flechas en edición: en una casa de dos pisos son
+  **dos pausas**, primero arriba y después abajo, no sólo la de arriba. La regla vale para
+  cualquier casa de más de un piso.
+
+  Lo que se detiene es **el corte, no la cámara**: el dron tiene que seguir volando. Congelar un
+  cuadro y repetirlo se probó en Boldo y el usuario lo rechazó al toque ("necesito que el dron se
+  siga moviendo, no que se quede pegado"). En cada pausa el corte se queda quieto a la altura donde
+  ese piso se ve entero y la cámara sigue su recorrido más lenta (en Boldo a 0,40 de su velocidad,
+  con 18 cuadros de frenada y de aceleración: sube de 63° a 76° de elevación, se nota de sobra que
+  vuela). Al terminar la pausa el corte retoma desde donde quedó, tantos cuadros de ruta más atrás
+  como avanzó la cámara mientras tanto; con dos pausas ese desfase **se acumula**, así que el corte
+  del tramo final va corrido por la suma de las dos.
+
+  La sección se alarga lo que duren las pausas (3 s cada una) recorriendo **la misma ruta**, con la
+  velocidad de crucero del tramo posterior a la última pausa despejada por **bisección** para que
+  el recorrido cierre justo en el cenital: así el último cuadro no cambia y la sección 4, que se
+  arma sobre él, queda igual (`plano.json` tiene que coincidir a 0,01 px con el de la sección sin
+  pausas). Y si los cuadros anteriores a la primera pausa se dejan a velocidad 1, son idénticos a
+  los de la sección sin pausas y se reaprovechan con enlaces duros (`use_overwrite = False` los
+  salta): sólo hay que renderizar de la primera pausa en adelante.
+
+  Dónde parar cada pausa: en la altura de corte en que ese piso se ve limpio —el techo o la losa de
+  arriba ya salió entera y el piso de abajo todavía no asoma—. Se saca listando `cut_z` cuadro a
+  cuadro y mirando los cuadros candidatos. En Boldo el segundo piso quedaba limpio en z = 4,1 m
+  (cuadro 121 de s3) y la ventana era de apenas siete cuadros de ruta: por eso no sirve frenar la
+  cámara junto con el corte, tendría que ir a un décimo de su velocidad y a ojo es lo mismo que
+  estar detenida.
+
+  ⚠️ **Casa Boldo quedó con una sola pausa, la del segundo piso** (`s3p`, 312 cuadros), porque esta
+  regla se fijó después. Si hay que rehacerla, la del primer piso se agrega igual y s3 pasa a 384
+  cuadros.
+
 - s4 muestra **las dos plantas** lado a lado, no sólo la baja, como la lámina con la que cierra
   Casa Lingue.
 
