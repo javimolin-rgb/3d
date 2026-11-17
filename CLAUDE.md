@@ -125,9 +125,11 @@ plantas lado a lado, no sólo la baja.
   El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja.
   **Completa**: las cinco secciones, `output/casa_boldo_secuencia.mp4`, 1214 cuadros, 50 s. Dura
   más que los 42 s de la receta porque es de dos pisos y los dos se muestran:
-  - **Pausa en el segundo piso, dentro de s3.** ⚠️ La regla general (`RECETA.md` §1) es pausar en
-    **cada** piso; Boldo quedó con una sola pausa, la de arriba, porque la regla se fijó después.
-    Si hay que rehacerla, se agrega la del primer piso y s3 pasa a 384 cuadros.
+  - **Pausa en el segundo piso, dentro de s3.** La regla general (`RECETA.md` §1) es que el barrido
+    pause en cada piso. Boldo la cumple con **una sola pausa programada**: la del primer piso sale
+    sola, porque el corte satura en `CUT_LOW` en el cuadro 275 de 312 y se queda ahí 1,58 s, más
+    1 s de `HOLD0` al principio de s4 = 2,6 s con el primer piso abierto y limpio, contra los
+    3,04 s de la pausa explícita del segundo.
     El barrido del corte pasa por el 2do piso en un
     suspiro; la revisión pidió quedarse ahí para poder rotularlo con flechas en edición, **con el
     dron andando, no congelado**. Así que lo que se detiene es el corte, no la cámara: desde el
