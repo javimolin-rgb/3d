@@ -1509,6 +1509,12 @@ for _k in range(78):
                     _rnd_v.choice(_TECHOS if _k < 36 else _TECHOS[:4]),
                     _rnd_v.uniform(0.16, 0.42), _rnd_v.random() < 0.35))
 
+# La revisión del 16-11 pidió sacar "la casita blanca chica del fondo": la que caía justo detrás
+# del predio, en x = 30 y a 122 m de la orilla. Con muro claro y techo de teja saltaba sobre el
+# verde y era **la única casa del fondo** en la toma de frente, así que se llevaba la mirada. Se
+# descarta por coordenadas y no por índice, que se corre en cuanto se toca la generación.
+VECINOS = [v for v in VECINOS if not (abs(v[0] - 30.0) < 6.0 and abs(v[1] - 122.4) < 10.0)]
+
 
 def build_neighbors(coll):
     """Casas vecinas del condominio: volúmenes a dos aguas con ventanas, chimenea y, las de la

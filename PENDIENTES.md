@@ -193,6 +193,11 @@ Lo que se construyó sobre la base de Huingán:
   contiguos puestos a mano (más chicos que Mañío a propósito, si no deja de leerse como la
   grande) y el resto sembrado irregular entre grupos de pinos y cipreses.
 
+  **Tercera revisión (16-11)**: sacar "la casita blanca chica del fondo", la que caía justo
+  detrás del predio (x = 30, a 122 m de la orilla) y era la única casa del fondo en la toma de
+  frente, con muro claro y techo de teja sobre el verde. Se descarta por coordenadas al final de
+  `VECINOS`, no por índice. Lo que queda en esa banda son tonos de madera y piedra.
+
   ⚠️ **Esto es la segunda versión.** La primera era una costanera urbana —7,2 m de calzada,
   soleras, dos veredas de hormigón, alumbrado público cada 30 m y postes con tendido aéreo, todo
   a 25 m de la casa, con los vecinos en filas regulares— y la revisión del 12-11 la rechazó: la
