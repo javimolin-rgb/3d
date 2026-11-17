@@ -84,9 +84,15 @@ hay que hacer de entrada:
   cámara junto con el corte, tendría que ir a un décimo de su velocidad y a ojo es lo mismo que
   estar detenida.
 
-  ⚠️ **Casa Boldo quedó con una sola pausa, la del segundo piso** (`s3p`, 312 cuadros), porque esta
-  regla se fijó después. Si hay que rehacerla, la del primer piso se agrega igual y s3 pasa a 384
-  cuadros.
+  **Ojo: la pausa del piso de abajo puede salir sola.** El corte satura en `CUT_LOW` antes de que
+  termine el recorrido, y ahí se queda quieto hasta el cenital; la sección 4 abre reteniendo ese
+  mismo cuadro otro segundo (`HOLD0`) antes de que entre la planta. En Casa Boldo eso da 1,58 s
+  (cuadros 275–312 de `s3p`) más 1 s de `HOLD0` = **2,6 s con el primer piso abierto y limpio**,
+  contra los 3,04 s de la pausa explícita del segundo (cuadros 121–193). Por eso Boldo cumple la
+  regla con una sola pausa programada. Antes de agregar una segunda pausa hay que **medirlo**:
+  listar `cut_z` cuadro a cuadro, ver cuántos cuadros se queda en `CUT_LOW` y sumarle `HOLD0`. Si
+  no llega a ~3 s —porque el corte satura muy tarde—, ahí sí se agrega la pausa explícita del piso
+  de abajo, con el mismo mecanismo.
 
 - s4 muestra **las dos plantas** lado a lado, no sólo la baja, como la lámina con la que cierra
   Casa Lingue.
