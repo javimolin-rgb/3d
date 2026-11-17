@@ -48,6 +48,13 @@ luz, materiales o vegetación se hacen sobre las fotos, no sobre el video.
 Si la casa pedida no está en esa tabla y no dicen dónde va, **preguntar el emplazamiento antes de
 renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
 
+**Si la casa tiene más de un piso, el barrido del corte de s3 pausa tres segundos en cada piso**,
+uno por uno (en una de dos pisos: arriba y después abajo), para que el usuario pueda rotular cada
+nivel con flechas en edición. Lo que se detiene es el corte, **no la cámara**: el dron tiene que
+seguir volando. El detalle de cómo se hace —las dos líneas de tiempo, el desfase acumulado y la
+bisección que cierra el recorrido en el cenital— está en `RECETA.md` §1. Y s4 muestra las dos
+plantas lado a lado, no sólo la baja.
+
 ## Renders de video (largos)
 
 - Siempre que se renderice un video, dejar un proceso activo en segundo plano mientras dure
@@ -118,7 +125,10 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   El agua va casi espejo y la ribera de enfrente es tema, no fondo: se refleja.
   **Completa**: las cinco secciones, `output/casa_boldo_secuencia.mp4`, 1214 cuadros, 50 s. Dura
   más que los 42 s de la receta porque es de dos pisos y los dos se muestran:
-  - **Pausa en el segundo piso, dentro de s3.** El barrido del corte pasa por el 2do piso en un
+  - **Pausa en el segundo piso, dentro de s3.** ⚠️ La regla general (`RECETA.md` §1) es pausar en
+    **cada** piso; Boldo quedó con una sola pausa, la de arriba, porque la regla se fijó después.
+    Si hay que rehacerla, se agrega la del primer piso y s3 pasa a 384 cuadros.
+    El barrido del corte pasa por el 2do piso en un
     suspiro; la revisión pidió quedarse ahí para poder rotularlo con flechas en edición, **con el
     dron andando, no congelado**. Así que lo que se detiene es el corte, no la cámara: desde el
     cuadro 121 de s3 (`PAUSA_DESDE`, corte en z = 4,1 m —el techo ya salió entero y las camas de
