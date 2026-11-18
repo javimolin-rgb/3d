@@ -34,11 +34,21 @@ progreso() {
 }
 progreso "$@" &
 PROG=$!
+# Cada sección se reintenta hasta completarse. El render es reanudable (use_overwrite = False),
+# así que si Blender se cae —en Mañío se caía por OOM, ver el comentario de setup_render()— basta
+# con borrar los cuadros marcadores vacíos y volver a lanzarlo: sigue desde el último cuadro. Sin
+# este bucle, una caída hacía que el script saltara a la sección siguiente dejando huecos.
 for t in "$@"; do
   mkdir -p frames_manio/$t
-  find frames_manio/$t -name "f_*.png" -size -10k -delete
-  "$PY" casa_manio_3d.py -- --vista dron --tramo $t --out "$PWD/frames_manio/$t/f_" \
-    --res 720x1280 --samples 32 >> frames_manio/$t/render.log 2>&1 < /dev/null
+  n=$(python3 -c "import re;print(re.search(r'\"$t\": (\d+)', open('casa_manio_3d.py').read()).group(1))")
+  for intento in $(seq 1 40); do
+    find frames_manio/$t -name "f_*.png" -size -10k -delete
+    hechos=$(find frames_manio/$t -name "f_*.png" -size +10k | wc -l)
+    [ "$hechos" -ge "$n" ] && break
+    echo "--- $t intento $intento ($hechos/$n) $(date +%H:%M:%S)" >> frames_manio/$t/render.log
+    "$PY" casa_manio_3d.py -- --vista dron --tramo $t --out "$PWD/frames_manio/$t/f_" \
+      --res 720x1280 --samples 32 >> frames_manio/$t/render.log 2>&1 < /dev/null
+  done
 done
 sleep 65
 kill $PROG

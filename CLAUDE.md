@@ -146,6 +146,11 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   se leen como brócoli (la revisión lo dijo así: "los árboles se ven muy falsos"). Es el mismo
   problema que ya había aparecido en el lago de Boldo. `build_trees()` carga pino y ciprés en dos
   bandas de detalle (LOD1 cerca, LOD2 para el cerro) de `tools/get_assets_lago.sh`.
+  **OOM en el render de video.** Con los árboles reales la escena pesa ~12 GB y
+  `use_persistent_data = True` la hace crecer cuadro a cuadro hasta que el cgroup mata a Blender
+  (el primer intento murió a los 35 cuadros en s1, 16 en s2 y 6 en s3, y el script iba saltando
+  de sección dejando huecos). En Mañío va **apagado**, y `tools/render_manio.sh` reintenta cada
+  sección hasta completarla en vez de pasar a la siguiente.
   Ojo además con tres cosas: la playa tiene que ser **ancha** (con la duna angosta de Huingán la
   cámara se planta sobre el muro y el mar queda fuera de cuadro), el ripple de arena hay que
   apagarlo donde hay césped, y la franja húmeda del muro se mide con un atributo de altura y no

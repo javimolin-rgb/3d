@@ -2208,7 +2208,12 @@ def build_drone(cam):
         json.dump({"pts": pts, "res": [w, h]}, open(os.path.join(out_dir, "plano.json"), "w"))
     sc.render.use_overwrite = False      # reanudable: no vuelve a renderizar cuadros guardados
     sc.render.use_placeholder = True
-    sc.render.use_persistent_data = True
+    # **Apagado a propósito, al revés que en las otras casas.** Guardar la escena entre cuadros
+    # ahorra el re-sync, pero con los árboles reales (pino y ciprés instanciados por nodos, más el
+    # bosque del cerro) la memoria crece cuadro a cuadro hasta que el cgroup mata a Blender por
+    # OOM a los ~14 GB. Pasó en el primer intento del render: s1 murió a los 35 cuadros, s2 a los
+    # 16 y s3 a los 6, y el script iba saltando de sección.
+    sc.render.use_persistent_data = False
     sc.render.use_motion_blur = True
     sc.render.motion_blur_shutter = 0.35
 
