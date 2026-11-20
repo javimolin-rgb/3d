@@ -278,6 +278,24 @@ def glass_mat():
 
 
 
+def hielo_mat(name="Hielo"):
+    """Hielo de carámbano: transmisión alta, apenas turbio y con el índice del hielo (1,31). Lo
+    que lo hace leer no es el color sino que **transmita**: un carámbano opaco parece un diente."""
+    m, n, l = new_mat(name)
+    N = Nodos(n, l)
+    b = n["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (0.90, 0.95, 0.99, 1)
+    b.inputs["Transmission Weight"].default_value = 0.92
+    b.inputs["IOR"].default_value = 1.31
+    b.inputs["Roughness"].default_value = 0.12
+    tc = n.new("ShaderNodeTexCoord")
+    bp = n.new("ShaderNodeBump")
+    bp.inputs["Strength"].default_value = 0.25
+    l.new(N.noise(tc.outputs["Object"], 42.0, detail=4), bp.inputs["Height"])
+    l.new(bp.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
 # ---------------------------------------------------------------- materiales de nieve y bosque
 def snow_mat(name="Nieve", sss=0.16, rough=0.38, bump=0.5):
     """Nieve: lo decisivo es el subsurface. Sin translucidez la nieve se lee como yeso; con un
@@ -392,23 +410,66 @@ def terreno_mat(name="Terreno"):
     mordido = N.math("ADD", at.outputs["Fac"],
                      N.math("ADD", N.math("MULTIPLY", N.math("SUBTRACT", N.noise(v, 7.0, detail=5), 0.5), 0.55),
                             N.math("MULTIPLY", N.math("SUBTRACT", N.noise(v, 26.0, detail=5), 0.5), 0.3)))
-    # ...y la pendiente: **en un farellón la nieve no se sostiene**. Sin esto los cerros del
-    # fondo salían blancos de la base a la cumbre, como conos de merengue; con la roca asomando
-    # en las caras empinadas aparecen las aristas y la montaña se lee como montaña. El umbral va
-    # en 0,76 de normal vertical (unos 40°) y satura en 0,48 (61°): con 0,62 sólo asomaba roca en
-    # los farellones verticales y los cerros seguían leyéndose lisos a esa distancia.
+    # --- roca de montaña, con shader propio
+    # Antes la roca era el **mismo** barro del camino, y eso se notaba: un farellón a un
+    # kilómetro no es marrón de tierra pisada, es gris azulado y mucho más quebrado. Con shader
+    # propio además se puede subirle el relieve sin ensuciar el camino, que es plano.
+    rk = n.new("ShaderNodeBsdfPrincipled")
+    rg = N.noise(v, 2.6, detail=8, rough=0.72)
+    rfino = N.noise(v, 16.0, detail=7, rough=0.70)
+    rcol = N.mix(rg, (0.052, 0.050, 0.055), (0.115, 0.112, 0.118))
+    rcol = N.mix(N.smooth(rfino, 0.52, 0.78), rcol, (0.165, 0.158, 0.150))   # vetas claras
+    l.new(rcol, rk.inputs["Base Color"])
+    rk.inputs["Roughness"].default_value = 0.88
+    brk = n.new("ShaderNodeBump")
+    brk.inputs["Strength"].default_value = 0.9
+    brk.inputs["Distance"].default_value = 0.35
+    l.new(N.math("ADD", N.math("MULTIPLY", rg, 0.7), N.math("MULTIPLY", rfino, 0.3)),
+          brk.inputs["Height"])
+    l.new(brk.outputs["Normal"], rk.inputs["Normal"])
+    # --- bosque pintado de los faldones del fondo (ver bosque_lejano)
+    bq = n.new("ShaderNodeBsdfPrincipled")
+    bn = N.noise(v, 22.0, detail=7, rough=0.65)
+    bcol = N.mix(bn, (0.0135, 0.0225, 0.0155), (0.030, 0.042, 0.029))
+    bcol = N.mix(N.smooth(N.noise(v, 7.0, detail=6), 0.58, 0.80), bcol, (0.085, 0.098, 0.092))
+    l.new(bcol, bq.inputs["Base Color"])
+    bq.inputs["Roughness"].default_value = 0.92
+    bbq = n.new("ShaderNodeBump")
+    bbq.inputs["Strength"].default_value = 0.65
+    bbq.inputs["Distance"].default_value = 0.6
+    l.new(bn, bbq.inputs["Height"])
+    l.new(bbq.outputs["Normal"], bq.inputs["Normal"])
+    # --- la pendiente: **en un farellón la nieve no se sostiene ni crece bosque**. Es lo que
+    # hace que los cerros dejen de leerse como conos de merengue. El umbral va en 0,76 de normal
+    # vertical (unos 40°) y satura en 0,48 (61°).
     geo = n.new("ShaderNodeNewGeometry")
     nrm = n.new("ShaderNodeSeparateXYZ")
     l.new(geo.outputs["Normal"], nrm.inputs[0])
     empinado = N.smooth(N.math("ABSOLUTE", nrm.outputs["Z"]), 0.76, 0.48)   # al revés: 1 = parado
     empinado = N.math("MULTIPLY", empinado,
                       N.math("ADD", 0.72, N.math("MULTIPLY", N.noise(v, 12.0, detail=5), 0.55)))
-    mezcla = n.new("ShaderNodeMixShader")
-    l.new(N.math("MINIMUM", N.math("MAXIMUM", N.smooth(mordido, 0.46, 0.74), empinado), 1.0),
-          mezcla.inputs[0])
-    l.new(b.outputs[0], mezcla.inputs[1])
-    l.new(t.outputs[0], mezcla.inputs[2])
-    l.new(mezcla.outputs[0], out.inputs["Surface"])
+    empinado = N.math("MINIMUM", N.math("MAXIMUM", empinado, 0.0), 1.0)
+    # el bosque, mordido por ruido y apagado donde la pared está parada
+    atb = n.new("ShaderNodeAttribute")
+    atb.attribute_name = "bosque"
+    bfac = N.math("ADD", atb.outputs["Fac"],
+                  N.math("MULTIPLY", N.math("SUBTRACT", N.noise(v, 3.5, detail=6), 0.5), 0.75))
+    bfac = N.math("MULTIPLY", N.smooth(bfac, 0.34, 0.62),
+                  N.math("SUBTRACT", 1.0, empinado))
+    # --- el apilado: nieve -> tierra pisada -> bosque -> roca
+    m1 = n.new("ShaderNodeMixShader")
+    l.new(N.smooth(mordido, 0.46, 0.74), m1.inputs[0])
+    l.new(b.outputs[0], m1.inputs[1])
+    l.new(t.outputs[0], m1.inputs[2])
+    m2 = n.new("ShaderNodeMixShader")
+    l.new(bfac, m2.inputs[0])
+    l.new(m1.outputs[0], m2.inputs[1])
+    l.new(bq.outputs[0], m2.inputs[2])
+    m3 = n.new("ShaderNodeMixShader")
+    l.new(empinado, m3.inputs[0])
+    l.new(m2.outputs[0], m3.inputs[1])
+    l.new(rk.outputs[0], m3.inputs[2])
+    l.new(m3.outputs[0], out.inputs["Surface"])
     return m
 
 
@@ -479,6 +540,9 @@ def materials():
     M["torre"] = principled("TorreAcero", (0.145, 0.150, 0.155), 0.42, metal=0.85)
     M["silla"] = principled("SillaAndarivel", (0.055, 0.075, 0.105), 0.55)
     M["baliza"] = principled("Baliza", (0.52, 0.17, 0.035), 0.65)
+    # nieve compactada del surco de un esquí: más lisa y un punto más azul que la de al lado
+    M["nieve_huella"] = snow_mat("NieveHuella", sss=0.14, rough=0.26, bump=0.35)
+    M["hielo"] = hielo_mat()
     return M
 
 
@@ -641,6 +705,31 @@ def pelado(x, y):
     return max(0.0, min(1.0, v))
 
 
+def bosque_lejano(x, y):
+    """Cuánto bosque se ve pintado en el terreno, de 0 a 1. Es sólo para la cordillera del fondo.
+
+    El bosque instanciado llega hasta los 440 m, que es donde termina la malla de la ladera; de
+    ahí para afuera los cerros quedaban blancos de la base a la cumbre, y una montaña nevada sin
+    una sola mancha de bosque en los faldones se lee como maqueta. Poner árboles de verdad a un
+    kilómetro y medio no tiene sentido —no se distinguen y cuestan carísimo—, así que ahí el
+    bosque va **pintado en el material**: una mancha oscura bajo la línea de árboles, mordida por
+    ruido para que el borde sea irregular, y el propio shader la saca de las caras empinadas,
+    donde no crece nada.
+
+    La línea de árboles está a 180 m sobre la casa y se apaga en 70: arriba, roca y nieve.
+    Arranca a los 300 m para **solaparse** con el bosque instanciado, que llega a 440: si las dos
+    líneas sólo se tocan, en el medio queda una franja blanca que no es ni una cosa ni la otra."""
+    r = math.hypot(x - HC.x, y - HC.y)
+    if r < 300.0:
+        return 0.0
+    cerca = min(1.0, (r - 300.0) / 110.0)
+    alt = ladera_h(x, y) + cordillera_h(x, y)
+    linea = min(1.0, max(0.0, (180.0 - alt) / 70.0))
+    # y no baja hasta el fondo del valle parejo: se abre en manchones
+    mancha = 0.55 + 1.05 * noise.noise(Vector((x / 160.0, y / 160.0, 61.0)))
+    return max(0.0, min(1.0, cerca * linea * mancha))
+
+
 def ladera_h(x, y):
     """La ladera desnuda, sin la plataforma de la casa. Baja fuerte hacia -Y (la pista) y sube
     suave hacia +Y: la casa está en un hombro del cerro, no en medio de una rampa. Encima lleva
@@ -665,28 +754,55 @@ def ladera_h(x, y):
     return h
 
 
+def _aristas(x, y, esc, octavas=5, lac=2.13, gain=0.52, z=0.0):
+    """Ruido de aristas (*ridged multifractal*): en vez de bultos redondos da **filos**.
+
+    El ruido de Perlin común es una sábana de lomos y hoyos suaves, y por eso una montaña hecha
+    con él sale como un merengue: lisa y redonda. Tomando 1 − |ruido| el cero del ruido pasa a
+    ser un máximo con quiebre —una arista— y elevándolo al cuadrado el quiebre se afila y los
+    faldones se vacían hacia abajo, que es justo la forma de un cordón: filos angostos y circos
+    anchos entre medio. Las octavas van sumando aristas más chicas sobre las grandes."""
+    v = w = 0.0
+    a, f = 1.0, 1.0
+    for k in range(octavas):
+        n = 1.0 - abs(noise.noise(Vector((x / esc * f, y / esc * f, z + k * 3.7))))
+        v += n * n * a
+        w += a
+        a *= gain
+        f *= lac
+    return v / w
+
+
 def cordillera_h(x, y):
     """Los cerros del fondo. Es lo que da la escala de centro de ski: la casa está en una ladera
     y detrás tiene que haber montaña de verdad, no una loma. Arrancan a 420 m —más allá de donde
-    llega la malla del terreno cercano— y suben hasta unos 600, con cumbres y portezuelos; la
-    bruma de lejanía del compositor los funde con el cielo.
+    llega la malla del terreno cercano— y suben hasta unos 700; la bruma de lejanía del
+    compositor los funde con el cielo.
 
-    Van en su propia malla, muy gruesa (build_landscape): a esa distancia un paso de 40 m no se
-    nota y meterlos en la malla de la ladera habría costado cien veces más vértices."""
+    La forma la da `_aristas`, no el ruido suave que había antes: con ruido suave, por muchas
+    octavas que se le sumen, los cerros salen como conos blancos redondos. Con aristas aparecen
+    los filos, los circos y los portezuelos, que es lo que el ojo reconoce como cordillera.
+
+    Van en su propia malla (build_landscape), a 12 m de paso: a esa distancia parece mucho, pero
+    con 26 m las aristas no se alcanzaban a dibujar y el perfil quedaba facetado contra el cielo."""
     r = math.hypot(x - HC.x, y - HC.y)
-    if r < 420.0:
+    if r < 400.0:
         return 0.0
-    t = min(1.0, (r - 420.0) / 1100.0)
-    # dos escalas: los macizos y, sobre ellos, las cumbres y los portezuelos
-    macizo = 0.55 + 0.80 * noise.noise(Vector((x / 620.0, y / 620.0, 9.2)))
-    cresta = 0.45 + 0.85 * noise.noise(Vector((x / 210.0, y / 210.0, 15.5)))
-    # Dos octavas más de quiebre. Con una sola, los cerros salían como conos blancos lisos: un
-    # merengue. Lo que rompe esa forma son las aristas y los circos, que están a 80 y a 35 m, no
-    # a 200; por eso la malla de la cordillera va a 26 m de paso y no a 40, si no el terreno no
-    # tiene con qué dibujarlos.
-    rugoso = (0.26 * noise.noise(Vector((x / 80.0, y / 80.0, 22.1)))
-              + 0.13 * noise.noise(Vector((x / 34.0, y / 34.0, 27.8))))
-    return 640.0 * t ** 1.35 * max(0.18, macizo) * max(0.22, cresta) * (1.0 + rugoso)
+    t = min(1.0, (r - 400.0) / 950.0)
+    # el macizo: dónde hay cordón y dónde valle, en escala de kilómetro
+    macizo = 0.42 + 0.88 * noise.noise(Vector((x / 700.0, y / 700.0, 9.2)))
+    macizo = max(0.12, macizo)
+    # los cordones, con sus filos; y una segunda capa más chica para las aristas secundarias
+    cordon = _aristas(x, y, 430.0, octavas=4, z=15.5)
+    detalle = _aristas(x, y, 130.0, octavas=4, gain=0.46, z=27.8)
+    # El exponente decide si el cordón es un macizo ancho o una fila de agujas. Con 1,45 salían
+    # agujas todas iguales, como dientes; con 1,12 queda la masa del macizo y los filos encima,
+    # que es como se ve un cordón de verdad.
+    forma = cordon ** 1.12 * (0.84 + 0.34 * detalle)
+    h = 700.0 * t ** 1.30 * macizo * forma
+    # los circos y las canaletas que bajan de los filos, ya en escala de ladera
+    h -= 34.0 * t * (1.0 - detalle) ** 2
+    return max(0.0, h)
 
 
 def terrain_h(x, y):
@@ -752,10 +868,11 @@ def build_landscape(M):
     lejos = grid("NieveLejos", -440.0, L + 440.0, -440.0, D + 440.0, 7.0, M["nieve"], coll,
                  skip=dentro, sink=dentro)
     marcar(lejos)
-    # y la cordillera, en su propia malla gruesa: a 1,5 km un paso de 40 m no se distingue, y
-    # llevarla en la malla de la ladera habría costado cien veces más vértices por el mismo cerro
+    # y la cordillera, en su propia malla. Va a 12 m de paso, no a 26: las aristas de los
+    # cordones miden unos pocos vértices de ancho, y con el paso grueso el perfil contra el cielo
+    # salía facetado en rectas largas, que es de lo que más canta que es 3D.
     medio = (lambda x, y: -440.0 <= x <= L + 440.0 and -440.0 <= y <= D + 440.0)
-    cord = grid("Cordillera", -1700.0, L + 1700.0, -1700.0, D + 1700.0, 26.0, M["nieve"], coll,
+    cord = grid("Cordillera", -1700.0, L + 1700.0, -1700.0, D + 1700.0, 12.0, M["nieve"], coll,
                 skip=medio, sink=medio)
     marcar(cord)
     hundir_huella(cerca)
@@ -763,13 +880,16 @@ def build_landscape(M):
 
 
 def marcar(o):
-    """Guarda en la malla cuánto suelo asoma y cuánto pisanieve tiene cada vértice: son los dos
-    atributos con los que terreno_mat decide si ahí va nieve virgen, pista acordonada o tierra."""
+    """Guarda por vértice los tres atributos con los que terreno_mat decide qué hay en el suelo:
+    `pelado` (cuánta tierra asoma), `pisado` (cuánto pisanieve) y `bosque` (el bosque pintado de
+    los faldones del fondo)."""
     me = o.data
     at = me.attributes.get("pelado") or me.attributes.new("pelado", "FLOAT", "POINT")
     at.data.foreach_set("value", [pelado(v.co.x, v.co.y) for v in me.vertices])
     at = me.attributes.get("pisado") or me.attributes.new("pisado", "FLOAT", "POINT")
     at.data.foreach_set("value", [pisado(v.co.x, v.co.y) for v in me.vertices])
+    at = me.attributes.get("bosque") or me.attributes.new("bosque", "FLOAT", "POINT")
+    at.data.foreach_set("value", [bosque_lejano(v.co.x, v.co.y) for v in me.vertices])
 
 
 def hundir_huella(o):
@@ -1159,7 +1279,11 @@ def build_forest(terreno, arboles, dmin=4.2, dens=0.18, seed=7, escala=(0.72, 1.
         # ladera local, los cerros del fondo salen forestados hasta la cumbre y se ven como lomas
         # verdes; midiendo la altura total, arriba de los 60 m queda roca y nieve, que es lo que
         # da la escala alpina. De paso abre el fondo del cuadro.
-        w *= min(1.0, max(0.0, (60.0 - (ladera_h(x, y) + cordillera_h(x, y))) / 25.0))
+        # La línea va a 150 m y se apaga en 50. Estuvo en 60 y dejaba una **franja blanca pelada**
+        # entre donde terminaban los árboles y donde empieza el bosque pintado de la cordillera:
+        # ni árboles ni bosque, una sábana blanca en medio del cuadro. Las dos líneas —la de los
+        # árboles instanciados y la de bosque_lejano— tienen que solaparse, no tocarse.
+        w *= min(1.0, max(0.0, (150.0 - (ladera_h(x, y) + cordillera_h(x, y))) / 50.0))
         w *= pistas_del_fondo(x, y)
         if corte:
             w *= corte(math.hypot(x - HC.x, y - HC.y))
@@ -1439,6 +1563,84 @@ def build_balizas(M, y0=-150.0, y1=70.0, paso=15.0):
     return coll
 
 
+def build_huellas_esqui(M, n_bajadas=7):
+    """Las curvas que dejaron los que ya bajaron: huellas de esquí marcadas en la pista.
+
+    Van como **geometría**, no como material ni como atributo del terreno, y no por capricho: un
+    surco de esquí tiene veinte centímetros de ancho y la malla fina del terreno tiene un vértice
+    cada 1,10 m, así que ni el relieve ni un atributo por vértice pueden dibujarlo — saldría un
+    manchón de dos metros. Acá cada huella es una cinta propia con sección en **V** (los cantos
+    arriba y el fondo tres centímetros más abajo), que es lo que hace que con el sol rasante cada
+    curva tenga su lado iluminado y su lado en sombra. Sin eso la pista acordonada se lee como
+    una alfombra nueva que nadie pisó, que es justamente lo que delataba la escena.
+
+    Las curvas no son todas iguales: cada bajada lleva su amplitud y su período, y el ancho entre
+    los dos esquíes cambia con la curva."""
+    coll = bpy.data.collections.new("HuellasEsqui")
+    bpy.context.scene.collection.children.link(coll)
+    y0, y1 = -135.0, HC.y + 18.0
+    hechas = 0
+    for k in range(n_bajadas):
+        amp = 4.5 + 3.2 * math.sin(k * 1.9 + 0.4)
+        per = 23.0 + 9.0 * math.cos(k * 2.3)
+        lado = (k - (n_bajadas - 1) / 2.0) * 2.6 + 1.4 * math.sin(k * 3.1)
+        for esqui in (-1, 1):
+            verts, faces = [], []
+            paso = 1.3
+            m = int((y1 - y0) / paso)
+            for i in range(m + 1):
+                y = y0 + i * paso
+                cx = pista_cx(y) + lado + amp * math.sin(y / per + k * 2.1)
+                # la separación entre los dos esquíes se abre y se cierra con la curva
+                sep = 0.30 + 0.12 * math.cos(y / per + k * 2.1)
+                x = cx + esqui * sep
+                z = terrain_h(x, y)
+                for dx, dz in ((-0.11, 0.015), (0.0, -0.035), (0.11, 0.015)):
+                    verts.append((x + dx, y, z + dz))
+                if i:
+                    b0 = (i - 1) * 3
+                    for a in (0, 1):
+                        faces.append((b0 + a, b0 + a + 1, b0 + a + 4, b0 + a + 3))
+            o = mesh_obj("HuellaEsqui%d_%d" % (k, esqui), verts, faces, M["nieve_huella"], coll)
+            for q in o.data.polygons:
+                q.use_smooth = True
+            hechas += 1
+    print("huellas de esquí:", hechas)
+    return coll
+
+
+def build_carambanos(M, n=170):
+    """Carámbanos colgando del alero. Es un detalle chico que pesa mucho: una casa nevada con el
+    canto del techo perfectamente limpio se ve recién salida del modelador. Van en los dos aleros
+    largos, agrupados —se forman donde el agua corre, no parejos— y con largos muy distintos."""
+    coll = bpy.data.collections.new("Carambanos")
+    bpy.context.scene.collection.children.link(coll)
+    # los dos aleros largos del techo: el bajo en x = 0 y el alto en x = L (ver el extractor)
+    bordes = ((0.0, 3.11, -0.06), (L, 5.35, 0.06))
+    hechos = 0
+    for x0, z0, fuera in bordes:
+        for i in range(n):
+            y = 2.3 + (D - 4.2) * (i / (n - 1.0))
+            # se forman en racimos: un ruido decide dónde hay y dónde no
+            if noise.noise(Vector((y / 2.7, x0 / 3.0, 97.0))) < 0.06:
+                continue
+            largo = random.uniform(0.09, 0.52) * (0.55 + 0.9 * abs(noise.noise(Vector((y / 1.6, 5.0, 71.0)))))
+            r = 0.012 + largo * 0.055
+            bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=r, radius2=0.0, depth=largo,
+                                            location=(x0 + fuera + random.uniform(-0.02, 0.02),
+                                                      y + random.uniform(-0.05, 0.05),
+                                                      z0 - largo / 2 + 0.02))
+            c = bpy.context.object
+            c.rotation_euler = (random.uniform(-0.05, 0.05), random.uniform(-0.04, 0.04), 0)
+            c.data.materials.append(M["hielo"])
+            bpy.ops.object.shade_smooth()
+            bpy.context.scene.collection.objects.unlink(c)
+            coll.objects.link(c)
+            hechos += 1
+    print("carámbanos:", hechos)
+    return coll
+
+
 def carga_en(g):
     """Carga de nieve en el cuadro g del video completo: crece parejo de punta a punta."""
     u = min(1.0, max(0.0, g / (VIDEO_N - 1.0)))
@@ -1680,7 +1882,7 @@ def setup_render():
         nd.inputs[1].default_value = b
         return nd
 
-    # bruma = 0,46 · (1 − e^(−(z − 45) / 520)), sobre todo lo que no es cielo (z < 10 km de cámara
+    # bruma = 0,36 · (1 − e^(−(z − 45) / 520)), sobre todo lo que no es cielo (z < 10 km de cámara
     # para el cielo no hay superficie: su profundidad es enorme). Entra mucho más tarde que en el
     # bosque de Peumo y se estira más: en una ladera abierta la bruma no separa troncos, separa
     # **lomos de cerro**, y si entra a los veinte metros borra la pista en vez de dar profundidad.
@@ -1692,7 +1894,7 @@ def setup_render():
     one = mnode("SUBTRACT", 1.0)
     sky = mnode("LESS_THAN", 1.0e7)
     mul = mnode("MULTIPLY", 1.0)
-    amt = mnode("MULTIPLY", 0.46)
+    amt = mnode("MULTIPLY", 0.36)
     one.inputs[0].default_value = 1.0
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
@@ -1706,14 +1908,18 @@ def setup_render():
     nt.links.new(one.outputs[0], mul.inputs[0])
     nt.links.new(sky.outputs[0], mul.inputs[1])
     nt.links.new(mul.outputs[0], amt.inputs[0])
-    # + una bruma de lejanía que funde la cordillera con el cielo: 0,42 · (1 − e^(−z / 2400)).
+    # + una bruma de lejanía que funde la cordillera con el cielo: 0,26 · (1 − e^(−z / 2400)).
+    # Estuvo en 0,42 y **se comía la roca**: los cerros quedaban blancos parejos y toda la forma
+    # que les da el material —farellones, vetas, bosque en los faldones— se perdía bajo el velo.
+    # En un día alpino despejado la montaña lejana conserva contraste; la bruma separa planos,
+    # no los borra.
     # La escala es casi el triple que en Peumo porque los cerros del fondo están a 600 m y no a
     # 200: con la escala corta se fundían del todo y la montaña desaparecía.
     far_s = mnode("DIVIDE", -2400.0)
     far_e = mnode("EXPONENT", 0.0)
     far_1 = mnode("SUBTRACT", 1.0)
     far_1.inputs[0].default_value = 1.0
-    far_a = mnode("MULTIPLY", 0.42)
+    far_a = mnode("MULTIPLY", 0.26)
     far_m = mnode("MULTIPLY", 1.0)
     tot = mnode("ADD", 0.0)
     nt.links.new(pos.outputs[0], far_s.inputs[0])
@@ -2121,6 +2327,8 @@ def main():
     build_lenera(M)
     build_andarivel(M)
     build_balizas(M)
+    build_huellas_esqui(M)
+    build_carambanos(M)
     build_world()
     setup_render()
     sc = bpy.context.scene
