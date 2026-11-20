@@ -12,7 +12,7 @@ primero.
 2. ~~Huingán~~ ✅ playa
 3. ~~Peumo~~ ✅ nieve en el bosque
 4. ~~Boldo~~ ✅ lago (las cinco secciones, 42 s)
-5. **Mañío** — playa urbanizada 🔨 *en curso: escena armada, fotos de aprobación entregadas*
+5. ~~Mañío~~ ✅ playa urbanizada (condominio estilo Maitencillo, 42 s)
 6. **Roble** — nieve tipo centro de ski
 7. **Maitén** — mar roca
 8. **Coihue** — campo, que se note el trigo
@@ -174,7 +174,17 @@ Las nuevas son PNG, así que el `plano_<casa>.py` abre la imagen directo en vez 
 
 Es la familia **más barata de arrancar**: casi todo se hereda.
 
-**Mañío (urbanizada) — en curso.** `casa_manio_3d.py` armado y las fotos de aprobación en
+**Hecha: Mañío (urbanizada).** Las cinco secciones y `output/casa_manio_secuencia.mp4`
+(1008 cuadros, 42 s).
+
+**Costo medido, útil para repartir las que vienen**: ~30 cuadros/hora en s1 y s2, ~24 en s3 (el
+techo abriéndose ilumina el interior de rebote y encarece el cuadro, la misma loma de Peumo) y
+~28 en s5. En total unas 30 h en cuatro núcleos, bastante más que las 17 h de las casas sin
+árboles reales. El render se cayó una decena de veces entre OOM y reinicios del contenedor —3
+reintentos en s1, 1 en s2, 4 en s3 y 5 en s5— y **ninguna dejó huecos**: el bucle de
+`tools/render_manio.sh` retoma desde el último cuadro guardado.
+
+ `casa_manio_3d.py` armado y las fotos de aprobación en
 `output/manio_propuesta/` (izq, der, frente, cerca, izq_atras, calle). **Falta el visto bueno del
 usuario antes de renderizar video.**
 

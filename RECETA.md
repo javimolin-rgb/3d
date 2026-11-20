@@ -206,7 +206,7 @@ En **orden de trabajo** (el acordado con el usuario; `PENDIENTES.md` dice qué f
 | 2 | **Huingán** | Playa | Playa | `casa_huingan_3d.py` | ✅ hecho |
 | 3 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | ✅ hecho |
 | 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | ✅ hecho |
-| 5 | **Mañío** | Playa urbanizada | Playa | `casa_manio_3d.py` | 🔨 en curso |
+| 5 | **Mañío** | Playa urbanizada | Playa | `casa_manio_3d.py` | ✅ hecho |
 | 6 | **Roble** | Nieve tipo centro de ski | Nieve | hereda de Peumo | pendiente |
 | 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
 | 8 | **Coihue** | Campo, *que se note el trigo* | Campo | `casa_lingue_3d.py` | pendiente |

@@ -15,7 +15,7 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 2. Huingán — playa ✅
 3. Peumo — nieve en el bosque ✅
 4. Boldo — lago ✅
-5. Mañío — playa urbanizada 🔨 en curso (escena lista, esperando el visto bueno de las fotos)
+5. Mañío — playa urbanizada ✅
 6. Roble — nieve tipo centro de ski
 7. Maitén — mar roca
 8. Coihue — campo, que se note el trigo
@@ -138,6 +138,14 @@ renderizar**: es lo único que no se deduce del STL y equivocarse cuesta horas.
   distintos, cierro de listones de madera y césped con setos en vez de matorral. Fotos de
   aprobación con `PY=$PWD/venv-bpy/bin/python tools/fotos_manio.sh` (`output/manio_propuesta/`),
   secciones con `setsid nohup tools/render_manio.sh s1 [s2 ...] &`.
+  **Completa**: las cinco secciones, `output/casa_manio_secuencia.mp4`, 1008 cuadros, 42 s.
+  s4 = `tools/plano_manio.py`; como es de un solo piso, la lámina trae un único dibujo y la
+  calibración va con `todo` y no con `izq`.
+  Costo medido: ~30 cuadros/hora en s1 y s2, ~24 en s3 (el techo abriéndose encarece el cuadro,
+  la loma de Peumo) y ~28 en s5; unas 30 h en cuatro núcleos, contra las 17 h de las casas sin
+  árboles reales. `tools/render_manio.sh` **reintenta cada sección hasta completarla**, y eso
+  salvó el render: se cayó una decena de veces entre OOM y reinicios del contenedor (3
+  reintentos en s1, 1 en s2, 4 en s3, 5 en s5) sin dejar un solo hueco.
   La primera versión era una costanera urbana y la revisión la rechazó: lo que la delataba eran
   los postes con tendido aéreo, la calzada ancha con solera y vereda de hormigón, y los vecinos
   repetidos en filas. Al heredar esto en Ciprés, partir de la **segunda** versión.
