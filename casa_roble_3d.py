@@ -38,6 +38,7 @@ import sys
 import bpy  # noqa: E402  (bpy debe importarse antes que bmesh)
 import bmesh
 from mathutils import Vector, noise
+from mathutils.bvhtree import BVHTree
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
@@ -448,6 +449,16 @@ def terreno_mat(name="Terreno"):
     empinado = N.smooth(N.math("ABSOLUTE", nrm.outputs["Z"]), 0.76, 0.48)   # al revés: 1 = parado
     empinado = N.math("MULTIPLY", empinado,
                       N.math("ADD", 0.72, N.math("MULTIPLY", N.noise(v, 12.0, detail=5), 0.55)))
+    # ...y por **altura**. Sólo con la pendiente, el macizo del fondo seguía saliendo blanco
+    # entero: su cara principal no es un farellón, así que no pasaba el umbral, y una cumbre de
+    # seiscientos metros toda nevada de la base al filo se ve como un merengue. Arriba de los
+    # 300 m la roca empieza a ganar y la nieve queda en las canaletas, que es lo que se ve de
+    # verdad; el ruido que lo muerde es el que dibuja esas canaletas.
+    zxyz = n.new("ShaderNodeSeparateXYZ")
+    l.new(v, zxyz.inputs[0])
+    alto = N.math("MULTIPLY", N.smooth(zxyz.outputs["Z"], 300.0, 560.0),
+                  N.smooth(N.noise(v, 5.5, detail=6, rough=0.65), 0.32, 0.62))
+    empinado = N.math("MAXIMUM", empinado, alto)
     empinado = N.math("MINIMUM", N.math("MAXIMUM", empinado, 0.0), 1.0)
     # el bosque, mordido por ruido y apagado donde la pared está parada
     atb = n.new("ShaderNodeAttribute")
@@ -824,6 +835,17 @@ def terrain_h(x, y):
              + 0.05 * noise.noise(Vector((x / 1.1, y / 1.1, 18.2))))
     bajo_casa = 1.0 - 0.75 * min(1.0, max(0.0, 1.0 - house_dist(x, y) / 3.5))
     h += sopla * (0.40 + 0.60 * w) * bajo_casa
+    # Sastrugi: los lomos que el viento labra en la nieve abierta, estirados en el sentido en que
+    # sopla. No son el ruido redondo de arriba —son **crestas**, con un lado tallado y otro en
+    # pendiente—, y por eso se hacen con el mismo truco de aristas que los cordones. Es lo que
+    # evita que la nieve virgen de fuera de la pista se vea como una rampa de yeso lisa. No van
+    # ni en la pista (el pisanieve las borra) ni en la plataforma de la casa.
+    libre = min(1.0, pista_d(x, y) / 5.0) * min(1.0, max(0.0, (house_dist(x, y) - 5.0) / 7.0))
+    if libre > 0.01:
+        u = x * VIENTO.x + y * VIENTO.y            # a favor del viento
+        t_ = -x * VIENTO.y + y * VIENTO.x          # cruzado
+        sas = _aristas(u * 0.55, t_ * 2.6, 3.4, octavas=3, gain=0.45, z=47.0)
+        h += 0.16 * libre * (sas - 0.45)
     h += cordillera_h(x, y)
     # la nieve se amontona contra la casa y sube por los pilotes
     hd = house_dist(x, y)
@@ -1247,7 +1269,7 @@ def pistas_del_fondo(x, y):
     return corte + (1.0 - corte) * min(1.0, max(0.0, (170.0 - r) / 50.0))
 
 
-def build_forest(terreno, arboles, dmin=4.2, dens=0.18, seed=7, escala=(0.72, 1.25),
+def build_forest(terreno, arboles, dmin=4.2, dens=0.18, seed=7, escala=(0.55, 1.60),
                  attr="veg", corte=None):
     """Bosque con nodos de geometría sobre una malla de terreno, según un atributo 'veg' calculado
     en Python: 0 en el claro de la casa y sobre la huella, 1 en el bosque, modulado por dos octavas
@@ -1322,8 +1344,8 @@ def build_forest(terreno, arboles, dmin=4.2, dens=0.18, seed=7, escala=(0.72, 1.
     esc.inputs["Seed"].default_value = 3
     rot = N.new("FunctionNodeRandomValue")
     rot.data_type = "FLOAT_VECTOR"
-    rot.inputs[0].default_value = (-0.05, -0.05, 0.0)
-    rot.inputs[1].default_value = (0.05, 0.05, math.tau)
+    rot.inputs[0].default_value = (-0.10, -0.10, 0.0)   # en una ladera ninguno crece a plomo
+    rot.inputs[1].default_value = (0.10, 0.10, math.tau)
     rot.inputs["Seed"].default_value = 5
     Lk.new(dist.outputs["Points"], inst.inputs["Points"])
     Lk.new(info.outputs["Instances"], inst.inputs["Instance"])
@@ -1563,48 +1585,68 @@ def build_balizas(M, y0=-150.0, y1=70.0, paso=15.0):
     return coll
 
 
-def build_huellas_esqui(M, n_bajadas=7):
+def build_huellas_esqui(M, terreno, n_bajadas=7):
     """Las curvas que dejaron los que ya bajaron: huellas de esquí marcadas en la pista.
 
     Van como **geometría**, no como material ni como atributo del terreno, y no por capricho: un
     surco de esquí tiene veinte centímetros de ancho y la malla fina del terreno tiene un vértice
     cada 1,10 m, así que ni el relieve ni un atributo por vértice pueden dibujarlo — saldría un
-    manchón de dos metros. Acá cada huella es una cinta propia con sección en **V** (los cantos
-    arriba y el fondo tres centímetros más abajo), que es lo que hace que con el sol rasante cada
-    curva tenga su lado iluminado y su lado en sombra. Sin eso la pista acordonada se lee como
-    una alfombra nueva que nadie pisó, que es justamente lo que delataba la escena.
+    manchón de dos metros. Cada huella es una cinta con sección en **V** (los cantos arriba y el
+    fondo tres centímetros más abajo), que es lo que hace que con el sol rasante cada curva tenga
+    su lado iluminado y su lado en sombra. Sin eso la pista acordonada se lee como una alfombra
+    nueva que nadie pisó.
 
-    Las curvas no son todas iguales: cada bajada lleva su amplitud y su período, y el ancho entre
-    los dos esquíes cambia con la curva."""
+    La altura **se saca con un rayo contra la malla ya terminada**, no llamando a terrain_h. Dos
+    razones, y las dos se vieron en el render: la malla es una grilla de 1,10 m que interpola
+    recto entre vértices mientras terrain_h es una función suave, así que la cinta se hundía y
+    flotaba alternadamente; y hundir_huella le baja el terreno a la pista **después** de armarla,
+    con lo que la cinta quedaba colgada 30 cm en el aire. Con el rayo, la huella se apoya en lo
+    que efectivamente se ve. Por eso sólo llega hasta donde llega la malla fina: más allá el
+    terreno es de 7 m de paso y una huella de esquí ahí no tiene ningún sentido."""
     coll = bpy.data.collections.new("HuellasEsqui")
     bpy.context.scene.collection.children.link(coll)
-    y0, y1 = -135.0, HC.y + 18.0
+    bm = bmesh.new()
+    bm.from_mesh(terreno.data)
+    bvh = BVHTree.FromBMesh(bm)
+
+    def suelo(x, y):
+        hit = bvh.ray_cast(Vector((x, y, 80.0)), Vector((0, 0, -1)), 260.0)[0]
+        return hit.z if hit else None
+
+    y0, y1 = -50.0, HC.y + 16.0
     hechas = 0
     for k in range(n_bajadas):
         amp = 4.5 + 3.2 * math.sin(k * 1.9 + 0.4)
         per = 23.0 + 9.0 * math.cos(k * 2.3)
         lado = (k - (n_bajadas - 1) / 2.0) * 2.6 + 1.4 * math.sin(k * 3.1)
         for esqui in (-1, 1):
-            verts, faces = [], []
-            paso = 1.3
+            verts, faces, prev = [], [], False
+            paso = 0.8
             m = int((y1 - y0) / paso)
             for i in range(m + 1):
                 y = y0 + i * paso
                 cx = pista_cx(y) + lado + amp * math.sin(y / per + k * 2.1)
-                # la separación entre los dos esquíes se abre y se cierra con la curva
                 sep = 0.30 + 0.12 * math.cos(y / per + k * 2.1)
                 x = cx + esqui * sep
-                z = terrain_h(x, y)
-                for dx, dz in ((-0.11, 0.015), (0.0, -0.035), (0.11, 0.015)):
+                z = suelo(x, y)
+                # fuera de la pista la huella no existe: el esquiador baja por lo pisado
+                if z is None or pista_d(x, y) > 1.5:
+                    prev = False
+                    continue
+                base = len(verts)
+                for dx, dz in ((-0.11, 0.022), (0.0, -0.030), (0.11, 0.022)):
                     verts.append((x + dx, y, z + dz))
-                if i:
-                    b0 = (i - 1) * 3
+                if prev:
                     for a in (0, 1):
-                        faces.append((b0 + a, b0 + a + 1, b0 + a + 4, b0 + a + 3))
+                        faces.append((base - 3 + a, base - 2 + a, base + 1 + a, base + a))
+                prev = True
+            if not faces:
+                continue
             o = mesh_obj("HuellaEsqui%d_%d" % (k, esqui), verts, faces, M["nieve_huella"], coll)
             for q in o.data.polygons:
                 q.use_smooth = True
             hechas += 1
+    bm.free()
     print("huellas de esquí:", hechas)
     return coll
 
@@ -1799,7 +1841,12 @@ def build_world():
     l.new(tc.outputs["Generated"], sep.inputs[0])
     hi = n.new("ShaderNodeMapRange")
     hi.interpolation_type = "SMOOTHSTEP"
-    hi.inputs[1].default_value, hi.inputs[2].default_value = 0.3, 0.6   # seno de la elevación
+    # Dónde deja de verse el cielo físico y empieza el HDRI, en seno de la elevación. Estaba en
+    # 0,3-0,6 (de 17° a 37°) y en un cuadro vertical con lente de 30 eso deja el HDRI **fuera de
+    # cuadro**: el cielo salía como un degradé azul perfectamente limpio, que es de lo que más
+    # canta que es un render. Bajado a 0,20-0,45 entran las nubes del HDRI sin que asome el
+    # paisaje propio que trae cerca del horizonte.
+    hi.inputs[1].default_value, hi.inputs[2].default_value = 0.20, 0.45
     l.new(sep.outputs["Z"], hi.inputs[0])
     cam_sky = n.new("ShaderNodeMix")
     cam_sky.data_type = "RGBA"
@@ -2315,10 +2362,13 @@ def main():
     # El bosque va más ralo que en Peumo (dmin más grande, densidad más baja): es una ladera de
     # centro de ski, y lo que tiene que llenar el cuadro es la nieve abierta y el cielo, no las
     # copas. Las bandas de fondo llegan mucho más lejos porque acá se ve hasta la cordillera.
+    # El rango de escala va ancho a propósito (0,55 a 1,60): un bosque donde todos los árboles
+    # miden lo mismo se lee como una estampilla repetida. Con viejos grandes y renuevos entre
+    # medio aparece la textura de bosque de verdad.
     build_forest(cerca, arb_cerca, dmin=5.6, dens=0.13)
-    build_forest(lejos, arb_medio, dmin=8.5, dens=0.10, seed=19, escala=(0.8, 1.35),
+    build_forest(lejos, arb_medio, dmin=8.5, dens=0.10, seed=19, escala=(0.62, 1.70),
                  attr="veg_medio", corte=lambda r: min(1.0, max(0.0, (190.0 - r) / 40.0)))
-    build_forest(lejos, arb_lejos, dmin=13.0, dens=0.075, seed=23, escala=(0.85, 1.5),
+    build_forest(lejos, arb_lejos, dmin=13.0, dens=0.075, seed=23, escala=(0.70, 1.85),
                  attr="veg_lejos", corte=lambda r: min(1.0, max(0.0, (r - 165.0) / 40.0)))
     # renuevos pegados a la casa: lo que crece solo al borde de la plataforma y la enraíza
     build_forest(cerca, renuevos, dmin=3.6, dens=0.22, seed=41, escala=(0.6, 1.25),
@@ -2327,7 +2377,7 @@ def main():
     build_lenera(M)
     build_andarivel(M)
     build_balizas(M)
-    build_huellas_esqui(M)
+    build_huellas_esqui(M, cerca)
     build_carambanos(M)
     build_world()
     setup_render()
