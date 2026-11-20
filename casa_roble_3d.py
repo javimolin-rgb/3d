@@ -615,21 +615,29 @@ def pisado(x, y):
 
 
 def pelado(x, y):
-    """Cuánto suelo asoma bajo la nieve, de 0 (nieve limpia) a 1 (tierra pelada). En un centro de
-    ski hay mucha menos tierra a la vista que en el bosque de Peumo —la cota es más alta y la
-    nieve más profunda—, así que sólo asoma donde pasan los autos y donde el viento barre los
-    lomos. En la pista **nunca**: una pista con tierra a la vista está cerrada."""
+    """Cuánto suelo asoma bajo la nieve, de 0 (nieve limpia) a 1 (tierra pelada). En la pista
+    **nunca**: una pista con tierra a la vista está cerrada.
+
+    Los valores son mucho más bajos que en Peumo, y no es un ajuste de gusto. A la cota de un
+    centro de ski el camino se mantiene **con nieve pisada**, no pelado hasta la tierra: lo que
+    se ve es el hundido y los lomos de nieve palada que modela hundir_huella, no barro. Con los
+    valores del bosque (0,62 en el camino, 0,58 en la explanada) el atributo quedaba justo en el
+    medio de la rampa con que terreno_mat mezcla nieve y tierra, y el ruido que le muerde el
+    borde lo cruzaba de un lado al otro píxel a píxel: en la toma del acceso salía un moteado
+    sucio del tamaño de media pantalla, que se leía como ruido de render y no como camino.
+    Bajados a 0,22 y 0,26 el atributo se queda casi siempre por debajo de la rampa y sólo asoma
+    tierra en manchones sueltos, que es lo que se quería."""
     v = 0.0
     c = camino_d(x, y)
     if c < 1.9:
-        v = max(v, 0.62 * (1.0 - c / 1.9) ** 0.7)
+        v = max(v, 0.22 * (1.0 - c / 1.9) ** 0.7)
     e = explanada_d(x, y) - 0.9 * noise.noise(Vector((x / 2.6, y / 2.6, 53.0)))
     if e < 2.0:
-        v = max(v, 0.58 * (1.0 - max(e, 0.0) / 2.0) ** 0.8)
+        v = max(v, 0.26 * (1.0 - max(e, 0.0) / 2.0) ** 0.8)
     # los lomos que el viento barre, sólo fuera de la pista y fuera de la plataforma
-    lomo = noise.noise(Vector((x / 11.0, y / 11.0, 41.0)))
-    if lomo > 0.40 and pista_d(x, y) > 4.0 and house_dist(x, y) > 14.0:
-        v = max(v, min(0.30, (lomo - 0.40) * 1.7))
+    lomo = noise.noise(Vector((x / 13.0, y / 13.0, 41.0)))
+    if lomo > 0.46 and pista_d(x, y) > 4.0 and house_dist(x, y) > 14.0:
+        v = max(v, min(0.10, (lomo - 0.46) * 1.2))
     return max(0.0, min(1.0, v))
 
 
