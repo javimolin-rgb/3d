@@ -16,7 +16,7 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 3. Peumo — nieve en el bosque ✅
 4. Boldo — lago ✅
 5. Mañío — playa urbanizada
-6. Roble — nieve tipo centro de ski
+6. Roble — nieve tipo centro de ski 🔧 (escena armada, esperando las fotos)
 7. Maitén — mar roca
 8. Coihue — campo, que se note el trigo
 9. Ciprés — playa del norte (más seco) ⚠️
@@ -170,6 +170,20 @@ plantas lado a lado, no sólo la baja.
   sobre el agua son ~29 cuadros/hora; acercándose baja a 21 (entra más bosque y más reflejo); en
   la cenital sube a 38, porque desde arriba casi no entra bosque. s1 tardó 9,5 h, s2 8 h, s3 7 h
   y s5 6 h, en cuatro núcleos.
+- Casa Roble (centro de ski): `casa_roble_3d.py` (casa desde el STL con `tools/extraer_roble_stl.py`;
+  mismos recursos que Peumo: `tools/get_assets_nieve.sh` y `tools/get_assets_hdri.sh nieve`).
+  Hereda de Peumo toda la receta de nieve y cambia el emplazamiento a ladera abierta: pista con el
+  acordonado del pisanieve (atributo `pisado`), andarivel, balizas y cordillera en malla propia.
+  Fotos de aprobación con `tools/fotos_roble.sh` (`output/roble_propuesta/`, cinco tomas más una
+  de **contexto** con lente de 24, que es la que muestra el andarivel y dónde está parada la casa).
+  Secciones con `setsid nohup tools/render_roble.sh s1 [s2 ...] &`.
+  Tres cosas que costaron y conviene no volver a descubrir:
+  **la ladera es asimétrica a propósito** (cae 17° adelante y sube 6° atrás; con la misma
+  pendiente a los dos lados el dron se mete dentro del talud en s2 y s5);
+  **las alturas de las tomas fijas van sobre el terreno**, no en cota absoluta;
+  y **los cerros del fondo necesitan roca en las caras de más de 40°**, si no salen como conos
+  blancos lisos. Es de **dos pisos**, así que el barrido de s3 tiene que pausar en cada piso.
+  El extractor del STL tarda **más de una hora** (26.665 piezas sueltas, un `bpy.ops` por pieza densa).
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
