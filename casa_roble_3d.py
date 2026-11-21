@@ -1800,6 +1800,21 @@ def build_acceso(M):
     def pz(nombre, x0, x1, y0, y1, z0, z1, mat):
         piezas.append(box(nombre, x0, x1, y0, y1, z0, z1, mat))
 
+    # ---------------------------------------------------------------- el marco de la puerta
+    # La hoja la cierra cerrar_puerta_acceso(), pero cerrada sigue siendo un tablero a ras del
+    # muro: la jamba que trae el modelo es del mismo Ro_MaderaClara que la fachada, así que no
+    # dibuja ningún contorno y la puerta se despega poco. Este marco es el mismo gesto que el de
+    # la ventana —y queda a la vista que son el mismo lenguaje, que es lo que pedía la revisión
+    # al hablar de prestancia—: una pieza delgada que recorta el vano contra el frontón claro.
+    # Va de y = 14,74 a 14,80, o sea por delante de la hoja (14,67) y **por delante de la manilla**
+    # (que asoma hasta 14,728): si arranca antes, el marco se le mete por dentro.
+    px0, px1, pzz0, pzz1 = VANO_PUERTA
+    MP = 0.05
+    yp0, yp1 = 14.74, 14.80
+    pz("MarcoPuertaIzq", px0 - MP, px0 + 0.015, yp0, yp1, pzz0, pzz1 + MP, M["marco"])
+    pz("MarcoPuertaDer", px1 - 0.015, px1 + MP, yp0, yp1, pzz0, pzz1 + MP, M["marco"])
+    pz("MarcoPuertaSup", px0 - MP, px1 + MP, yp0, yp1, pzz1 - 0.015, pzz1 + MP, M["marco"])
+
     # ---------------------------------------------------------------- la ventana del 2do piso
     vx0, vx1, vz0, vz1 = VANO_VENT
     MV = 0.065
