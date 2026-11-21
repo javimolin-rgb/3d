@@ -587,6 +587,10 @@ def materials():
     # agujero. La puerta no lleva material nuevo: se usa la hoja del modelo (Ro_PuertaMadera) con
     # sus manillas de acero, sólo girada hasta cerrar.
     M["marco"] = principled("MarcoNegro", (0.016, 0.016, 0.018), 0.36, metal=0.6)
+    # el forro del vano de cada ventana: negro mate, sin metal. No es perfilería a la vista sino
+    # la jamba, el dintel y el alféizar del hueco, que en obra van pintados: mate y bastante
+    # áspero, para que tome la luz rasante del vano y no se vea como un agujero plano.
+    M["canto"] = principled("CantoVano", (0.021, 0.021, 0.023), 0.55)
     M["decknegro"] = principled("DeckBorde", (0.045, 0.042, 0.038), 0.7)
     return M
 
@@ -1780,6 +1784,135 @@ def cerrar_puerta_acceso():
     print("acceso: puerta cerrada sobre su bisagra (%d vértices girados)" % n)
 
 
+def forrar_vanos_ventanas(M):
+    """Forra de negro el canto del vano de **todas** las ventanas que dan al exterior.
+
+    El STL deja el hueco de cada ventana revestido con el material que toque por dentro
+    (Ro_MuroInterior, Ro_MaderaCielo, Ro_PisoInterior, Ro_MaderaClara), todos madera clara. Sobre
+    el revestimiento negro de los muros largos eso se ve como **un marco pálido** alrededor de
+    cada ventana, y en el testero deja el vidrio metido entre maderas del mismo tono que el
+    interior. Con el canto negro la ventana pasa a leerse como un hueco con profundidad: se ve el
+    espesor del muro, el vidrio queda retranqueado y la sombra del vano hace el resto.
+
+    No se repinta la malla del STL. Se probó y no sirve: `Roble_Casco` tiene 1.553 caras para toda
+    la cáscara, o sea caras enormes, y cualquier criterio geométrico que agarre la jamba agarra
+    también el muro interior que llega hasta ella —medido, el "canto" daba hasta 1,3 m de
+    profundidad media, seis veces lo que mide el muro—. Pintar eso deja manchones negros adentro,
+    que se ven por el vidrio. Así que el canto se construye: una tira delgada por dentro del hueco
+    que tapa el revestimiento claro y deja el negro a la vista.
+
+    Qué es una ventana y qué no, que no se puede suponer: se agrupan las caras de vidrio en
+    componentes conexas (69 paños), se queda con las que tienen aire libre de un lado (un rayo de
+    25 m que no choca con nada) y de ésas con las que además tienen **muro alrededor del hueco**,
+    medido con rayos desde afuera justo por fuera del borde. Eso deja 27 ventanas y descarta la
+    mesa de vidrio de la terraza, que también tiene cielo encima. El espesor del muro sale de esos
+    mismos rayos: da 0,100 m parejo en los muros, y en el testero vidriado da mezclado porque es
+    un muro cortina escalonado (paños en y = 3,15 y en 3,25), así que ahí se acota."""
+    ESP = 0.018          # cuánto entra el forro en el hueco: una tira fina, no una perfilería
+    FONDO = 0.015        # cuánto se mete por detrás del vidrio, para que no quede luz entre medio
+    SALE = 0.004         # cuánto asoma por fuera de la cara del muro
+    bpy.context.view_layer.update()
+    sc = bpy.context.scene
+    dep = bpy.context.evaluated_depsgraph_get()
+    vidrio = M["vidrio"]
+
+    # ------------------------------------------------- los paños, por componente conexa
+    panos = []
+    for o in list(sc.objects):
+        if o.type != "MESH" or not o.data.materials:
+            continue
+        esv = [m is vidrio for m in o.data.materials]
+        if not any(esv):
+            continue
+        mw = o.matrix_world
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        bm.faces.ensure_lookup_table()
+        visto = set()
+        for f0 in bm.faces:
+            if f0.index in visto:
+                continue
+            if not esv[f0.material_index]:
+                visto.add(f0.index)
+                continue
+            pila, comp = [f0], []
+            visto.add(f0.index)
+            while pila:
+                f = pila.pop()
+                comp.append(f)
+                for e in f.edges:
+                    for g in e.link_faces:
+                        if g.index not in visto and esv[g.material_index]:
+                            visto.add(g.index)
+                            pila.append(g)
+            grande = max(comp, key=lambda f: f.calc_area())
+            panos.append(((mw.to_3x3() @ grande.normal).normalized(),
+                          mw @ grande.calc_center_median(),
+                          [mw @ v.co for f in comp for v in f.verts]))
+        bm.free()
+
+    coll = bpy.data.collections.new("CantosVentanas")
+    sc.collection.children.link(coll)
+    piezas, n_vent = [], 0
+    for nrm, cen, pts in panos:
+        # 1. ¿de qué lado está el aire libre?
+        fuera = None
+        for cand in (nrm, -nrm):
+            if not sc.ray_cast(dep, cen + cand * 0.06, cand, distance=25.0)[0]:
+                fuera = cand
+                break
+        if fuera is None:
+            continue
+        # 2. sólo paños alineados con un eje: los oblicuos del modelo son muebles, no ventanas
+        ejes = [Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))]
+        w = max(ejes, key=lambda e: abs(e.dot(fuera)))
+        if abs(w.dot(fuera)) < 0.999:
+            continue
+        w = w if w.dot(fuera) > 0 else -w
+        u = Vector((0, 0, 1)) if abs(w.z) < 0.8 else Vector((1, 0, 0))
+        u = (u - w * u.dot(w)).normalized()
+        v = w.cross(u)
+        us = [(q - cen).dot(u) for q in pts]
+        vs = [(q - cen).dot(v) for q in pts]
+        u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+        if (u1 - u0) < 0.25 or (v1 - v0) < 0.25:
+            continue
+        # 3. ¿hay muro alrededor del hueco? y de paso, cuánto mide de espesor
+        profs = []
+        for su, sv in ((u0 - 0.07, (v0 + v1) / 2), (u1 + 0.07, (v0 + v1) / 2),
+                       ((u0 + u1) / 2, v0 - 0.07), ((u0 + u1) / 2, v1 + 0.07),
+                       (u0 - 0.07, v0 + 0.25), (u1 + 0.07, v1 - 0.25)):
+            org = cen + u * su + v * sv + w * 1.5
+            hit, loc, _, _, _, _ = sc.ray_cast(dep, org, -w, distance=3.0)
+            if hit:
+                d = (loc - cen).dot(w)
+                if -0.02 < d < 0.30:        # fuera de ese rango el rayo se coló por otra parte
+                    profs.append(d)
+        if len(profs) < 3:
+            continue                        # sin muro alrededor: no es una ventana
+        profs.sort()
+        prof = min(0.12, max(0.0, profs[len(profs) // 2]))
+        n_vent += 1
+        # 4. las cuatro tiras del forro
+        d0, d1 = -FONDO, prof + SALE
+        for nombre, a0, a1, b0, b1 in (
+                ("Izq", u0 - 0.002, u0 + ESP, v0 - 0.02, v1 + 0.02),
+                ("Der", u1 - ESP, u1 + 0.002, v0 - 0.02, v1 + 0.02),
+                ("Inf", u0 - 0.002, u1 + 0.002, v0 - 0.002, v0 + ESP),
+                ("Sup", u0 - 0.002, u1 + 0.002, v1 - ESP, v1 + 0.002)):
+            qs = [cen + u * a + v * b + w * d
+                  for a in (a0, a1) for b in (b0, b1) for d in (d0, d1)]
+            piezas.append(box("Canto%s%d" % (nombre, n_vent),
+                              min(q.x for q in qs), max(q.x for q in qs),
+                              min(q.y for q in qs), max(q.y for q in qs),
+                              min(q.z for q in qs), max(q.z for q in qs), M["canto"]))
+    for o in piezas:
+        sc.collection.objects.unlink(o)
+        coll.objects.link(o)
+    print("cantos de ventana: %d ventanas forradas (%d tiras)" % (n_vent, len(piezas)))
+    return coll
+
+
 def build_acceso(M):
     """Lo que al acceso le falta de verdad: el marco de la ventana y la terraza de entrada.
 
@@ -2529,6 +2662,7 @@ def main():
     M = materials()
     load_house(M)
     cerrar_puerta_acceso()
+    forrar_vanos_ventanas(M)
     cerca, lejos = build_landscape(M)
     lib, arb_cerca, arb_medio, arb_lejos, renuevos = build_library(M)
     # El bosque va más ralo que en Peumo (dmin más grande, densidad más baja): es una ladera de

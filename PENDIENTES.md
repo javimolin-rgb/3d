@@ -363,6 +363,33 @@ que se descubrió del STL**, porque las casas que faltan van a traer lo mismo:
   acceso. Efecto lateral a mirar: a 14 m la línea ya no entra en la toma de `contexto`, salvo una
   silla cortada por el borde izquierdo del cuadro.
 
+#### Segunda vuelta: el canto de los vanos (21 de noviembre)
+
+Pedido del usuario: *"pinta el canto del interior de todas las ventanas negro, haz que las
+ventanas se vean lo más real posible"*. El STL revestía cada hueco con el material interior que
+tocara —muro, cielo, piso, todos madera clara—, así que sobre el revestimiento negro de los muros
+largos cada ventana llevaba **un marco pálido** alrededor, y en el testero el vidrio quedaba metido
+entre maderas del mismo tono que el interior.
+
+Lo resuelve `forrar_vanos_ventanas()`: **27 ventanas exteriores**, 108 tiras negras. Dos cosas que
+conviene no volver a descubrir:
+
+- **No se repinta la malla, se construye el forro.** Repintar por criterio geométrico se probó y
+  no sirve: `Roble_Casco` tiene 1.553 caras para toda la cáscara, así que la cara de la jamba y la
+  del muro interior que llega hasta ella suelen ser la misma cara enorme. Medido, el "canto" que
+  salía tenía hasta 1,3 m de profundidad media contra los 0,10 m que mide el muro: pintarlo deja
+  manchones negros adentro, visibles por el vidrio.
+- **Cuál de los 69 paños de vidrio es una ventana.** Dos filtros encadenados: que haya aire libre
+  de un lado (rayo de 25 m que no choca con nada) **y** que haya muro alrededor del hueco (rayos
+  desde afuera justo por fuera del borde). El primero solo no alcanza — deja pasar la mesa de
+  vidrio de la terraza, que también tiene cielo encima. El espesor del muro sale de esos mismos
+  rayos: 0,100 m parejo en los muros; en el testero da mezclado, porque es un muro cortina
+  escalonado con paños en y = 3,15 y en 3,25, así que ahí se acota a 0,12.
+
+Queda **sin hacer, por si lo piden**: alféizar que sobresalga en las ventanas de los muros (hoy
+sólo lo tiene la del acceso). En un emplazamiento de nieve juntaría nieve encima y sumaría
+realismo, pero es agregarle una pieza al diseño oficial, así que no se hizo sin preguntar.
+
 **Falta:**
 - 🟡 **El visto bueno del usuario sobre las fotos de esta segunda vuelta.** Nada de video hasta
   entonces (`RECETA.md` §0).

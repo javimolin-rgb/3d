@@ -194,6 +194,19 @@ plantas lado a lado, no sólo la baja.
   donde ya hay uno deja los dos paños anidados y Cycles atraviesa cuatro caras en vez de una.
   La puerta la cierra `cerrar_puerta_acceso()` girando la hoja del propio modelo sobre su bisagra,
   que además es lo que corresponde cuando el cliente pide no inventar sobre los planos oficiales.
+  Lo mismo con **el canto del vano de las ventanas**: el STL lo deja revestido con el material
+  que toque por dentro (muro interior, cielo, piso), todos madera clara, así que sobre los muros
+  negros cada ventana queda con **un marco pálido** alrededor y se ve de maqueta. Lo arregla
+  `forrar_vanos_ventanas()`, que **construye** una tira negra por dentro de cada hueco en vez de
+  repintar la malla. Repintar no sirve y conviene no volver a intentarlo: `Roble_Casco` tiene
+  1.553 caras para toda la cáscara —o sea caras enormes— y cualquier criterio geométrico que
+  agarre la jamba se lleva también el muro interior que llega hasta ella (medido: el "canto" daba
+  hasta 1,3 m de profundidad media contra los 0,10 m que mide el muro), lo que deja manchones
+  negros adentro que se ven por el vidrio. Para decidir qué es ventana y qué no: agrupar el vidrio
+  en componentes conexas, quedarse con las que tienen aire libre de un lado (un rayo de 25 m que
+  no choca con nada) y de ésas con las que además tienen muro alrededor del hueco. En Roble son 27
+  de 69 paños, y ese segundo filtro es el que descarta la mesa de vidrio de la terraza, que
+  también tiene cielo encima. El espesor del muro sale de los mismos rayos: 0,100 m parejo.
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
