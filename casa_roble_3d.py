@@ -77,14 +77,34 @@ GROUND = 0.0                 # terreno bajo la casa (base de los pilotes)
 PISO = 0.55                  # piso terminado
 PISO2 = 3.26                 # segundo piso
 CUMBRERA = (6.88, 6.55)      # x de la cumbrera y su altura
-# Cotas de la fachada de acceso, medidas tirando rayos contra el modelo (no están en el STL como
-# dato: hubo que buscarlas). El muro del acceso está en y = 14,76 y tiene **dos vanos abiertos**,
-# modelados con sus jambas pero sin puerta ni ventana: en el render se leían como dos agujeros
-# negros, que es lo que marcó la revisión. build_acceso() los cierra.
+# Cotas de la fachada de acceso, medidas contra el modelo (no están en el STL como dato). El muro
+# del acceso está en y = 14,76, retranqueado entre los dos paños del porch, que vienen hasta
+# y = 15,36.
+#
+# Por qué en el render los dos vanos se leían como agujeros negros, que es lo que marcó la
+# revisión. **Los dos estaban en el modelo; ninguno estaba vacío.**
+#  - La **puerta** viene abierta 90° hacia adentro: la hoja es una tabla de 0,77 x 2,03 en el
+#    plano x = 3,70, con sus dos bisagras en y = 14,65, sus dos manillas y el picaporte. De canto
+#    a una cámara de afuera no se ve, y lo que queda es el vano de 73 cm: justo lo que la revisión
+#    leyó como "muy angosta" y "no está la puerta". La cierra cerrar_puerta_acceso() girándola
+#    sobre su bisagra, así que no se inventa ninguna puerta: es la hoja del modelo oficial.
+#  - La **ventana** sí trae vidrio: un paño plano de 1,44 x 1,44 en y = 14,66 con Ro_Vidrio. Se
+#    leía como un hueco porque detrás está el interior sin luz y el paño va pelado, sin marco ni
+#    parteluz ni alféizar. Eso es lo que agrega build_acceso(), **por fuera del paño**; el vidrio
+#    no se vuelve a poner. Ponerlo de nuevo era el error que tenía esta sección: un segundo paño
+#    en y = 14,66 ± 0,008 deja el del modelo metido dentro del nuevo y Cycles atraviesa cuatro
+#    caras de vidrio en vez de una, que oscurece y ensucia justo la ventana que había que salvar.
 ACC_Y = 14.76                        # cara exterior del muro de acceso
 VANO_PUERTA = (3.70, 4.43, 0.55, 2.56)    # x0, x1, z0, z1 — 0,73 x 2,01 m
-VANO_VENT = (5.88, 7.30, 3.71, 5.11)      # x0, x1, z0, z1 — 1,42 x 1,40 m, segundo piso
-TERRAZA_ACC = (1.25, 6.98, 19.60)         # x0, x1 y hasta dónde llega la terraza de entrada
+VANO_VENT = (5.88, 7.30, 3.71, 5.11)      # rebajo del paño de 1,44 x 1,44 que ya trae el modelo
+BISAGRA = (3.704, 14.652)                 # eje vertical de giro de la hoja de la puerta (x, y)
+# La terraza de entrada: x0, x1, y desde dónde y hasta dónde. **No va de lado a lado de la casa.**
+# El suelo de la casa termina en y = 14,97 a 16,06 según la franja, y sólo la lengüeta del acceso
+# (x = 3,5 a 6,0) llega a 16,81. Una terraza de ancho completo que arrancara más afuera que eso
+# deja aire entre ella y la casa por los dos costados y se lee como una balsa suelta, que es como
+# salía: hay que arrancar **pisando** la lengüeta que ya existe y mantenerse en su franja de x,
+# para que se lea como lo que es, la misma terraza más larga.
+TERRAZA_ACC = (3.30, 6.25, 16.00, 18.90)
 # El claro tiene que dar para la órbita del dron. Con la casa de 9,5 x 13 m y lente de 30 mm, el
 # encuadre adaptable deja la cámara a unos 31 m: si el claro es más chico que eso, el dron orbita
 # por dentro del bosque y los árboles le tapan el lente. Así que el claro es grande, pero no es un
@@ -562,13 +582,10 @@ def materials():
     # nieve compactada del surco de un esquí: más lisa y un punto más azul que la de al lado
     M["nieve_huella"] = snow_mat("NieveHuella", sss=0.14, rough=0.26, bump=0.35)
     M["hielo"] = hielo_mat()
-    # hoja de la puerta de acceso: tablas verticales, más oscuras que la fachada, para que la
-    # puerta se recorte contra el frontón claro en vez de confundirse con él
-    M["puerta_acc"] = boards_mat("PuertaAcceso", (0.145, 0.088, 0.048), (0.098, 0.058, 0.030),
-                                 "Z", 14.0, rough=0.55)
-    M["acero"] = principled("AceroManilla", (0.56, 0.57, 0.58), 0.28, metal=1.0)
-    # marco de puerta y ventana del acceso: negro mate, el mismo lenguaje que la perfilería del
-    # testero. Es lo que enmarca el vano y lo que hace que deje de leerse como un agujero.
+    # marco, parteluz y alféizar de la ventana del acceso: negro mate, el mismo lenguaje que la
+    # perfilería del testero. Es lo que enmarca el paño y lo que hace que deje de leerse como un
+    # agujero. La puerta no lleva material nuevo: se usa la hoja del modelo (Ro_PuertaMadera) con
+    # sus manillas de acero, sólo girada hasta cerrar.
     M["marco"] = principled("MarcoNegro", (0.016, 0.016, 0.018), 0.36, metal=0.6)
     M["decknegro"] = principled("DeckBorde", (0.045, 0.042, 0.038), 0.7)
     return M
@@ -1567,9 +1584,14 @@ def build_andarivel(M, y0=-205.0, y1=95.0, paso=52.0):
         cb = bpy.data.objects.new(f"CableAndarivel{lado}", cu)
         cu.materials.append(M["torre"])
         coll.objects.link(cb)
-        # las sillas, repartidas a lo largo del cable
+        # Las sillas, repartidas a lo largo del cable. Una cada cuatro puntos son 17 m, que es
+        # lo que separa las sillas de un cuadrimotor de verdad; estuvieron una cada ocho (35 m) y
+        # con esa separación **en las tomas del acceso no entraba ninguna**: se veía la torre con
+        # su travesaño y los cables pelados, que es justo lo que la revisión leyó como poste de
+        # luz. La condición que puso era que se vieran las sillas, así que la separación la manda
+        # el encuadre, no el gusto: con 17 m siempre cae alguna en el tramo que entra en cuadro.
         n = len(pts)
-        for i in range(5, n - 5, 8):
+        for i in range(3, n - 3, 4):
             cx, cy, cz = pts[i]
             br = box(f"BrazoSilla{lado}_{i}", cx - 0.045, cx + 0.045, cy - 0.045, cy + 0.045,
                      cz - cuelga, cz, M["torre"])
@@ -1713,23 +1735,64 @@ def build_carambanos(M, n=170):
     return coll
 
 
+def cerrar_puerta_acceso():
+    """Cierra la puerta de acceso girando la hoja **del propio modelo** sobre su bisagra.
+
+    El STL la trae abierta 90° hacia adentro. Así la hoja queda de canto a cualquier cámara de
+    afuera —no se ve— y del acceso sólo queda el vano de 73 cm con el interior oscuro detrás. La
+    revisión lo marcó dos veces, en las dos tomas de la fachada: "se ve muy angosta para ser
+    puerta de acceso principal" y "no sé si es el ángulo o que se vea extraño porque no está la
+    puerta". Y resolvió **no agrandar el vano**, porque son las medidas del modelo oficial, sino
+    que la puerta se vea. Esto hace exactamente eso y nada más: la hoja es la del modelo, con su
+    madera, sus dos manillas y sus bisagras; lo único que cambia es el ángulo.
+
+    Las piezas de la puerta están repartidas en tres objetos del .blend —la hoja en Roble_puerta,
+    las dos manillas en Roble_acero, las bisagras y el picaporte en Roble_maderaOsc—, así que hay
+    que elegirlas por región. Cada caja se midió contra el modelo por componentes conexas y toma
+    exactamente las piezas de la puerta y nada del resto de la casa; si alguna vez se vuelve a
+    extraer el STL y las cotas se corren, lo que avisa es el total que imprime al final."""
+    hx, hy = BISAGRA
+    PIEZAS = {
+        "Roble_puerta":    (3.60, 3.80, 13.85, 14.70, 0.50, 2.60),   # la hoja
+        "Roble_acero":     (3.55, 3.85, 13.85, 14.20, 1.40, 1.60),   # las dos manillas
+        "Roble_maderaOsc": (3.60, 3.80, 13.85, 14.70, 0.90, 1.80),   # bisagras y picaporte
+    }
+    n = 0
+    for nombre, (x0, x1, y0, y1, z0, z1) in PIEZAS.items():
+        o = bpy.data.objects.get(nombre)
+        if o is None:
+            print("cerrar_puerta: falta el objeto", nombre)
+            continue
+        mw = o.matrix_world
+        inv = mw.inverted()
+        for v in o.data.vertices:
+            c = mw @ v.co
+            if not (x0 < c.x < x1 and y0 < c.y < y1 and z0 < c.z < z1):
+                continue
+            # +90° sobre el eje vertical de la bisagra: la hoja pasa de apuntar a -Y (abierta
+            # hacia adentro) a apuntar a +X, o sea a tapar el vano
+            dx, dy = c.x - hx, c.y - hy
+            v.co = inv @ Vector((hx - dy, hy + dx, c.z))
+            n += 1
+        o.data.update()
+    # 3.596 vértices con el STL de noviembre (128 de la hoja, 1.964 de las manillas, 1.504 de
+    # bisagras y picaporte). Si baja mucho, las cajas dejaron de pescar alguna pieza.
+    print("acceso: puerta cerrada sobre su bisagra (%d vértices girados)" % n)
+
+
 def build_acceso(M):
-    """Puerta, ventana y terraza de la fachada de acceso.
+    """Lo que al acceso le falta de verdad: el marco de la ventana y la terraza de entrada.
 
-    **El STL no trae ni puerta ni ventana**: los dos vanos vienen modelados con sus jambas pero
-    vacíos, y en el render se leían como dos agujeros negros con el fondo del interior oscuro
-    asomando. La revisión lo marcó en las dos tomas del acceso ("que puerta y ventana se vean y
-    no solo el hueco"). Acá se cierran los dos.
-
-    El ancho de la puerta **no se toca**: son 73 cm, que es lo que da el modelo oficial, y la
-    revisión resolvió dejarlo así y ganar presencia con la hoja, no agrandando el vano. Lo que la
-    hace leer como puerta de acceso y no como una ranura es el conjunto: marco oscuro que
-    enmarca el vano, hoja de madera en su plano, una pieza de luz vertical a un costado,
-    manilla y umbral.
+    La puerta no se toca acá: la cierra cerrar_puerta_acceso() girando la hoja del modelo. Y el
+    vidrio de la ventana tampoco se pone, porque el modelo ya trae el paño de 1,44 x 1,44 en
+    y = 14,66. Lo que no trae es nada con que se lea que ahí hay una ventana —el paño va pelado,
+    sin marco, sin parteluz y sin alféizar, y detrás está el interior sin luz—, y por eso en el
+    render salía un rectángulo negro. Esas tres piezas son las que la arman, y van **por delante**
+    del paño, entre él y la cara del muro, para no quedar coplanares con el vidrio.
 
     La terraza de entrada se alarga tres metros hacia afuera, con su faldón y una escalera nueva
-    al borde: la que había era una lengüeta de poco más de un metro y la casa parecía entrar
-    directo desde la nieve."""
+    al borde: la que había era una lengüeta de poco más de un metro (de y = 16,04 a 16,73) y la
+    casa parecía entrar directo desde la nieve."""
     coll = bpy.data.collections.new("Acceso")
     bpy.context.scene.collection.children.link(coll)
     piezas = []
@@ -1737,54 +1800,25 @@ def build_acceso(M):
     def pz(nombre, x0, x1, y0, y1, z0, z1, mat):
         piezas.append(box(nombre, x0, x1, y0, y1, z0, z1, mat))
 
-    # ---------------------------------------------------------------- la puerta
-    px0, px1, pz0, pz1 = VANO_PUERTA
-    MARCO = 0.075                    # ancho del marco visto de frente
-    yf0, yf1 = ACC_Y - 0.30, ACC_Y + 0.025     # el marco cubre todo el espesor del vano
-    pz("MarcoPuertaIzq", px0 - MARCO, px0 + 0.02, yf0, yf1, pz0, pz1 + MARCO, M["marco"])
-    pz("MarcoPuertaDer", px1 - 0.02, px1 + MARCO, yf0, yf1, pz0, pz1 + MARCO, M["marco"])
-    pz("MarcoPuertaSup", px0 - MARCO, px1 + MARCO, yf0, yf1, pz1 - 0.02, pz1 + MARCO, M["marco"])
-    # la hoja, retranqueada diez centímetros: así tiene sombra propia y no se ve pegada al muro
-    hy = ACC_Y - 0.13
-    pz("HojaPuerta", px0 + 0.025, px1 - 0.025, hy - 0.025, hy + 0.025, pz0 + 0.01, pz1 - 0.02,
-       M["puerta_acc"])
-    # luz vertical: una faja de vidrio al costado de la manilla, que es lo que le da prestancia
-    lz0, lz1 = pz0 + 0.55, pz1 - 0.22
-    pz("LuzPuerta", px1 - 0.21, px1 - 0.09, hy - 0.032, hy + 0.032, lz0, lz1, M["vidrio"])
-    pz("LuzPuertaMarco", px1 - 0.235, px1 - 0.065, hy - 0.036, hy + 0.036, lz0 - 0.025, lz1 + 0.025,
-       M["marco"])
-    # manilla y umbral
-    bpy.ops.mesh.primitive_cylinder_add(vertices=10, radius=0.016, depth=0.26,
-                                        location=(px0 + 0.20, hy - 0.075, pz0 + 1.05))
-    man = bpy.context.object
-    man.name = "ManillaPuerta"
-    man.rotation_euler = (0, math.radians(90), 0)
-    man.data.materials.append(M["acero"])
-    bpy.ops.object.shade_smooth()
-    bpy.context.scene.collection.objects.unlink(man)
-    coll.objects.link(man)
-    pz("UmbralPuerta", px0 - MARCO, px1 + MARCO, ACC_Y - 0.32, ACC_Y + 0.09, pz0 - 0.035, pz0 + 0.012,
-       M["marco"])
-
     # ---------------------------------------------------------------- la ventana del 2do piso
     vx0, vx1, vz0, vz1 = VANO_VENT
     MV = 0.065
+    # el marco va del plano del paño (14,66) a 2,5 cm por fuera de la cara del muro (14,76): pisa
+    # el canto del vidrio, que es lo que hace un marco, y sobresale lo justo para dar sombra
+    yf0, yf1 = ACC_Y - 0.12, ACC_Y + 0.025
     pz("MarcoVentIzq", vx0 - MV, vx0 + 0.02, yf0, yf1, vz0 - MV, vz1 + MV, M["marco"])
     pz("MarcoVentDer", vx1 - 0.02, vx1 + MV, yf0, yf1, vz0 - MV, vz1 + MV, M["marco"])
     pz("MarcoVentSup", vx0 - MV, vx1 + MV, yf0, yf1, vz1 - 0.02, vz1 + MV, M["marco"])
     pz("MarcoVentInf", vx0 - MV, vx1 + MV, yf0, yf1, vz0 - MV, vz0 + 0.02, M["marco"])
-    vy = ACC_Y - 0.10
-    pz("VidrioVent", vx0 + 0.015, vx1 - 0.015, vy - 0.008, vy + 0.008, vz0 + 0.015, vz1 - 0.015,
-       M["vidrio"])
-    pz("ParteluzVent", (vx0 + vx1) / 2 - 0.035, (vx0 + vx1) / 2 + 0.035, vy - 0.03, vy + 0.03,
-       vz0, vz1, M["marco"])
+    # parteluz: por delante del paño (14,675 a 14,745), no dentro de él
+    pz("ParteluzVent", (vx0 + vx1) / 2 - 0.035, (vx0 + vx1) / 2 + 0.035,
+       ACC_Y - 0.085, ACC_Y - 0.015, vz0, vz1, M["marco"])
     # alféizar: la nieve se posa ahí, y es lo que delata que la ventana está hundida en el muro
-    pz("AlfeizarVent", vx0 - MV - 0.03, vx1 + MV + 0.03, ACC_Y - 0.33, ACC_Y + 0.07,
+    pz("AlfeizarVent", vx0 - MV - 0.03, vx1 + MV + 0.03, ACC_Y - 0.16, ACC_Y + 0.07,
        vz0 - MV - 0.045, vz0 - MV + 0.005, M["marco"])
 
     # ---------------------------------------------------------------- la terraza de entrada
-    tx0, tx1, ty1 = TERRAZA_ACC
-    ty0 = D - 0.25                       # arranca bajo el borde de la que ya existe
+    tx0, tx1, ty0, ty1 = TERRAZA_ACC
     TZ = 0.542                           # 2 mm sobre la cubierta existente: sin pelea de planos
     pz("TerrazaAcceso", tx0, tx1, ty0, ty1, TZ - 0.085, TZ, M["deck"])
     pz("FaldonTerrazaFin", tx0 - 0.03, tx1 + 0.03, ty1 - 0.04, ty1 + 0.03, TZ - 0.40, TZ + 0.01,
@@ -1801,7 +1835,7 @@ def build_acceso(M):
     for o in piezas:
         bpy.context.scene.collection.objects.unlink(o)
         coll.objects.link(o)
-    print("acceso: puerta, ventana y terraza (%d piezas)" % (len(piezas) + 1))
+    print("acceso: ventana enmarcada y terraza de entrada (%d piezas)" % len(piezas))
     return coll
 
 
@@ -2479,6 +2513,7 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     M = materials()
     load_house(M)
+    cerrar_puerta_acceso()
     cerca, lejos = build_landscape(M)
     lib, arb_cerca, arb_medio, arb_lejos, renuevos = build_library(M)
     # El bosque va más ralo que en Peumo (dmin más grande, densidad más baja): es una ladera de

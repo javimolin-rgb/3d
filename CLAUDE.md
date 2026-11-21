@@ -184,6 +184,16 @@ plantas lado a lado, no sólo la baja.
   y **los cerros del fondo necesitan roca en las caras de más de 40°**, si no salen como conos
   blancos lisos. Es de **dos pisos**, así que el barrido de s3 tiene que pausar en cada piso.
   El extractor del STL tarda **más de una hora** (26.665 piezas sueltas, un `bpy.ops` por pieza densa).
+  Y una trampa del STL que vale para **todas** las casas, no sólo ésta: **un vano que se ve negro
+  en el render no quiere decir que esté vacío.** En Roble la puerta de acceso venía *abierta 90°
+  hacia adentro* —la hoja está entera, con bisagras, manillas y picaporte, pero de canto a la
+  cámara no se ve— y la ventana de al lado sí traía su vidrio, sólo que sin marco y con el
+  interior a oscuras detrás. Las dos se leyeron como agujeros y la revisión las marcó. Antes de
+  modelar lo que "falta", tirar rayos contra el modelo y listar las piezas por material y por
+  componente conexa (`bpy.context.scene.ray_cast`, y las cajas por objeto): poner un vidrio nuevo
+  donde ya hay uno deja los dos paños anidados y Cycles atraviesa cuatro caras en vez de una.
+  La puerta la cierra `cerrar_puerta_acceso()` girando la hoja del propio modelo sobre su bisagra,
+  que además es lo que corresponde cuando el cliente pide no inventar sobre los planos oficiales.
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en

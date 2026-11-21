@@ -323,8 +323,49 @@ opuesto al bosque cerrado: ladera abierta, mucho más cielo y la nieve pisada ll
   de la pista. Y hay una quinta toma de **contexto** con lente de 24, porque el emplazamiento es
   lo que hay que aprobar en esta casa y de cerca no se ve dónde está parada.
 
+#### Primera revisión de las fotos (21 de noviembre) — los cuatro puntos, resueltos
+
+La revisión marcó cuatro cosas sobre las dos tomas de la fachada de acceso (`izq_atras` y
+`der_atras`) y dio el resto por bueno. Lo importante de esta vuelta no son los arreglos sino **lo
+que se descubrió del STL**, porque las casas que faltan van a traer lo mismo:
+
+- ⚠️ **El STL trae la puerta de acceso abierta 90° hacia adentro.** No es que falte: la hoja está,
+  con sus 0,77 x 2,03, sus dos bisagras en y = 14,65, sus dos manillas y el picaporte, sólo que
+  de canto a cualquier cámara de afuera. Lo que se ve es el vano de 73 cm con el interior oscuro
+  detrás, y la revisión lo leyó exactamente así: "se ve muy angosta para ser puerta de acceso
+  principal… no sé si es el ángulo o que se vea extraño porque no está la puerta". **Antes de dar
+  por vacío un vano, hay que mirar si la hoja no está parada al lado**, en el plano de la jamba.
+  La cierra `cerrar_puerta_acceso()` girando la hoja del modelo sobre su bisagra: las piezas están
+  repartidas en tres objetos (`Roble_puerta`, `Roble_acero`, `Roble_maderaOsc`), así que se eligen
+  por caja, y son 3.596 vértices.
+- ⚠️ **La ventana del segundo piso tampoco estaba vacía**: trae su paño de 1,44 x 1,44 en y = 14,66
+  con `Ro_Vidrio`. Se leía como un hueco porque detrás no hay luz y el paño va pelado. Lo que le
+  faltaba era **marco, parteluz y alféizar**, y eso es lo único que agrega `build_acceso()`. Un
+  primer intento le puso además un vidrio nuevo en el mismo plano: eso deja el paño del modelo
+  metido dentro del nuevo y Cycles atraviesa cuatro caras de vidrio en vez de una. **No reponer
+  vidrio sin medir antes si ya hay.**
+- **La decisión sobre el ancho de la puerta fue no tocarlo.** Se preguntó en el cronograma, porque
+  el modelo es el oficial, y la respuesta fue: "si es a base de los renders oficiales hay q
+  dejarla así pero ponle puerta pa darle más prestancia". Así que el vano queda en sus 73 cm y lo
+  que cambia es que la puerta se vea.
+- **La terraza de entrada no puede ser de ancho completo.** El suelo de la casa termina en
+  y = 14,97 a 16,06 según la franja de x, y sólo la lengüeta del acceso (x = 3,5 a 6,0) llega a
+  16,81. Una terraza de lado a lado que arranque más afuera que eso deja aire a los dos costados
+  y **se lee como una balsa suelta** — así salió el primer intento. Va en la franja de la lengüeta
+  (x = 3,30 a 6,25) y arrancando encima de ella (y = 16,00), hasta y = 18,90.
+- **El andarivel: la separación de las sillas la manda el encuadre.** Una torre sola, con su
+  travesaño pero sin sillas alrededor, se lee como poste de luz, y eso fue lo que marcó la
+  revisión ("sacar el andarivel que está justo atrás, porque se confunde con poste de luz; si
+  quieres poner andarivel que sea un poco más lejos y se vean las sillas, sino sacarlo"). Se
+  corrió a 14 m del borde de la pista —ojo: es el tercer movimiento, y el rango bueno es
+  estrecho, está explicado en `andarivel_x()`— y las sillas pasaron de una cada 35 m a una cada
+  17 m, que además es lo real en un cuadrimotor. Con 35 m **no entraba ninguna** en las tomas del
+  acceso. Efecto lateral a mirar: a 14 m la línea ya no entra en la toma de `contexto`, salvo una
+  silla cortada por el borde izquierdo del cuadro.
+
 **Falta:**
-- 🟡 **El visto bueno del usuario sobre las fotos.** Nada de video hasta entonces (`RECETA.md` §0).
+- 🟡 **El visto bueno del usuario sobre las fotos de esta segunda vuelta.** Nada de video hasta
+  entonces (`RECETA.md` §0).
 - 🟡 Las cinco secciones del recorrido, con la **pausa del corte en cada piso** (dos pisos).
 - 🟡 `tools/plano_roble.py` para s4, con la lámina `assets/roble/planta_sin_cotas.png` (ya está
   bajada, es PNG y trae las dos plantas, igual que la de Boldo) calibrada con
