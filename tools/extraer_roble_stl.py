@@ -24,6 +24,10 @@ PENDIENTES.md), más terraza y porch en las puntas:
   2do piso  z > 3,26 — dormitorio-1 contra el testero, w.cl., baño y escritorio hacia el acceso,
             todo sobre el vacío de doble altura del living
 
+Ojo con la fachada de acceso: el modelo trae los dos vanos (puerta de 0,73 x 2,01 en y = 14,76
+y ventana de 1,42 x 1,40 en el segundo piso) **abiertos**, con sus jambas pero sin hoja ni
+vidrio. Este extractor no los inventa: los cierra build_acceso() en casa_roble_3d.py.
+
 Uso:
   python tools/extraer_roble_stl.py -- "stl/Casa Roble + Ventana.stl" assets/roble/casa.blend
 """
@@ -150,6 +154,12 @@ def en_faldon(cx, cy, cz):
     porque la regla de las lámparas —pieza chica, alta dentro del recinto— también atrapa los
     marcos de los tragaluces, y el material de lámpara emite luz."""
     if not Y_VID + 0.6 < cy < Y_ACC - 0.6:
+        return False
+    # Y tampoco si la pieza está pegada a un muro largo: un tragaluz va en medio del faldón, no
+    # en el canto del alero. Sin esta condición, la **ventana alta del muro largo** caía a menos
+    # de un metro del plano del faldón prolongado y salía pintada con el vidrio oscuro del
+    # tragaluz; en el render se leía como un rectángulo negro en vez de una ventana.
+    if cx < 0.9 or cx > L - 0.9:
         return False
     return cz > 3.4 and any(abs(cz - (zi + s * cx)) < 0.95 for s, zi in techo.items())
 
