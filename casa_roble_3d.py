@@ -567,6 +567,9 @@ def materials():
     M["puerta_acc"] = boards_mat("PuertaAcceso", (0.145, 0.088, 0.048), (0.098, 0.058, 0.030),
                                  "Z", 14.0, rough=0.55)
     M["acero"] = principled("AceroManilla", (0.56, 0.57, 0.58), 0.28, metal=1.0)
+    # marco de puerta y ventana del acceso: negro mate, el mismo lenguaje que la perfilería del
+    # testero. Es lo que enmarca el vano y lo que hace que deje de leerse como un agujero.
+    M["marco"] = principled("MarcoNegro", (0.016, 0.016, 0.018), 0.36, metal=0.6)
     M["decknegro"] = principled("DeckBorde", (0.045, 0.042, 0.038), 0.7)
     return M
 
