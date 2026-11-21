@@ -386,6 +386,23 @@ conviene no volver a descubrir:
   rayos: 0,100 m parejo en los muros; en el testero da mezclado, porque es un muro cortina
   escalonado con paños en y = 3,15 y en 3,25, así que ahí se acota a 0,12.
 
+**Dos cosas que salieron de revisar el primer intento** ("¿ahora aparecen unos tubos raros del
+techo o no?"), y las dos se veían en el techo:
+
+- 🐛 **Los paños del vértice del frontón son triángulos**, no rectángulos: siguen la pendiente del
+  techo. El forro se armaba sobre el **rectángulo envolvente**, así que las tiras de arriba caían
+  fuera del vidrio, donde no hay hueco sino losa de techo, y la atravesaban: en el render quedaba
+  **un rectángulo negro dibujado sobre el faldón**. Ahora se mide la envolvente convexa del paño
+  proyectado y se descartan los que no llenan su rectángulo (un rectángulo da 1,0 y un triángulo
+  0,5; el corte está en 0,85). Quedan 24 ventanas forradas en vez de 27: los tres triángulos del
+  frontón se quedan sin forro, que no se nota porque ahí el vano da contra el alero negro.
+- 🪧 **Una baliza justo detrás de la cumbrera.** El borde de adentro de la pista pasa a entre 1,5
+  y 4 m del muro (y = 0, 15 y 30), así que desde las tomas del lado contrario una baliza caía
+  detrás del techo y asomaba por encima de la cumbrera: se leía como un tubo saliendo del tejado.
+  `build_balizas()` ya no pone ninguna en la franja pegada a la casa, que además es lo correcto
+  (al borde de una pista de verdad los jalones se retiran de los edificios). Pasan de 30 a 26 y la
+  hilera no se nota cortada, porque la de enfrente sigue entera.
+
 Queda **sin hacer, por si lo piden**: alféizar que sobresalga en las ventanas de los muros (hoy
 sólo lo tiene la del acceso). En un emplazamiento de nieve juntaría nieve encima y sumaría
 realismo, pero es agregarle una pieza al diseño oficial, así que no se hizo sin preguntar.

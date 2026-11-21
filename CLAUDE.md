@@ -207,6 +207,11 @@ plantas lado a lado, no sólo la baja.
   no choca con nada) y de ésas con las que además tienen muro alrededor del hueco. En Roble son 27
   de 69 paños, y ese segundo filtro es el que descarta la mesa de vidrio de la terraza, que
   también tiene cielo encima. El espesor del muro sale de los mismos rayos: 0,100 m parejo.
+  Y el forro va **sólo en los paños rectangulares**: los del vértice del frontón son triángulos
+  que siguen la pendiente del techo, y armado sobre su rectángulo envolvente las tiras de arriba
+  caen donde no hay hueco sino losa de techo y la atraviesan, o sea **un rectángulo negro dibujado
+  sobre el faldón**. Se filtra con la envolvente convexa del paño proyectado contra su rectángulo
+  (rectángulo 1,0, triángulo 0,5; corte en 0,85).
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en

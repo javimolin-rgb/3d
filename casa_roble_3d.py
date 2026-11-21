@@ -1625,6 +1625,14 @@ def build_balizas(M, y0=-150.0, y1=70.0, paso=15.0):
     while y < y1:
         for lado in (-1, 1):
             x = pista_cx(y) + lado * (pista_w(y) + 0.6)
+            # Nada de balizas en la franja pegada a la casa. El borde de adentro de la pista pasa
+            # a entre 1,5 y 4 m del muro (y = 0, 15 y 30), y desde las tomas del lado contrario
+            # una baliza ahí cae **justo detrás del techo**: asoma por encima de la cumbrera y se
+            # lee como un tubo saliendo del tejado, que fue lo que preguntó la revisión. Sacarlas
+            # además es lo correcto: al borde de una pista de verdad los jalones se retiran de los
+            # edificios. La hilera no se nota cortada porque la de enfrente sigue entera.
+            if -11.0 < x < L + 11.0 and -14.0 < y < D + 20.0:
+                continue
             z = terrain_h(x, y)
             alt = random.uniform(1.6, 2.0)
             bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=0.035, depth=alt,
@@ -1877,7 +1885,29 @@ def forrar_vanos_ventanas(M):
         u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
         if (u1 - u0) < 0.25 or (v1 - v0) < 0.25:
             continue
-        # 3. ¿hay muro alrededor del hueco? y de paso, cuánto mide de espesor
+        # 3. sólo paños **rectangulares**. Los dos del vértice del frontón son triángulos que
+        # siguen la pendiente del techo, y para ellos el rectángulo envolvente no es el vano: las
+        # tiras de arriba caen fuera del vidrio, donde no hay hueco sino losa de techo, y la
+        # atraviesan. En el render salía **un rectángulo dibujado sobre el faldón**, que es lo que
+        # hizo saltar la revisión ("unos tubos raros del techo"). Se mide con la envolvente
+        # convexa del paño proyectado: un rectángulo da 1,0 y un triángulo 0,5.
+        pq = sorted(set((round((q - cen).dot(u), 4), round((q - cen).dot(v), 4)) for q in pts))
+        if len(pq) >= 3:
+            def media(orden):            # media envolvente, por el método de la cadena monótona
+                h = []
+                for q in orden:
+                    while len(h) >= 2 and ((h[-1][0] - h[-2][0]) * (q[1] - h[-2][1])
+                                           - (h[-1][1] - h[-2][1]) * (q[0] - h[-2][0])) <= 0:
+                        h.pop()
+                    h.append(q)
+                return h
+            cad = media(pq)[:-1] + media(pq[::-1])[:-1]
+            area = abs(sum(cad[k][0] * cad[(k + 1) % len(cad)][1]
+                           - cad[(k + 1) % len(cad)][0] * cad[k][1]
+                           for k in range(len(cad)))) / 2
+            if area < 0.85 * (u1 - u0) * (v1 - v0):
+                continue
+        # 4. ¿hay muro alrededor del hueco? y de paso, cuánto mide de espesor
         profs = []
         for su, sv in ((u0 - 0.07, (v0 + v1) / 2), (u1 + 0.07, (v0 + v1) / 2),
                        ((u0 + u1) / 2, v0 - 0.07), ((u0 + u1) / 2, v1 + 0.07),
@@ -1893,7 +1923,7 @@ def forrar_vanos_ventanas(M):
         profs.sort()
         prof = min(0.12, max(0.0, profs[len(profs) // 2]))
         n_vent += 1
-        # 4. las cuatro tiras del forro
+        # 5. las cuatro tiras del forro
         d0, d1 = -FONDO, prof + SALE
         for nombre, a0, a1, b0, b1 in (
                 ("Izq", u0 - 0.002, u0 + ESP, v0 - 0.02, v1 + 0.02),
