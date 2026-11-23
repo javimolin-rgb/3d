@@ -40,7 +40,7 @@ for t in "$@"; do
   mkdir -p frames_roble/$t
   find frames_roble/$t -name "f_*.png" -size -10k -delete
   "$PY" casa_roble_3d.py -- --vista dron --tramo $t --out "$PWD/frames_roble/$t/f_" \
-    --res 720x1280 --samples 16 >> frames_roble/$t/render.log 2>&1 < /dev/null
+    --res 720x1280 --samples 16 --nevada "${NEVADA:-0}" >> frames_roble/$t/render.log 2>&1 < /dev/null
 done
 sleep 65
 kill $PROG

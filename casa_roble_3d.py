@@ -2381,7 +2381,7 @@ def build_camera():
 # el encuadre adaptable sólo fija la distancia final para que la casa quepa en pantalla.
 # s3p es s3 con las dos pausas del barrido (una por piso): misma ruta, 144 cuadros más. Es la
 # que se renderiza; s3 queda como la sección de referencia sobre la que se calculan las pausas.
-SECCIONES = {"s1": 240, "s2": 192, "s3": 240, "s3p": 240 + 2 * 72, "s5": 192}
+SECCIONES = {"s1": 240, "s2": 192, "s3": 240, "s3p": 384, "s5": 192}   # s3p = 240 + 2 pausas
 INICIO = {"s2": 0, "s3": 192, "s5": 432}      # cuadro de inicio de cada sección en la ruta continua s2..s5
 CASA_BOX = (0.0, L, -0.7, D + 0.7, GROUND, 6.7)      # caja de la casa (con escaleras) para encuadrar
 CASA_C = Vector((L / 2, D / 2, 2.4))                 # punto al que mira el dron
