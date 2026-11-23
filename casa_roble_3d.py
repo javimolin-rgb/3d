@@ -140,7 +140,10 @@ CARGA = (0.40, 1.0)          # carga de nieve al principio y al final del video
 TECHO = float(opts["techo"])  # cuánta nieve queda en el techo; 0,28 es la elegida: los 28°
                               # descargan casi toda y queda una película que gana al alero
 VIDEO_N = 1008               # cuadros del video completo (las cinco partes, s4 incluida)
-VIDEO_G0 = {"s1": 0, "s2": 240, "s3": 432, "s5": 816}   # dónde empieza cada parte
+# Dónde empieza cada parte en el video completo, para la nieve que se va acumulando. s3p arranca
+# donde arrancaba s3 y, como dura 384 cuadros, termina justo en 816, que es donde empieza s5: la
+# carga de nieve enlaza sin salto entre las dos.
+VIDEO_G0 = {"s1": 0, "s2": 240, "s3": 432, "s3p": 432, "s5": 816}
 VIENTO = Vector((0.82, 0.57, 0.0)).normalized()
 VIENTO_TAN = 0.47            # tangente del ángulo con la vertical (25°)
 FPS = 24
@@ -2376,7 +2379,9 @@ def build_camera():
 #   s5  baja en espiral hacia la fachada de acceso y el camino
 # Un dron no hace zoom: la distancia cambia de forma continua y suave (nunca "respira" con el giro);
 # el encuadre adaptable sólo fija la distancia final para que la casa quepa en pantalla.
-SECCIONES = {"s1": 240, "s2": 192, "s3": 240, "s5": 192}
+# s3p es s3 con las dos pausas del barrido (una por piso): misma ruta, 144 cuadros más. Es la
+# que se renderiza; s3 queda como la sección de referencia sobre la que se calculan las pausas.
+SECCIONES = {"s1": 240, "s2": 192, "s3": 240, "s3p": 240 + 2 * 72, "s5": 192}
 INICIO = {"s2": 0, "s3": 192, "s5": 432}      # cuadro de inicio de cada sección en la ruta continua s2..s5
 CASA_BOX = (0.0, L, -0.7, D + 0.7, GROUND, 6.7)      # caja de la casa (con escaleras) para encuadrar
 CASA_C = Vector((L / 2, D / 2, 2.4))                 # punto al que mira el dron
@@ -2475,7 +2480,14 @@ RUTA = [
     (500, 122.0, 52.0, ("fit", 1.15), CUT_TOP, False),
     (624, 168.0, 14.0, ("fit", 1.0), CUT_TOP, True),          # fin s5: fachada de acceso y el camino
 ]
-CUT_KEYS = [(0, CUT_TOP), (250, CUT_TOP), (330, CUT_MID), (400, CUT_LOW), (432, CUT_LOW),
+# La clave de CUT_LOW está en 360 y no en 400 por las dos pausas: cada una atrasa el corte
+# tantos cuadros de ruta como avanzó la cámara mientras estuvo quieto, y con las dos el desfase
+# acumulado es de unos 58. Con la clave en 400, el corte del último cuadro caía en 432 − 58 = 374,
+# todavía en la rampa, y el cenital **dejaba de coincidir con el de s3**: la sección 4 se arma
+# sobre ese cuadro, así que tiene que cerrar saturado. Con la clave en 360, 374 ya está saturado.
+# No toca a s5: sus claves (432 en adelante) no cambian, y como todas las claves de corte llevan
+# tangente nula, mover la de 360 sólo altera la rampa que baja dentro de s3.
+CUT_KEYS = [(0, CUT_TOP), (250, CUT_TOP), (330, CUT_MID), (360, CUT_LOW), (432, CUT_LOW),
             (470, CUT_LOW), (545, CUT_TOP), (624, CUT_TOP)]
 
 
@@ -2570,9 +2582,12 @@ def section_groups():
     return groups
 
 
-def apply_section(frames, g0):
+def apply_section(frames, g0, mapa=None):
     """Corte animado de la casa: shader en sus materiales (no en el paisaje) y, en las piezas, se
-    borran con nodos de geometría las caras enteras sobre el corte (no se apilan transparencias)."""
+    borran con nodos de geometría las caras enteras sobre el corte (no se apilan transparencias).
+
+    `mapa` es la posición de ruta del corte cuadro a cuadro; con las pausas de s3p no coincide
+    con la de la cámara, así que se pasa aparte. Sin él, el corte sigue a la cámara como siempre."""
     house = list(bpy.data.collections["Casa"].objects)
     groups = section_groups()
     capped = {"ChapaNegra", "MaderaFachada", "MaderaCielo", "MuroInterior", "Pm_MarcoNegro", "Pm_PuertaMadera"}
@@ -2620,7 +2635,7 @@ def apply_section(frames, g0):
     socks = [zval.outputs[0]] + [g.nodes["AlturaCorte"].outputs[0] for g in groups.values()]
     for f in range(frames):
         for sk in socks:
-            sk.default_value = cut_z(g0 + f)
+            sk.default_value = cut_z(mapa[f] if mapa else g0 + f)
             sk.keyframe_insert("default_value", frame=f + 1)
     for o in house:   # con el techo abierto entra el día: luces interiores suaves
         if o.type == "LIGHT":
@@ -2638,11 +2653,118 @@ for _t in ("s2", "s3", "s5"):
     SETUP[_t] = ruta_setup
 
 
+# --- Pausas del barrido, una por piso, dentro de s3 ---------------------------------------------
+# Roble es de dos pisos, así que el barrido del corte pausa en cada uno (RECETA.md §1): primero
+# arriba y después abajo. El corte pasa por cada nivel en un suspiro y es el único momento del
+# recorrido en que ese piso se ve; la pausa existe para poder rotularlo con flechas en edición.
+#
+# Lo que se detiene es **el corte, no la cámara**: congelar el cuadro se probó en Boldo y el
+# usuario lo rechazó ("el dron se queda pegado"). Durante la pausa el corte se queda a la altura
+# en que ese piso se ve entero mientras la cámara sigue volando más lenta, con PAUSA_FRENO
+# cuadros de frenada al entrar y de aceleración al salir; después el corte retoma desde donde
+# quedó, tantos cuadros de ruta más atrás como avanzó la cámara mientras tanto. Con dos pausas
+# ese desfase **se acumula**, y el corte del tramo final va corrido por la suma de las dos.
+#
+# Medido sobre el barrido sin pausas: el 2do piso se ve limpio 46 cuadros (1,9 s) y el 1ro queda
+# saturado en CUT_LOW sólo 33 (1,38 s) más 1 s de HOLD0 al abrir la sección 4. Los dos quedan por
+# debajo de los 3 s que pide la receta, así que las dos pausas van explícitas; Boldo se arreglaba
+# con una sola porque allá el piso de abajo ya daba 2,6 s solo.
+PAUSA_N = 72           # 3 s a 24 fps, cada pausa
+PAUSA_FRENO = 18       # cuadros de frenada y de aceleración de la cámara
+PAUSA_V = 0.40         # velocidad de la cámara durante la pausa, fracción de la de s3
+PAUSA_A = 146          # cuadro de s3 donde se para el corte para el 2do piso. Ahí el corte está
+                       # en z = 4,15: el techo ya salió entero (se va bajo 4,6) y quedan 90 cm de
+                       # muro sobre la losa de 3,26, que es lo que deja ver el dormitorio. En 151
+                       # —que fue el primer intento— el corte caía a 3,69 y el piso quedaba
+                       # rebanado a 40 cm de la losa: se veía el suelo y poco más.
+CORTE_1ER = 2.55       # altura de corte a la que se para para el 1er piso; el cuadro en que se
+                       # llega a ella se despeja solo, porque depende del desfase de la primera
+
+
+def _vel_pausa(v2, fb, n):
+    """Velocidad de la cámara cuadro a cuadro de s3p (1,0 = la de s3), suavizada en las entradas
+    y salidas de las dos pausas."""
+    ks = [(1, 1.0), (PAUSA_A, 1.0), (PAUSA_A + PAUSA_FRENO, PAUSA_V),
+          (PAUSA_A + PAUSA_N, PAUSA_V), (PAUSA_A + PAUSA_N + PAUSA_FRENO, v2),
+          (fb, v2), (fb + PAUSA_FRENO, PAUSA_V), (fb + PAUSA_N, PAUSA_V),
+          (fb + PAUSA_N + PAUSA_FRENO, v2), (n, v2)]
+    ks = sorted(ks, key=lambda k: k[0])
+    out = []
+    for f in range(1, n + 1):
+        i = min(max(j for j in range(len(ks) - 1) if ks[j][0] <= f), len(ks) - 2)
+        (f0, a), (f1, b) = ks[i], ks[i + 1]
+        t = min(max((f - f0) / max(f1 - f0, 1e-9), 0.0), 1.0)
+        out.append(a + (b - a) * t * t * (3 - 2 * t))
+    return out
+
+
+def _camino(v2, fb, n, g0):
+    cam = [float(g0)]
+    for v in _vel_pausa(v2, fb, n)[1:]:
+        cam.append(cam[-1] + v)
+    return cam
+
+
+def pausa_mapas():
+    """Posición en la ruta de la cámara y del corte, cuadro a cuadro de s3 con las dos pausas.
+
+    La cámara recorre **lo mismo** que s3 (de INICIO["s3"] al cenital) pero en más cuadros: la
+    velocidad de crucero se despeja por bisección para que el recorrido cierre justo en el
+    cenital, así que el último cuadro es el mismo que el de s3 y la sección 4, que se arma sobre
+    él, no cambia.
+
+    El cuadro en que arranca la segunda pausa no se fija a mano: depende de cuánto se atrasó el
+    corte en la primera, que a su vez depende de la velocidad de crucero, que a su vez depende de
+    dónde arranque la segunda. Se resuelve iterando las dos cosas hasta que dejan de moverse."""
+    n = SECCIONES["s3"] + 2 * PAUSA_N
+    g0, g1 = INICIO["s3"], INICIO["s3"] + SECCIONES["s3"]
+    fb = PAUSA_A + PAUSA_N + 45          # semilla
+    v2 = 0.8
+    for _ in range(8):
+        lo, hi = 0.05, 1.0
+        for _ in range(60):
+            v2 = (lo + hi) / 2
+            if _camino(v2, fb, n, g0)[-1] < g1:
+                lo = v2
+            else:
+                hi = v2
+        cam = _camino(v2, fb, n, g0)
+        des_a = cam[PAUSA_A + PAUSA_N - 1] - cam[PAUSA_A - 1]
+        nuevo = next((f + 1 for f in range(PAUSA_A + PAUSA_N, n)
+                      if cut_z(cam[f] - des_a) <= CORTE_1ER), n - PAUSA_N)
+        nuevo = min(nuevo, n - PAUSA_N - PAUSA_FRENO)
+        if nuevo == fb:
+            break
+        fb = nuevo
+    cam = _camino(v2, fb, n, g0)
+    des_a = cam[PAUSA_A + PAUSA_N - 1] - cam[PAUSA_A - 1]
+    des_b = cam[fb + PAUSA_N - 1] - cam[fb - 1]
+    quieto_a = cam[PAUSA_A - 1]
+    quieto_b = cam[fb - 1] - des_a
+    corte = []
+    for f, g in enumerate(cam):
+        k = f + 1
+        if k <= PAUSA_A:
+            corte.append(g)
+        elif k <= PAUSA_A + PAUSA_N:
+            corte.append(quieto_a)
+        elif k <= fb:
+            corte.append(g - des_a)
+        elif k <= fb + PAUSA_N:
+            corte.append(quieto_b)
+        else:
+            corte.append(g - des_a - des_b)
+    return cam, corte
+
+
 def build_drone(cam):
     """Anima la cámara cuadro a cuadro según la sección pedida."""
     sc = bpy.context.scene
     tramo = opts["tramo"]
-    n = SECCIONES[tramo]
+    pausa = tramo == "s3p"               # s3 con las pausas de los dos pisos
+    base = "s3" if pausa else tramo
+    cam_g, corte_g = pausa_mapas() if pausa else (None, None)
+    n = SECCIONES[base] + (2 * PAUSA_N if pausa else 0)
     sc.frame_start, sc.frame_end = 1, n
     # --desde/--hasta recortan sólo lo que se renderiza, no el recorrido: las poses y la
     # acumulación de nieve se calculan igual para los n cuadros de la sección, así que repartir
@@ -2655,21 +2777,21 @@ def build_drone(cam):
     w, h = (int(v) for v in opts["res"].split("x"))
     lens = 30.0
     cam.data.lens = lens
-    SETUP[tramo](w, h, lens)
+    SETUP[base](w, h, lens)
     for f in range(n):
-        pose = POSES[tramo](f, n)
+        pose = ruta_pose(cam_g[f]) if pausa else POSES[base](f, n)
         direc, tgt = pose[0], pose[1]
         dist = pose[2] if len(pose) > 2 else fit_distance(direc, tgt, lens, w / h)
         cam.location = tgt + direc * dist
         cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
         cam.keyframe_insert("location", frame=f + 1)
         cam.keyframe_insert("rotation_euler", frame=f + 1)
-    if tramo in ("s3", "s5"):
-        apply_section(n, INICIO[tramo])
-    if tramo == "s3":   # dónde cae la casa en la cenital: para calzar la planta (tools/plano_peumo.py)
+    if base in ("s3", "s5"):
+        apply_section(n, INICIO[base], corte_g)
+    if base == "s3":    # dónde cae la casa en la cenital: para calzar la planta (tools/plano_roble.py)
         import json
         from bpy_extras.object_utils import world_to_camera_view
-        direc, tgt, dist = ruta_pose(INICIO["s3"] + n - 1)
+        direc, tgt, dist = ruta_pose(cam_g[-1] if pausa else INICIO["s3"] + n - 1)
         cam.location = tgt + direc * dist
         cam.rotation_euler = (-direc).to_track_quat("-Z", "Y").to_euler()
         bpy.context.view_layer.update()
