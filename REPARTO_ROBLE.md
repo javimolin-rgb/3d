@@ -14,21 +14,109 @@ que los pedazos quedan con la misma corrección de color.
 **Todos con lo mismo**: `bpy==5.0.1`, `--res 720x1280`, `--samples 16`, `--nevada 0`. Si un
 contenedor cambia cualquiera de esos cuatro, la diferencia se ve justo en el empalme.
 
-| tramo | sección | cuadros | archivo |
-|---|---|---|---|
-|  1 | s5  |   1-72  | `output/tramos/s5_0001-0072.mp4` |
-|  2 | s5  |  73-132 | `output/tramos/s5_0073-0132.mp4` |
-|  3 | s5  | 133-192 | `output/tramos/s5_0133-0192.mp4` |
-|  4 | s3p |   1-48  | `output/tramos/s3p_0001-0048.mp4` |
-|  5 | s3p |  49-96  | `output/tramos/s3p_0049-0096.mp4` |
+| tramo | sección | cuadros | archivo | |
+|---|---|---|---|---|
+|  1 | s5  |   1-48  | `output/tramos/s5_0001-0048.mp4` | **listo** |
+| 1b | s5  |  49-72  | `output/tramos/s5_0049-0072.mp4` | robo de trabajo |
+|  2 | s5  |  73-132 | `output/tramos/s5_0073-0132.mp4` | **listo** |
+|  3 | s5  | 133-192 | `output/tramos/s5_0133-0192.mp4` | **listo** |
+|  4 | s3p |   1-48  | `output/tramos/s3p_0001-0048.mp4` | **listo** |
+|  5 | s3p |  49-96  | `output/tramos/s3p_0049-0096.mp4` | **listo** |
 |  6 | s3p |  97-144 | `output/tramos/s3p_0097-0144.mp4` |
-|  7 | s3p | 145-192 | `output/tramos/s3p_0145-0192.mp4` |
-|  8 | s3p | 193-240 | `output/tramos/s3p_0193-0240.mp4` |
-|  9 | s3p | 241-288 | `output/tramos/s3p_0241-0288.mp4` |
+|  7 | s3p | 145-182 | `output/tramos/s3p_0145-0182.mp4` | acortado |
+| 7b | s3p | 183-192 | `output/tramos/s3p_0183-0192.mp4` | robo de trabajo |
+|  8 | s3p | 193-229 | `output/tramos/s3p_0193-0229.mp4` | acortado |
+| 8b | s3p | 230-240 | `output/tramos/s3p_0230-0240.mp4` | robo de trabajo |
+|  9 | s3p | 241-275 | `output/tramos/s3p_0241-0275.mp4` | acortado |
+| 9b | s3p | 276-288 | `output/tramos/s3p_0276-0288.mp4` | robo de trabajo |
 | 10 | s3p | 289-336 | `output/tramos/s3p_0289-0336.mp4` |
-| 11 | s3p | 337-384 | `output/tramos/s3p_0337-0384.mp4` |
+| 11 | s3p | 337-366 | `output/tramos/s3p_0337-0366.mp4` | acortado |
+| 11b | s3p | 367-384 | `output/tramos/s3p_0367-0384.mp4` | robo de trabajo; sube además el cenital |
 
 s1 y s2 ya estaban rendidas enteras (`output/roble_s1.mp4`, `output/roble_s2.mp4`).
+
+## Lo que salió mal en este reparto: se midió una sola parte del recorrido
+
+Los 9,3 min/cuadro se midieron **en los primeros cuadros de s5**, y se repartió suponiendo que
+valían para todo. No valen: dentro de una misma sección el costo cambia por un factor 4.
+
+Medido después, cada contenedor sobre su propio `render.log`:
+
+| sección | cuadros | min/cuadro |
+|---|---|---|
+| s5  |  13-48  | 9,3 |
+| s5  |  73-132 | **2,6-3,1** |
+| s3p |   1-48  | **2,2** |
+| s3p | 337-384 | **9,0** |
+
+O sea que **no es que una sección sea cara y la otra barata**: dentro de cada una el costo varía
+por un factor 4, y las dos tienen una punta cara y una barata. El 9,3 original salió de los
+primeros cuadros de s5 y se generalizó a las 564: ése fue el error de base.
+
+Y no son escalones entre tramos sino **una rampa continua**. Medido cuadro a cuadro dentro de un
+solo tramo (s5 13-25, un mismo contenedor):
+
+```
+f_0013 9,2   f_0017 8,2   f_0021 8,6   f_0025 6,8
+f_0014 8,7   f_0018 8,4   f_0022 7,7
+f_0015 8,5   f_0019 8,1   f_0023 7,4
+f_0016 8,5   f_0020 8,3   f_0024 7,2
+```
+
+Baja parejo, pero **la recta no sirve para extrapolar y conviene no intentarlo**. Ajustada sobre
+esos 13 cuadros da -0,2 min por cuadro, predice 1,8 min/cuadro en el f_0050 y lo medido ahí es
+4,98: erra por 2,7 veces. Y la misma recta se hace **negativa** en el f_0072, que era señal
+suficiente para descartarla sin necesidad de medir nada.
+
+La curva es convexa: baja cada vez más despacio hacia una asíntota de ~2,85 min/cuadro. Medido en
+cuatro contenedores distintos, el exceso sobre esa asíntota se parte al medio cada ~26 cuadros:
+
+```
+f_0019  +5,55     f_0025  +3,95     f_0051  +2,01     f_0100  +0,05     f_0160  +0,04
+```
+
+Lo que sí queda establecido, y es lo que importaba para repartir, es que hay **una sola curva
+continua a lo largo de s5** que cruza cuatro contenedores sin escalón: 9,2 → 6,8 (uno), 4,86
+(otro), 2,9 y 2,89 (otros dos). No hay diferencia de máquina.
+
+Eso además descarta la explicación que parecía más probable con los datos de arriba: que el raro
+fuera *el contenedor* y no el tramo. Tres contenedores distintos midieron tres cosas distintas y
+ninguno había medido dos tramos en la misma máquina, así que "s5 es cara al principio" y "esa
+máquina es lenta" explicaban los mismos números. La rampa dentro de un único contenedor los
+distingue: es la posición en el recorrido, no la máquina.
+
+Con eso, la hipótesis de que el costo sigue **cuánto paisaje entra en cuadro** es la que queda en
+pie —en Boldo ya estaba medido que la cenital era tres veces más barata que el vuelo bajo sobre el
+agua—, aunque sigue sin probarse y no se escribe acá como causa. Lo que sí está medido es que ni
+la sección ni el estado del corte alcanzan para predecirlo: en Peumo lo caro era el techo a medio
+abrir y lo barato el techo cerrado, y acá la cola de s3p —techo cerrado y casi a plomo— es la cara.
+
+**Cómo medir esto bien la próxima vez**, que son tres errores distintos, todos cometidos acá:
+
+1. Mirar el `render.log` **cuadro a cuadro** dentro de un mismo tramo, no el promedio del tramo.
+   El promedio esconde la rampa y encima invita a atribuirle a la máquina lo que es posición en
+   el recorrido.
+2. **No ajustar una recta.** La curva es convexa y se aplana; una recta ajustada sobre un puñado
+   de cuadros y proyectada decenas de cuadros más allá erra por un factor 3. Si el modelo predice
+   un valor imposible dentro del rango que interesa —acá, tiempo negativo—, está descartado sin
+   necesidad de medir.
+3. **Tres puntos separados por sección, no dos.** Con dos puntos lejanos entra cualquier curva, y
+   la elección de la forma es justamente lo que decide el reparto.
+
+Y el robo de trabajo tiene su propio límite, que conviene tener presente: rearmar el entorno de
+un contenedor cuesta ~25 min (apt, la rueda de bpy y 1,3 GB de recursos). Robarle la cola a un
+tramo al que le quedan menos de ~40 min de render es trabajo de más, no de menos. Sólo sale a
+cuenta con un contenedor que **ya tiene el entorno armado**, o con colas largas.
+
+Para la próxima: **medir varios puntos de cada sección antes de repartir** (basta rendir unos
+pocos cuadros sueltos con `--desde/--hasta` en el arranque, el medio y el final) y repartir por
+horas estimadas, no por cantidad de cuadros. Partir en tramos chicos ayuda igual, porque acota lo
+que puede tardar el peor tramo aunque la curva no se conozca.
+
+Mientras tanto, lo que queda se reparte por **robo de trabajo**, que no necesita predecir nada: el
+contenedor que termina su tramo avisa, y se le da la cola de un tramo todavía en curso. Al dueño
+de ese tramo se le acorta el final a un cuadro X cómodamente por delante de donde va (arma su MP4
+hasta X) y el tramo [X+1, fin] pasa a ser un tramo más de la tabla.
 
 Los tramos de s3p son de 48 cuadros y no de 55 porque en la sección del corte el costo por
 cuadro **no crece parejo, hace una loma** (en Peumo, el doble de caro con el techo a medio abrir,
@@ -58,3 +146,162 @@ ffmpeg -f concat -safe 0 -i /tmp/lista.txt -c copy output/roble_s5.mp4
 Para verificar un empalme, medir sobre los **PNG crudos**, no sobre los MP4 (CLAUDE.md explica
 por qué), y comparar contra los vecinos inmediatos del empalme, no contra una base de otra parte
 del clip.
+
+## El perfil de s3p: SÍ hay loma, y es el doble de alta que todo lo demás
+
+**Esta sección reemplaza dos conclusiones anteriores que estaban mal.** Con cuatro puntos medidos
+(1-48, 145-192, 289-336, 337-384) se había concluido que s3p era *monótona creciente y saturada*,
+sin loma, y que la receta de Peumo —techo a medio abrir = el doble de caro— no aplicaba en Roble.
+Las dos cosas eran falsas. Los cuatro puntos **rodeaban el pico sin tocarlo**, y una curva
+muestreada en los lugares equivocados se ve lisa: eso se leyó como ausencia de estructura cuando
+era falta de datos.
+
+El perfil real, con el reloj interno de Blender:
+
+| cuadros | min/cuadro | qué pasa |
+|---|---|---|
+|   1-48  | 2,2 | techo cerrado, el corte no empezó a bajar |
+|  98-142 | 2,88 → 7,22 | el corte baja: subida monótona, pendiente achatándose de +0,18 a +0,05 |
+| 145-172 | 7,65 → 8,43 | **corte congelado** (1ra pausa): sube sólo por la cámara |
+| 194-218 | 8,6 → 10,3 | sigue subiendo, pendiente empinándose al final |
+| **243** | **18,28** | **el pico**: techo a medio abrir |
+| 244-256 | 15,9 → 9,7 | bajada monótona |
+| 256→257 | 9,69 → **7,13** | escalón de -26 % en un cuadro: el techo termina de abrirse |
+| 257-261 | ~7,3 | techo abierto del todo |
+| 289-314 | 9,23 plano | meseta |
+| 337-343 | 9,0 | cola |
+
+O sea que **sí es la loma de Peumo**, y más pronunciada: el pico vale 2,5x lo que vale con el techo
+abierto, y el doble de los 9,3 min/cuadro de s5. El máximo cae en **219-242**, el único hueco que queda sin medir, y las dos series que lo rodean
+**se encadenan sin contradecirse**: la de 194-218 termina subiendo en 10,31 y la de 242-261 arranca
+en 13,70 y sigue hasta el pico. Las dos están verificadas contra el reloj interno de Blender, con
+el log mostrando una sola corrida monótona sin resets, y las dos coinciden con sus mtime. Se las
+tomó por contradictorias durante un rato —"una subida monótona sin meseta" contra "un pico que
+baja"— y no lo eran: cubren rangos distintos y consecutivos de la misma curva. Dos mediciones de
+tramos vecinos nunca se contradicen por tener forma distinta; hay que mirar si se solapan antes de
+enfrentarlas.
+
+**Consecuencia para repartir una sección de corte: pesar los tramos por esta curva, no por cantidad
+de cuadros.** Once tramos iguales en cuadros reparten mal cuando un pedazo vale 18 y otro 2,2.
+
+### Cómo se descubrió, que es lo que conviene no repetir
+
+La serie del pico se midió primero por mtime, y se la puso en duda porque el contenedor se había
+reiniciado en esa ventana y los mtime cuentan el tiempo caído como render. La duda era razonable
+pero estaba **mal aplicada**: se dio por ocurrido el artefacto sin verificar si el reinicio caía
+dentro de la ventana medida, que era justo lo comprobable. Lo comprobó el contenedor: el
+`render.log` tenía **una sola corrida monótona sin resets**, o sea que el reinicio fue posterior al
+último cuadro de la serie, y los tiempos del log coincidían con los mtime **al centésimo en veinte
+cuadros**.
+
+Regla: antes de descartar una medición por sospecha de tiempo muerto, mirar si el log tiene un
+reset a cero dentro de la ventana. Si no lo tiene, no hubo corte y el mtime es tan bueno como el log.
+
+## Una trampa al medir el ritmo en `render.log`## Una trampa al medir el ritmo en `render.log`
+
+Blender imprime el tiempo acumulado como `MM:SS.ss` antes de la primera hora y como
+`HH:MM:SS.ss` después, en el mismo archivo. Un regex de `HH:MM:SS` se come **en silencio** todos
+los cuadros de la primera hora: en el tramo s3p 1-48 dejaba 21 de 48 y el ritmo salía mal sin que
+nada fallara.
+
+## Un aviso del log que no es un problema
+
+Al armar la escena salen `WARNING Topology differs, disabling motion blur for object
+Roble_ceramica / Roble_sabanas / Roble_marco`. Son objetos de interior a los que el corte les
+cambia la topología entre cuadros, así que Cycles les apaga el desenfoque de movimiento. No aborta
+nada y los cuadros salen. Si en el video final algo de la casa no arrastra desenfoque cuando el
+dron pasa rápido, el origen es ése y **no** el empalme entre tramos.
+
+## El costo por cuadro se puede calcular sin renderizar
+
+Lo más útil que salió de este reparto. El costo no hay que sondearlo: **se lee del propio script**,
+porque lo gobierna cuánto interior ve realmente la cámara, o sea *techo abierto por el corte* x
+*elevación de la cámara*. Las dos cosas están en constantes: el corte en `CUT_KEYS` y la elevación
+en las claves de `POSES`, las dos en coordenada de ruta, que se pasa a cuadros con el perfil de
+velocidad de la sección.
+
+En Roble, `CUT_KEYS` da TOP hasta ruta 250, baja a MID entre 250 y 330, a LOW entre 330 y 360,
+queda en LOW de 360 a 470, vuelve a TOP entre 470 y 545. s3 arranca en ruta 192 y s5 en 432. Pasado
+a cuadros de s3p: el corte empieza a bajar en el 58, llega a LOW (techo abierto del todo) en el
+250, y de ahí al 384 está saturado.
+
+Con eso se explican las dos secciones de una vez, y los seis puntos medidos:
+
+| tramo | ruta | techo | elevación | min/cuadro |
+|---|---|---|---|---|
+| s5 13-48   | 445-480 | abierto    | 89° → 65° | 9,2 → 6,8 |
+| s5 49-72   | 481-504 | cerrándose | 65° → 50° | 4,86 |
+| s5 73-132  | 504-563 | casi cerrado | 50° → 20° | 2,6-3,1 |
+| s5 133-192 | 563-624 | cerrado    | baja      | 2,89 |
+| s3p 1-48   | 192-240 | cerrado    | 16° → 40° | 2,16 |
+| s3p 145-192 | — | abriéndose | subiendo | 7,7 → 8,4 |
+| s3p 289-336 | — | abierto | alta | 9,23 |
+| s3p 337-384 | — | abierto | cenital | 9,0 |
+
+De paso explica dos cosas que habían quedado sueltas: que la "rampa" de s5 no es en el tiempo sino
+**en el ángulo**, y que su asíntota de ~2,85 min/cuadro es simplemente *techo cerrado*, donde ya no
+queda nada que decaer. Y explica por qué en Roble no hay loma como en Peumo: acá la elevación sube
+**a la vez** que el techo se abre, así que los dos factores empujan en la misma dirección y el
+costo sube y se queda arriba en vez de hacer un máximo y volver.
+
+**El modelo acertó dos predicciones fuera de muestra** (que 289-336 daría ~9 plano y no intermedio,
+y que 145-192 estaría en la parte alta de la subida) antes de ver esas mediciones.
+
+Salvedad del que lo derivó, que conviene conservar: la elevación sale de las claves de `POSES` y el
+mapa ruta→cuadro se reconstruyó a mano con el perfil de velocidad de las pausas (el script lo
+despeja por bisección), así que **los números de cuadro son ±15**. La forma de la curva no depende
+de esa precisión; los cortes del reparto sí.
+
+## El empalme entre tramos: verificado
+
+Pegados `s3p_0001-0048.mp4` y `s3p_0049-0096.mp4` con el demuxer `concat` y `-c copy`: salen 96
+cuadros a 720x1280 y 24 fps. Diferencia media entre cuadros vecinos alrededor del empalme:
+
+```
+44→45  8,280    47→48  8,122
+45→46  8,252    48→49  8,217  <- el empalme
+46→47  8,147    49→50  7,987
+```
+
+El empalme lee **+2 %** sobre la media de sus dos vecinos inmediatos. Y está medido sobre MP4, que
+según la receta **infla** el empalme alrededor de un 22 % —el par que cruza dos archivos no recibe
+el descuento de predicción entre cuadros que sí reciben los pares de adentro de un mismo archivo—,
+así que en crudo la diferencia del empalme queda por debajo de la de sus vecinos. Es invisible.
+
+Conviene repetir esta medición en el empalme s5 48→49, que es el que cruza de un contenedor a otro
+dentro de la parte **cara** del recorrido, donde la cámara se mueve más rápido entre cuadros.
+
+## Medir con los mtime de los PNG miente si el contenedor se reinició
+
+Los mtime son cómodos y no hay que parsear nada, pero **cuentan el tiempo caído como si fuera
+render**: si el contenedor se reinicia entre dos cuadros, el segundo aparece carísimo. En el tramo
+241-288 eso dio una serie de 13 a 18 min/cuadro, muy por encima de todo lo demás medido, justo en
+la ventana del reinicio.
+
+El reloj que no miente es el **acumulado del propio Blender**, que está en `render.log` aunque no
+lleve la palabra "Time":
+
+```
+01:06:50.264  render           | Saved: '/home/user/3d/frames_roble/s3p/f_0250.png'
+```
+
+Es interno al proceso, así que no corre mientras el contenedor está caído. Tres cuidados al
+parsearlo: el formato cambia de `MM:SS.ss` a `HH:MM:SS.ss` al pasar la primera hora, cada
+relanzamiento concatena una corrida nueva que vuelve a cero (hay que quedarse con la última), y
+los deltas son contra el cuadro anterior, no absolutos.
+
+Regla: **mtime para un render que corrió de un tirón, log para uno que se cortó.**
+
+## Una serie medida durante una pausa del corte no mide el corte
+
+El tramo 145-192 cae entero dentro de la primera pausa del barrido, donde **el corte está
+congelado** en ~4,15 m y sólo se mueve la cámara. Su subida de 7,65 a 8,43 min/cuadro es por lo
+tanto prueba de que la elevación pesa **por sí sola**, y no sirve como punto de la curva del corte:
+es ciega a ese factor por construcción. El punto que mide el corte en esa zona es el tramo 97-144,
+donde el corte baja de 5,93 a 4,23 m.
+
+## Empujar a la misma rama desde once contenedores
+
+Además del `fetch first` habitual, aparece `cannot lock ref ... is at X but expected Y` cuando otro
+contenedor empuja en los segundos entre tu `fetch` y tu `push`. No es un error distinto: se
+resuelve **repitiendo fetch + merge + push en un bucle** hasta que entre. Nunca con force ni rebase.
