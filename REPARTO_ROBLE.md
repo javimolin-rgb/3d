@@ -25,7 +25,8 @@ contenedor cambia cualquiera de esos cuatro, la diferencia se ve justo en el emp
 |  6 | s3p |  97-144 | `output/tramos/s3p_0097-0144.mp4` |
 |  7 | s3p | 145-182 | `output/tramos/s3p_0145-0182.mp4` | acortado |
 | 7b | s3p | 183-192 | `output/tramos/s3p_0183-0192.mp4` | robo de trabajo |
-|  8 | s3p | 193-240 | `output/tramos/s3p_0193-0240.mp4` |
+|  8 | s3p | 193-229 | `output/tramos/s3p_0193-0229.mp4` | acortado |
+| 8b | s3p | 230-240 | `output/tramos/s3p_0230-0240.mp4` | robo de trabajo |
 |  9 | s3p | 241-275 | `output/tramos/s3p_0241-0275.mp4` | acortado |
 | 9b | s3p | 276-288 | `output/tramos/s3p_0276-0288.mp4` | robo de trabajo |
 | 10 | s3p | 289-336 | `output/tramos/s3p_0289-0336.mp4` |
@@ -171,8 +172,14 @@ El perfil real, con el reloj interno de Blender:
 | 337-343 | 9,0 | cola |
 
 O sea que **sí es la loma de Peumo**, y más pronunciada: el pico vale 2,5x lo que vale con el techo
-abierto, y el doble de los 9,3 min/cuadro de s5. El máximo cae antes del cuadro 241, en algún punto
-de 219-242 que todavía nadie midió.
+abierto, y el doble de los 9,3 min/cuadro de s5. El máximo cae en **219-242**, el único hueco que queda sin medir, y las dos series que lo rodean
+**se encadenan sin contradecirse**: la de 194-218 termina subiendo en 10,31 y la de 242-261 arranca
+en 13,70 y sigue hasta el pico. Las dos están verificadas contra el reloj interno de Blender, con
+el log mostrando una sola corrida monótona sin resets, y las dos coinciden con sus mtime. Se las
+tomó por contradictorias durante un rato —"una subida monótona sin meseta" contra "un pico que
+baja"— y no lo eran: cubren rangos distintos y consecutivos de la misma curva. Dos mediciones de
+tramos vecinos nunca se contradicen por tener forma distinta; hay que mirar si se solapan antes de
+enfrentarlas.
 
 **Consecuencia para repartir una sección de corte: pesar los tramos por esta curva, no por cantidad
 de cuadros.** Once tramos iguales en cuadros reparten mal cuando un pedazo vale 18 y otro 2,2.
