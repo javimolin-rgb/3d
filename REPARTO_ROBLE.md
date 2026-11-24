@@ -18,14 +18,16 @@ contenedor cambia cualquiera de esos cuatro, la diferencia se ve justo en el emp
 |---|---|---|---|---|
 |  1 | s5  |   1-48  | `output/tramos/s5_0001-0048.mp4` | **listo** |
 | 1b | s5  |  49-72  | `output/tramos/s5_0049-0072.mp4` | robo de trabajo |
-|  2 | s5  |  73-132 | `output/tramos/s5_0073-0132.mp4` |
-|  3 | s5  | 133-192 | `output/tramos/s5_0133-0192.mp4` |
+|  2 | s5  |  73-132 | `output/tramos/s5_0073-0132.mp4` | **listo** |
+|  3 | s5  | 133-192 | `output/tramos/s5_0133-0192.mp4` | **listo** |
 |  4 | s3p |   1-48  | `output/tramos/s3p_0001-0048.mp4` | **listo** |
 |  5 | s3p |  49-96  | `output/tramos/s3p_0049-0096.mp4` | **listo** |
 |  6 | s3p |  97-144 | `output/tramos/s3p_0097-0144.mp4` |
-|  7 | s3p | 145-192 | `output/tramos/s3p_0145-0192.mp4` |
+|  7 | s3p | 145-182 | `output/tramos/s3p_0145-0182.mp4` | acortado |
+| 7b | s3p | 183-192 | `output/tramos/s3p_0183-0192.mp4` | robo de trabajo |
 |  8 | s3p | 193-240 | `output/tramos/s3p_0193-0240.mp4` |
-|  9 | s3p | 241-288 | `output/tramos/s3p_0241-0288.mp4` |
+|  9 | s3p | 241-275 | `output/tramos/s3p_0241-0275.mp4` | acortado |
+| 9b | s3p | 276-288 | `output/tramos/s3p_0276-0288.mp4` | robo de trabajo |
 | 10 | s3p | 289-336 | `output/tramos/s3p_0289-0336.mp4` |
 | 11 | s3p | 337-366 | `output/tramos/s3p_0337-0366.mp4` | acortado |
 | 11b | s3p | 367-384 | `output/tramos/s3p_0367-0384.mp4` | robo de trabajo; sube además el cenital |
@@ -257,3 +259,38 @@ así que en crudo la diferencia del empalme queda por debajo de la de sus vecino
 
 Conviene repetir esta medición en el empalme s5 48→49, que es el que cruza de un contenedor a otro
 dentro de la parte **cara** del recorrido, donde la cámara se mueve más rápido entre cuadros.
+
+## Medir con los mtime de los PNG miente si el contenedor se reinició
+
+Los mtime son cómodos y no hay que parsear nada, pero **cuentan el tiempo caído como si fuera
+render**: si el contenedor se reinicia entre dos cuadros, el segundo aparece carísimo. En el tramo
+241-288 eso dio una serie de 13 a 18 min/cuadro, muy por encima de todo lo demás medido, justo en
+la ventana del reinicio.
+
+El reloj que no miente es el **acumulado del propio Blender**, que está en `render.log` aunque no
+lleve la palabra "Time":
+
+```
+01:06:50.264  render           | Saved: '/home/user/3d/frames_roble/s3p/f_0250.png'
+```
+
+Es interno al proceso, así que no corre mientras el contenedor está caído. Tres cuidados al
+parsearlo: el formato cambia de `MM:SS.ss` a `HH:MM:SS.ss` al pasar la primera hora, cada
+relanzamiento concatena una corrida nueva que vuelve a cero (hay que quedarse con la última), y
+los deltas son contra el cuadro anterior, no absolutos.
+
+Regla: **mtime para un render que corrió de un tirón, log para uno que se cortó.**
+
+## Una serie medida durante una pausa del corte no mide el corte
+
+El tramo 145-192 cae entero dentro de la primera pausa del barrido, donde **el corte está
+congelado** en ~4,15 m y sólo se mueve la cámara. Su subida de 7,65 a 8,43 min/cuadro es por lo
+tanto prueba de que la elevación pesa **por sí sola**, y no sirve como punto de la curva del corte:
+es ciega a ese factor por construcción. El punto que mide el corte en esa zona es el tramo 97-144,
+donde el corte baja de 5,93 a 4,23 m.
+
+## Empujar a la misma rama desde once contenedores
+
+Además del `fetch first` habitual, aparece `cannot lock ref ... is at X but expected Y` cuando otro
+contenedor empuja en los segundos entre tu `fetch` y tu `push`. No es un error distinto: se
+resuelve **repitiendo fetch + merge + push en un bucle** hasta que entre. Nunca con force ni rebase.
