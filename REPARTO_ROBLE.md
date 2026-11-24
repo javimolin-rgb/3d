@@ -49,12 +49,35 @@ O sea que **no es que una sección sea cara y la otra barata**: dentro de cada u
 por un factor 4, y las dos tienen una punta cara y una barata. El 9,3 original salió de los
 primeros cuadros de s5 y se generalizó a las 564: ése fue el error de base.
 
-La hipótesis que mejor se sostiene es que el costo sigue **cuánto paisaje entra en cuadro** —en
-Boldo ya estaba medido que la cenital era tres veces más barata que el vuelo bajo sobre el agua—,
-pero con cuatro puntos no está probada y no se escribe acá como causa. Lo que sí está medido es
-que ni la sección ni el estado del corte alcanzan para predecirlo: en Peumo lo caro era el techo a
-medio abrir y lo barato el techo cerrado, y acá la cola de s3p —techo cerrado y casi a plomo— es
-la cara.
+Y no son escalones entre tramos sino **una rampa continua**. Medido cuadro a cuadro dentro de un
+solo tramo (s5 13-25, un mismo contenedor):
+
+```
+f_0013 9,2   f_0017 8,2   f_0021 8,6   f_0025 6,8
+f_0014 8,7   f_0018 8,4   f_0022 7,7
+f_0015 8,5   f_0019 8,1   f_0023 7,4
+f_0016 8,5   f_0020 8,3   f_0024 7,2
+```
+
+Baja parejo, -0,2 min por cuadro, y extrapolada da ~2,2 min/cuadro en el f_0048: justo donde
+empieza el 2,6-3,1 que mide otro contenedor en el 73-132. O sea **una sola curva continua a lo
+largo de s5**, sin acantilado.
+
+Eso además descarta la explicación que parecía más probable con los datos de arriba: que el raro
+fuera *el contenedor* y no el tramo. Tres contenedores distintos midieron tres cosas distintas y
+ninguno había medido dos tramos en la misma máquina, así que "s5 es cara al principio" y "esa
+máquina es lenta" explicaban los mismos números. La rampa dentro de un único contenedor los
+distingue: es la posición en el recorrido, no la máquina.
+
+Con eso, la hipótesis de que el costo sigue **cuánto paisaje entra en cuadro** es la que queda en
+pie —en Boldo ya estaba medido que la cenital era tres veces más barata que el vuelo bajo sobre el
+agua—, aunque sigue sin probarse y no se escribe acá como causa. Lo que sí está medido es que ni
+la sección ni el estado del corte alcanzan para predecirlo: en Peumo lo caro era el techo a medio
+abrir y lo barato el techo cerrado, y acá la cola de s3p —techo cerrado y casi a plomo— es la cara.
+
+**Cómo medir esto bien la próxima vez**: mirar el `render.log` cuadro a cuadro dentro de un mismo
+tramo, no el promedio del tramo. El promedio esconde la rampa y encima invita a atribuirle a la
+máquina lo que es posición en el recorrido.
 
 Y el robo de trabajo tiene su propio límite, que conviene tener presente: rearmar el entorno de
 un contenedor cuesta ~25 min (apt, la rueda de bpy y 1,3 GB de recursos). Robarle la cola a un
@@ -106,3 +129,11 @@ Blender imprime el tiempo acumulado como `MM:SS.ss` antes de la primera hora y c
 `HH:MM:SS.ss` después, en el mismo archivo. Un regex de `HH:MM:SS` se come **en silencio** todos
 los cuadros de la primera hora: en el tramo s3p 1-48 dejaba 21 de 48 y el ritmo salía mal sin que
 nada fallara.
+
+## Un aviso del log que no es un problema
+
+Al armar la escena salen `WARNING Topology differs, disabling motion blur for object
+Roble_ceramica / Roble_sabanas / Roble_marco`. Son objetos de interior a los que el corte les
+cambia la topología entre cuadros, así que Cycles les apaga el desenfoque de movimiento. No aborta
+nada y los cuadros salen. Si en el video final algo de la casa no arrastra desenfoque cuando el
+dron pasa rápido, el origen es ése y **no** el empalme entre tramos.
