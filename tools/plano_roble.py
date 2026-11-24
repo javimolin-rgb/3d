@@ -68,18 +68,32 @@ L, D = 8.79, 16.81
 # su escala y su encuadre, los dos dibujos de una misma lámina pueden no estar a la misma escala
 # (en Boldo daban 76,8 y 79,1 px/m), y con los de otra casa el ajuste parece casi bien.
 #
-# La ventana en metros tiene que ser **la misma para los dos pisos**, para que los dos recortes
-# salgan del mismo tamaño en metros y se muestren a la misma escala. El borde de abajo se mide
-# contando tinta por fila, no a ojo: en Boldo el rótulo de hoja caía apenas debajo del porch y a
-# ojo el corte se lo comía.
+# La ventana tiene que ser **del mismo tamaño** para los dos pisos, para que los dos recortes se
+# muestren a la misma escala; el **centro** sí cambia, porque los dos dibujos no están a la misma
+# altura en la hoja (el del 2do piso cae 2 m más abajo en coordenadas del modelo). Acá son 9,60 x
+# 17,20 m, centrados en la caja de tinta de cada piso.
+#
+# El borde de arriba se mide **contando tinta por fila**, no a ojo: los rótulos "PRIMER PISO" y
+# "SEGUNDO PISO" están dentro de la caja de tinta del dibujo y hay que dejarlos afuera. Medido, hay
+# un hueco limpio de ~60 filas entre el rótulo y el dibujo: en el 1er piso el rótulo ocupa
+# y 17,60..17,86 y el dibujo empieza en 16,65, y en el 2do el rótulo va de 15,53 a 15,82 y el
+# dibujo empieza en 14,55. Los MY1 cortan por la mitad de esos huecos.
 PISOS = {
-    # piso: (PX0, PY0, PPM, MX0, MX1, MY0, MY1)  -- SIN CALIBRAR todavía
-    "p1": None,
-    "p2": None,
+    # piso: (PX0, PY0, PPM, MX0, MX1, MY0, MY1)
+    # De `FRANJA=0.12 tools/calibrar_planta.py frames_roble/cenital
+    # assets/roble/planta_sin_cotas.png <mitad> 8.79 16.81`, sumándole lo que recortó:
+    # 194 filas de la franja de marca (int(1621*0.12)) y 700 columnas para el piso de la derecha.
+    # Alineación 16,84 y 13,39, las dos verificadas mirando el diagnóstico sobre el render: en el
+    # 1er piso las paredes del dibujo caen sobre las paredes de la casa, la mesa sobre la mesa y la
+    # escalera sobre la escalera.
+    # Acá los dos dibujos **sí** están casi a la misma escala (65,3 y 65,6 px/m), al revés de Boldo
+    # (76,8 contra 79,1); igual se calibran por separado, porque el encuadre no es el mismo.
+    "p1": (65.2, 1485.0, 65.3, -0.285, 9.315, -0.245, 16.955),
+    "p2": (727.3, 1353.6, 65.6, -0.285, 9.315, -2.290, 14.910),
 }
 ROTULOS_PISO = {"p1": "PRIMER PISO", "p2": "SEGUNDO PISO"}
 TITULO = ("PLANTAS DE ARQUITECTURA", "Casa Roble",
-          "Tres dormitorios, escritorio y el testero vidriado mirando a la pista")
+          "Tres dormitorios, escritorio y testero vidriado a la pista")
 AZUL = np.array([1, 30, 47], float)          # Azul Origen #011E2F
 NIEBLA = np.array([241, 244, 243], float)    # Niebla #F1F4F3
 MADERA = (169, 118, 74)                      # Madera #A9764A
