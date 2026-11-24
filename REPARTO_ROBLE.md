@@ -143,6 +143,27 @@ Para verificar un empalme, medir sobre los **PNG crudos**, no sobre los MP4 (CLA
 por qué), y comparar contra los vecinos inmediatos del empalme, no contra una base de otra parte
 del clip.
 
+## El perfil de s3p: meseta alta, no pico
+
+Medido cuadro a cuadro en el tramo 289-336 (mtime de los PNG, 12 intervalos):
+
+```
+290: 9,33  291: 9,35  292: 9,38  293: 9,38  294: 9,53  295: 9,02
+296: 9,42  297: 8,80  298: 8,88  299: 9,47  300: 9,07  301: 9,18
+```
+
+Media 9,23 y rango de ±4 %: **plano**, la variación es ruido. Y los primeros cuadros del tramo
+337-384 dan ~9,0, también planos. O sea que del cuadro 289 en adelante s3p está en **meseta**, y
+se puede repartir contando 9,2 min/cuadro parejo, que es el caso fácil: tramos iguales en cantidad
+de cuadros son tramos iguales en horas.
+
+Lo que no está medido es **dónde arranca la subida** desde los 2,2 min/cuadro del tramo 1-48:
+cae en algún lugar entre el cuadro 48 y el 289. Se parece más a una sigmoide saturada que a una
+rampa, así que no sirve interpolar linealmente entre 2,2 y 9,2 para estimar los tramos del medio.
+
+Esto descartó la sospecha de que el pico estuviera al final —la "loma" del techo a medio abrir de
+Peumo—: la cola de s3p no es un pico sino el borde de una meseta larga.
+
 ## Una trampa al medir el ritmo en `render.log`
 
 Blender imprime el tiempo acumulado como `MM:SS.ss` antes de la primera hora y como
