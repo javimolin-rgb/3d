@@ -16,18 +16,19 @@ contenedor cambia cualquiera de esos cuatro, la diferencia se ve justo en el emp
 
 | tramo | sección | cuadros | archivo | |
 |---|---|---|---|---|
-|  1 | s5  |   1-48  | `output/tramos/s5_0001-0048.mp4` |
+|  1 | s5  |   1-48  | `output/tramos/s5_0001-0048.mp4` | **listo** |
 | 1b | s5  |  49-72  | `output/tramos/s5_0049-0072.mp4` | robo de trabajo |
 |  2 | s5  |  73-132 | `output/tramos/s5_0073-0132.mp4` |
 |  3 | s5  | 133-192 | `output/tramos/s5_0133-0192.mp4` |
 |  4 | s3p |   1-48  | `output/tramos/s3p_0001-0048.mp4` | **listo** |
-|  5 | s3p |  49-96  | `output/tramos/s3p_0049-0096.mp4` |
+|  5 | s3p |  49-96  | `output/tramos/s3p_0049-0096.mp4` | **listo** |
 |  6 | s3p |  97-144 | `output/tramos/s3p_0097-0144.mp4` |
 |  7 | s3p | 145-192 | `output/tramos/s3p_0145-0192.mp4` |
 |  8 | s3p | 193-240 | `output/tramos/s3p_0193-0240.mp4` |
 |  9 | s3p | 241-288 | `output/tramos/s3p_0241-0288.mp4` |
 | 10 | s3p | 289-336 | `output/tramos/s3p_0289-0336.mp4` |
-| 11 | s3p | 337-384 | `output/tramos/s3p_0337-0384.mp4` |
+| 11 | s3p | 337-366 | `output/tramos/s3p_0337-0366.mp4` | acortado |
+| 11b | s3p | 367-384 | `output/tramos/s3p_0367-0384.mp4` | robo de trabajo; sube además el cenital |
 
 s1 y s2 ya estaban rendidas enteras (`output/roble_s1.mp4`, `output/roble_s2.mp4`).
 
@@ -237,3 +238,22 @@ Salvedad del que lo derivó, que conviene conservar: la elevación sale de las c
 mapa ruta→cuadro se reconstruyó a mano con el perfil de velocidad de las pausas (el script lo
 despeja por bisección), así que **los números de cuadro son ±15**. La forma de la curva no depende
 de esa precisión; los cortes del reparto sí.
+
+## El empalme entre tramos: verificado
+
+Pegados `s3p_0001-0048.mp4` y `s3p_0049-0096.mp4` con el demuxer `concat` y `-c copy`: salen 96
+cuadros a 720x1280 y 24 fps. Diferencia media entre cuadros vecinos alrededor del empalme:
+
+```
+44→45  8,280    47→48  8,122
+45→46  8,252    48→49  8,217  <- el empalme
+46→47  8,147    49→50  7,987
+```
+
+El empalme lee **+2 %** sobre la media de sus dos vecinos inmediatos. Y está medido sobre MP4, que
+según la receta **infla** el empalme alrededor de un 22 % —el par que cruza dos archivos no recibe
+el descuento de predicción entre cuadros que sí reciben los pares de adentro de un mismo archivo—,
+así que en crudo la diferencia del empalme queda por debajo de la de sus vecinos. Es invisible.
+
+Conviene repetir esta medición en el empalme s5 48→49, que es el que cruza de un contenedor a otro
+dentro de la parte **cara** del recorrido, donde la cámara se mueve más rápido entre cuadros.
