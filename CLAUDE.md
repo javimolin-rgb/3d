@@ -16,7 +16,7 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 3. Peumo — nieve en el bosque ✅
 4. Boldo — lago ✅
 5. Mañío — playa urbanizada
-6. Roble — nieve tipo centro de ski 🔧 (escena armada, esperando las fotos)
+6. Roble — nieve tipo centro de ski ✅
 7. Maitén — mar roca
 8. Coihue — campo, que se note el trigo
 9. Ciprés — playa del norte (más seco) ⚠️
@@ -184,6 +184,15 @@ plantas lado a lado, no sólo la baja.
   Fotos de aprobación con `tools/fotos_roble.sh` (`output/roble_propuesta/`, cinco tomas más una
   de **contexto** con lente de 24, que es la que muestra el andarivel y dónde está parada la casa).
   Secciones con `setsid nohup tools/render_roble.sh s1 [s2 ...] &`.
+  **Completa**: `output/casa_roble_secuencia.mp4`, 1286 cuadros, 53,6 s. Es de dos pisos, así que
+  s3p pausa el corte en cada piso y s4 muestra las dos plantas (`tools/plano_roble.py`, calibrado
+  con `FRANJA=0.12`; los dos dibujos de la lámina están casi a la misma escala, 65,3 y 65,6 px/m).
+  Se renderizó **repartida entre once contenedores**: el reparto, la curva de costo medida y los
+  seis errores de medición que costó entenderla están en `REPARTO_ROBLE.md`, que conviene leer
+  antes del próximo reparto. Lo más útil de ahí: el costo por cuadro varía **x8** a lo largo del
+  recorrido (2,2 a 18,3 min), el pico está donde el corte pasa por la losa del 2do piso (z≈3,3-3,6 m)
+  y **no** donde el techo ya está abierto, y para medirlo hay que mirar el `render.log` cuadro a
+  cuadro: los promedios por tramo esconden la curva.
   Tres cosas que costaron y conviene no volver a descubrir:
   **la ladera es asimétrica a propósito** (cae 17° adelante y sube 6° atrás; con la misma
   pendiente a los dos lados el dron se mete dentro del talud en s2 y s5);
