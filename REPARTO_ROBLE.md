@@ -14,12 +14,13 @@ que los pedazos quedan con la misma corrección de color.
 **Todos con lo mismo**: `bpy==5.0.1`, `--res 720x1280`, `--samples 16`, `--nevada 0`. Si un
 contenedor cambia cualquiera de esos cuatro, la diferencia se ve justo en el empalme.
 
-| tramo | sección | cuadros | archivo |
-|---|---|---|---|
-|  1 | s5  |   1-72  | `output/tramos/s5_0001-0072.mp4` |
+| tramo | sección | cuadros | archivo | |
+|---|---|---|---|---|
+|  1 | s5  |   1-48  | `output/tramos/s5_0001-0048.mp4` |
+| 1b | s5  |  49-72  | `output/tramos/s5_0049-0072.mp4` | robo de trabajo |
 |  2 | s5  |  73-132 | `output/tramos/s5_0073-0132.mp4` |
 |  3 | s5  | 133-192 | `output/tramos/s5_0133-0192.mp4` |
-|  4 | s3p |   1-48  | `output/tramos/s3p_0001-0048.mp4` |
+|  4 | s3p |   1-48  | `output/tramos/s3p_0001-0048.mp4` | **listo** |
 |  5 | s3p |  49-96  | `output/tramos/s3p_0049-0096.mp4` |
 |  6 | s3p |  97-144 | `output/tramos/s3p_0097-0144.mp4` |
 |  7 | s3p | 145-192 | `output/tramos/s3p_0145-0192.mp4` |
@@ -87,3 +88,10 @@ ffmpeg -f concat -safe 0 -i /tmp/lista.txt -c copy output/roble_s5.mp4
 Para verificar un empalme, medir sobre los **PNG crudos**, no sobre los MP4 (CLAUDE.md explica
 por qué), y comparar contra los vecinos inmediatos del empalme, no contra una base de otra parte
 del clip.
+
+## Una trampa al medir el ritmo en `render.log`
+
+Blender imprime el tiempo acumulado como `MM:SS.ss` antes de la primera hora y como
+`HH:MM:SS.ss` después, en el mismo archivo. Un regex de `HH:MM:SS` se come **en silencio** todos
+los cuadros de la primera hora: en el tramo s3p 1-48 dejaba 21 de 48 y el ritmo salía mal sin que
+nada fallara.
