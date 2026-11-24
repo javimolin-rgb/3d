@@ -74,7 +74,14 @@ plantas lado a lado, no sólo la baja.
   su tramo con `tools/armar_video.sh` y después se pegan sin recodificar con el demuxer `concat`
   de ffmpeg: el look de `armar_video.sh` no depende del tiempo (la viñeta va con
   `lt(t,1000)`), así que los pedazos quedan con la misma corrección de color.
-  Para repartir bien hay que medir el costo cuadro a cuadro en `render.log`, no suponerlo: en la
+  Para repartir bien, **el costo por cuadro se puede calcular sin renderizar**: lo gobierna cuánto
+  interior ve la cámara, o sea *techo abierto por el corte* (`CUT_KEYS`) x *elevación de la cámara*
+  (claves de `POSES`), las dos en coordenada de ruta. En Casa Roble eso explicó los seis puntos
+  medidos de las dos secciones y acertó dos predicciones fuera de muestra; está derivado en
+  `REPARTO_ROBLE.md`. Si igual se mide, hay que mirar el `render.log` **cuadro a cuadro dentro de un
+  mismo tramo**, no el promedio del tramo: el promedio esconde la rampa e invita a atribuirle a la
+  máquina lo que es posición en el recorrido. Y no ajustarle una recta, que la curva es convexa.
+  El costo no se supone: en la
   sección del corte no crece parejo, hace una loma (en Peumo, 3,3 min/cuadro con el techo cerrado,
   6,5 min con el techo a medio abrir —el interior se ilumina sólo de rebote por una abertura
   parcial— y 3,3 otra vez cuando queda abierto del todo). Partir por la mitad en cantidad de
