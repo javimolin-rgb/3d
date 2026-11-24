@@ -146,47 +146,51 @@ Para verificar un empalme, medir sobre los **PNG crudos**, no sobre los MP4 (CLA
 por qué), y comparar contra los vecinos inmediatos del empalme, no contra una base de otra parte
 del clip.
 
-## El perfil de s3p: meseta alta, no pico
+## El perfil de s3p: SÍ hay loma, y es el doble de alta que todo lo demás
 
-Medido cuadro a cuadro en el tramo 289-336 (mtime de los PNG, 12 intervalos):
+**Esta sección reemplaza dos conclusiones anteriores que estaban mal.** Con cuatro puntos medidos
+(1-48, 145-192, 289-336, 337-384) se había concluido que s3p era *monótona creciente y saturada*,
+sin loma, y que la receta de Peumo —techo a medio abrir = el doble de caro— no aplicaba en Roble.
+Las dos cosas eran falsas. Los cuatro puntos **rodeaban el pico sin tocarlo**, y una curva
+muestreada en los lugares equivocados se ve lisa: eso se leyó como ausencia de estructura cuando
+era falta de datos.
 
-```
-290: 9,33  291: 9,35  292: 9,38  293: 9,38  294: 9,53  295: 9,02
-296: 9,42  297: 8,80  298: 8,88  299: 9,47  300: 9,07  301: 9,18
-```
+El perfil real, con el reloj interno de Blender:
 
-Media 9,23 y rango de ±4 %: **plano**, la variación es ruido. Y los primeros cuadros del tramo
-337-384 dan ~9,0, también planos. O sea que del cuadro 289 en adelante s3p está en **meseta**, y
-se puede repartir contando 9,2 min/cuadro parejo, que es el caso fácil: tramos iguales en cantidad
-de cuadros son tramos iguales en horas.
+| cuadros | min/cuadro | qué pasa |
+|---|---|---|
+|   1-48  | 2,2 | techo cerrado, el corte no empezó a bajar |
+|  98-142 | 2,88 → 7,22 | el corte baja: subida monótona, pendiente achatándose de +0,18 a +0,05 |
+| 145-172 | 7,65 → 8,43 | **corte congelado** (1ra pausa): sube sólo por la cámara |
+| 194-218 | 8,6 → 10,3 | sigue subiendo, pendiente empinándose al final |
+| **243** | **18,28** | **el pico**: techo a medio abrir |
+| 244-256 | 15,9 → 9,7 | bajada monótona |
+| 256→257 | 9,69 → **7,13** | escalón de -26 % en un cuadro: el techo termina de abrirse |
+| 257-261 | ~7,3 | techo abierto del todo |
+| 289-314 | 9,23 plano | meseta |
+| 337-343 | 9,0 | cola |
 
-Y más atrás, en el tramo 145-192, también es casi plano pero **subiendo despacio**: 8,25 / 7,92 /
-7,65 / 7,68 / 7,68 / 7,92 / 7,95 / 7,87 / 8,20 / 8,23 / 8,37 / 8,28 / 8,32 / 8,43 (f_0146 a
-f_0159). Mínimo poco profundo cerca del 148 y subida monótona hasta el final de la ventana.
+O sea que **sí es la loma de Peumo**, y más pronunciada: el pico vale 2,5x lo que vale con el techo
+abierto, y el doble de los 9,3 min/cuadro de s5. El máximo cae antes del cuadro 241, en algún punto
+de 219-242 que todavía nadie midió.
 
-Juntando todo, s3p es **monótona creciente y saturada**:
+**Consecuencia para repartir una sección de corte: pesar los tramos por esta curva, no por cantidad
+de cuadros.** Once tramos iguales en cuadros reparten mal cuando un pedazo vale 18 y otro 2,2.
 
-| cuadros | min/cuadro |
-|---|---|
-|   1-48  | 2,2 |
-| 145-159 | 7,7 → 8,4 |
-| 289-301 | 9,2 |
-| 337-343 | 9,0 |
+### Cómo se descubrió, que es lo que conviene no repetir
 
-O sea: **no hay loma con máximo en el medio.** Casi todo el salto ocurre antes del cuadro 145, y
-del 145 al 384 queda apenas de 8 a 9. Eso descarta las dos sospechas que se tuvieron en el camino
-—primero que el pico estuviera en la cola, después que estuviera en el medio, por analogía con el
-techo a medio abrir de Peumo—: en Roble el corte simplemente encarece y se queda caro.
+La serie del pico se midió primero por mtime, y se la puso en duda porque el contenedor se había
+reiniciado en esa ventana y los mtime cuentan el tiempo caído como render. La duda era razonable
+pero estaba **mal aplicada**: se dio por ocurrido el artefacto sin verificar si el reinicio caía
+dentro de la ventana medida, que era justo lo comprobable. Lo comprobó el contenedor: el
+`render.log` tenía **una sola corrida monótona sin resets**, o sea que el reinicio fue posterior al
+último cuadro de la serie, y los tiempos del log coincidían con los mtime **al centésimo en veinte
+cuadros**.
 
-Para repartir, la consecuencia es que **del 145 en adelante son cinco tramos caros, no dos**:
-145-192, 193-240, 241-288, 289-336 y 337-384, todos entre 8 y 9,2 min/cuadro. Son los cinco que
-hay que ayudar con los contenedores que se liberan de s5.
+Regla: antes de descartar una medición por sospecha de tiempo muerto, mirar si el log tiene un
+reset a cero dentro de la ventana. Si no lo tiene, no hubo corte y el mtime es tan bueno como el log.
 
-Lo único que sigue sin medir es **el salto entre el 48 y el 145** (tramos 49-96 y 97-144). No hace
-falta para repartir, porque esos tramos ya están corriendo, pero no se puede interpolar
-linealmente entre 2,2 y 8 para estimarlos.
-
-## Una trampa al medir el ritmo en `render.log`
+## Una trampa al medir el ritmo en `render.log`## Una trampa al medir el ritmo en `render.log`
 
 Blender imprime el tiempo acumulado como `MM:SS.ss` antes de la primera hora y como
 `HH:MM:SS.ss` después, en el mismo archivo. Un regex de `HH:MM:SS` se come **en silencio** todos
