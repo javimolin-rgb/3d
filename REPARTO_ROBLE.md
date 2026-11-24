@@ -59,9 +59,21 @@ f_0015 8,5   f_0019 8,1   f_0023 7,4
 f_0016 8,5   f_0020 8,3   f_0024 7,2
 ```
 
-Baja parejo, -0,2 min por cuadro, y extrapolada da ~2,2 min/cuadro en el f_0048: justo donde
-empieza el 2,6-3,1 que mide otro contenedor en el 73-132. O sea **una sola curva continua a lo
-largo de s5**, sin acantilado.
+Baja parejo, pero **la recta no sirve para extrapolar y conviene no intentarlo**. Ajustada sobre
+esos 13 cuadros da -0,2 min por cuadro, predice 1,8 min/cuadro en el f_0050 y lo medido ahí es
+4,98: erra por 2,7 veces. Y la misma recta se hace **negativa** en el f_0072, que era señal
+suficiente para descartarla sin necesidad de medir nada.
+
+La curva es convexa: baja cada vez más despacio hacia una asíntota de ~2,85 min/cuadro. Medido en
+cuatro contenedores distintos, el exceso sobre esa asíntota se parte al medio cada ~26 cuadros:
+
+```
+f_0019  +5,55     f_0025  +3,95     f_0051  +2,01     f_0100  +0,05     f_0160  +0,04
+```
+
+Lo que sí queda establecido, y es lo que importaba para repartir, es que hay **una sola curva
+continua a lo largo de s5** que cruza cuatro contenedores sin escalón: 9,2 → 6,8 (uno), 4,86
+(otro), 2,9 y 2,89 (otros dos). No hay diferencia de máquina.
 
 Eso además descarta la explicación que parecía más probable con los datos de arriba: que el raro
 fuera *el contenedor* y no el tramo. Tres contenedores distintos midieron tres cosas distintas y
@@ -75,9 +87,17 @@ agua—, aunque sigue sin probarse y no se escribe acá como causa. Lo que sí e
 la sección ni el estado del corte alcanzan para predecirlo: en Peumo lo caro era el techo a medio
 abrir y lo barato el techo cerrado, y acá la cola de s3p —techo cerrado y casi a plomo— es la cara.
 
-**Cómo medir esto bien la próxima vez**: mirar el `render.log` cuadro a cuadro dentro de un mismo
-tramo, no el promedio del tramo. El promedio esconde la rampa y encima invita a atribuirle a la
-máquina lo que es posición en el recorrido.
+**Cómo medir esto bien la próxima vez**, que son tres errores distintos, todos cometidos acá:
+
+1. Mirar el `render.log` **cuadro a cuadro** dentro de un mismo tramo, no el promedio del tramo.
+   El promedio esconde la rampa y encima invita a atribuirle a la máquina lo que es posición en
+   el recorrido.
+2. **No ajustar una recta.** La curva es convexa y se aplana; una recta ajustada sobre un puñado
+   de cuadros y proyectada decenas de cuadros más allá erra por un factor 3. Si el modelo predice
+   un valor imposible dentro del rango que interesa —acá, tiempo negativo—, está descartado sin
+   necesidad de medir.
+3. **Tres puntos separados por sección, no dos.** Con dos puntos lejanos entra cualquier curva, y
+   la elección de la forma es justamente lo que decide el reparto.
 
 Y el robo de trabajo tiene su propio límite, que conviene tener presente: rearmar el entorno de
 un contenedor cuesta ~25 min (apt, la rueda de bpy y 1,3 GB de recursos). Robarle la cola a un
