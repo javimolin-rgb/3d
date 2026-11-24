@@ -157,12 +157,31 @@ Media 9,23 y rango de ±4 %: **plano**, la variación es ruido. Y los primeros c
 se puede repartir contando 9,2 min/cuadro parejo, que es el caso fácil: tramos iguales en cantidad
 de cuadros son tramos iguales en horas.
 
-Lo que no está medido es **dónde arranca la subida** desde los 2,2 min/cuadro del tramo 1-48:
-cae en algún lugar entre el cuadro 48 y el 289. Se parece más a una sigmoide saturada que a una
-rampa, así que no sirve interpolar linealmente entre 2,2 y 9,2 para estimar los tramos del medio.
+Y más atrás, en el tramo 145-192, también es casi plano pero **subiendo despacio**: 8,25 / 7,92 /
+7,65 / 7,68 / 7,68 / 7,92 / 7,95 / 7,87 / 8,20 / 8,23 / 8,37 / 8,28 / 8,32 / 8,43 (f_0146 a
+f_0159). Mínimo poco profundo cerca del 148 y subida monótona hasta el final de la ventana.
 
-Esto descartó la sospecha de que el pico estuviera al final —la "loma" del techo a medio abrir de
-Peumo—: la cola de s3p no es un pico sino el borde de una meseta larga.
+Juntando todo, s3p es **monótona creciente y saturada**:
+
+| cuadros | min/cuadro |
+|---|---|
+|   1-48  | 2,2 |
+| 145-159 | 7,7 → 8,4 |
+| 289-301 | 9,2 |
+| 337-343 | 9,0 |
+
+O sea: **no hay loma con máximo en el medio.** Casi todo el salto ocurre antes del cuadro 145, y
+del 145 al 384 queda apenas de 8 a 9. Eso descarta las dos sospechas que se tuvieron en el camino
+—primero que el pico estuviera en la cola, después que estuviera en el medio, por analogía con el
+techo a medio abrir de Peumo—: en Roble el corte simplemente encarece y se queda caro.
+
+Para repartir, la consecuencia es que **del 145 en adelante son cinco tramos caros, no dos**:
+145-192, 193-240, 241-288, 289-336 y 337-384, todos entre 8 y 9,2 min/cuadro. Son los cinco que
+hay que ayudar con los contenedores que se liberan de s5.
+
+Lo único que sigue sin medir es **el salto entre el 48 y el 145** (tramos 49-96 y 97-144). No hace
+falta para repartir, porque esos tramos ya están corriendo, pero no se puede interpolar
+linealmente entre 2,2 y 8 para estimarlos.
 
 ## Una trampa al medir el ritmo en `render.log`
 
