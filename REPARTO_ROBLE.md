@@ -1,0 +1,60 @@
+# Reparto del render de Casa Roble entre contenedores
+
+Medido en este repo: **9,3 min/cuadro** a 720x1280 y 16 muestras, en cuatro núcleos, parejo
+(doce cuadros seguidos de s5: 542 a 595 s, media 559). Quedaban 564 cuadros = **87 h** en un
+solo contenedor, y el contenedor se reinicia cada hora y media, así que se reparte.
+
+Cada contenedor renderiza su tramo con `tools/render_roble_tramo.sh` (que usa `--desde/--hasta`;
+las poses y la nieve se calculan igual para toda la sección, así que los cuadros salen idénticos
+a hacer la sección de corrido), arma **el MP4 de su tramo** con `LOOK=dia tools/armar_video.sh`
+y lo sube a `output/tramos/`. Al final se pegan sin recodificar con el demuxer `concat` de
+ffmpeg: el look de `armar_video.sh` no depende del tiempo (la viñeta va con `lt(t,1000)`), así
+que los pedazos quedan con la misma corrección de color.
+
+**Todos con lo mismo**: `bpy==5.0.1`, `--res 720x1280`, `--samples 16`, `--nevada 0`. Si un
+contenedor cambia cualquiera de esos cuatro, la diferencia se ve justo en el empalme.
+
+| tramo | sección | cuadros | archivo |
+|---|---|---|---|
+|  1 | s5  |   1-72  | `output/tramos/s5_0001-0072.mp4` |
+|  2 | s5  |  73-132 | `output/tramos/s5_0073-0132.mp4` |
+|  3 | s5  | 133-192 | `output/tramos/s5_0133-0192.mp4` |
+|  4 | s3p |   1-48  | `output/tramos/s3p_0001-0048.mp4` |
+|  5 | s3p |  49-96  | `output/tramos/s3p_0049-0096.mp4` |
+|  6 | s3p |  97-144 | `output/tramos/s3p_0097-0144.mp4` |
+|  7 | s3p | 145-192 | `output/tramos/s3p_0145-0192.mp4` |
+|  8 | s3p | 193-240 | `output/tramos/s3p_0193-0240.mp4` |
+|  9 | s3p | 241-288 | `output/tramos/s3p_0241-0288.mp4` |
+| 10 | s3p | 289-336 | `output/tramos/s3p_0289-0336.mp4` |
+| 11 | s3p | 337-384 | `output/tramos/s3p_0337-0384.mp4` |
+
+s1 y s2 ya estaban rendidas enteras (`output/roble_s1.mp4`, `output/roble_s2.mp4`).
+
+Los tramos de s3p son de 48 cuadros y no de 55 porque en la sección del corte el costo por
+cuadro **no crece parejo, hace una loma** (en Peumo, el doble de caro con el techo a medio abrir,
+porque el interior se ilumina sólo de rebote por una abertura parcial). Partir en tramos más
+chicos acota lo que puede tardar el peor tramo; no se midió dónde cae la loma en Roble porque
+medirla costaba más que achicar los tramos.
+
+## Qué hace falta en un contenedor nuevo
+
+Nada de esto va al repo (~1,7 GB), y `assets/roble/casa.blend` **sí** está en el repo, así que
+no hay que volver a correr el extractor del STL (tarda más de una hora):
+
+```
+apt-get update && apt-get install -y libegl1 libgl1 libglx-mesa0 libgl1-mesa-dri libxi6 \
+  libxrender1 libxxf86vm1 libxfixes3 libsm6 libice6 libxkbcommon0 libwayland-client0
+python3.11 -m venv venv-bpy && ./venv-bpy/bin/pip install bpy==5.0.1
+tools/get_assets_nieve.sh && tools/get_assets_hdri.sh nieve
+```
+
+## Pegar los tramos al final
+
+```
+printf "file '%s'\n" output/tramos/s5_*.mp4 > /tmp/lista.txt
+ffmpeg -f concat -safe 0 -i /tmp/lista.txt -c copy output/roble_s5.mp4
+```
+
+Para verificar un empalme, medir sobre los **PNG crudos**, no sobre los MP4 (CLAUDE.md explica
+por qué), y comparar contra los vecinos inmediatos del empalme, no contra una base de otra parte
+del clip.
