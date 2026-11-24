@@ -38,17 +38,28 @@ valían para todo. No valen: dentro de una misma sección el costo cambia por un
 
 Medido después, cada contenedor sobre su propio `render.log`:
 
-| tramo | cuadros | min/cuadro |
+| sección | cuadros | min/cuadro |
 |---|---|---|
-| s5  |  13-72  | 9,3 |
+| s5  |  13-48  | 9,3 |
+| s5  |  73-132 | **2,6-3,1** |
 | s3p |   1-48  | **2,2** |
 | s3p | 337-384 | **9,0** |
 
-O sea que s3p **no** es barata: es barata al principio y cara en la cola, y la subida está en el
-medio, sin medir. No conviene inventarle una explicación: en Peumo lo caro era el techo a medio
-abrir y lo barato el techo cerrado, y acá la cola —techo cerrado, casi a plomo— es justo la cara,
-al revés de lo que haría esperar Peumo y de los 38 cuadros/hora que daba la cenital de Boldo. Lo
-único que se sostiene es la medición.
+O sea que **no es que una sección sea cara y la otra barata**: dentro de cada una el costo varía
+por un factor 4, y las dos tienen una punta cara y una barata. El 9,3 original salió de los
+primeros cuadros de s5 y se generalizó a las 564: ése fue el error de base.
+
+La hipótesis que mejor se sostiene es que el costo sigue **cuánto paisaje entra en cuadro** —en
+Boldo ya estaba medido que la cenital era tres veces más barata que el vuelo bajo sobre el agua—,
+pero con cuatro puntos no está probada y no se escribe acá como causa. Lo que sí está medido es
+que ni la sección ni el estado del corte alcanzan para predecirlo: en Peumo lo caro era el techo a
+medio abrir y lo barato el techo cerrado, y acá la cola de s3p —techo cerrado y casi a plomo— es
+la cara.
+
+Y el robo de trabajo tiene su propio límite, que conviene tener presente: rearmar el entorno de
+un contenedor cuesta ~25 min (apt, la rueda de bpy y 1,3 GB de recursos). Robarle la cola a un
+tramo al que le quedan menos de ~40 min de render es trabajo de más, no de menos. Sólo sale a
+cuenta con un contenedor que **ya tiene el entorno armado**, o con colas largas.
 
 Para la próxima: **medir varios puntos de cada sección antes de repartir** (basta rendir unos
 pocos cuadros sueltos con `--desde/--hasta` en el arranque, el medio y el final) y repartir por
