@@ -30,6 +30,23 @@ contenedor cambia cualquiera de esos cuatro, la diferencia se ve justo en el emp
 
 s1 y s2 ya estaban rendidas enteras (`output/roble_s1.mp4`, `output/roble_s2.mp4`).
 
+## Lo que salió mal en este reparto: s3p es cuatro veces más barata que s5
+
+Los 9,3 min/cuadro se midieron **en s5**, y se repartió suponiendo que valían para todo. Medido
+después en el contenedor del tramo s3p 1-48: **~2,2 min/cuadro**, cuatro veces más rápido. Es
+coherente con lo que ya decía CLAUDE.md de Boldo —"en la cenital sube a 38 cuadros/hora, porque
+desde arriba casi no entra bosque"—: s5 vuela bajo con la ladera y el bosque llenando el cuadro,
+y s3p termina mirando casi a plomo.
+
+Resultado: a s3p, que es la barata, le tocaron ocho contenedores (~1,8 h cada uno) y a s5, que es
+la cara, sólo tres (~9,3 h cada uno). Los ocho de s3p quedan libres a las ~03:00 UTC mientras s5
+sigue hasta las ~10:00. **La próxima vez hay que medir una sección de cada tipo antes de repartir,
+no una sola**, y repartir por horas estimadas, no por cantidad de cuadros.
+
+Se corrige sobre la marcha pasándoles a los contenedores libres la cola de los tramos de s5: al
+dueño de un tramo se le acorta el final a un cuadro X cómodamente por delante de donde va (que
+arme su MP4 hasta X) y el tramo [X+1, fin] se le da a uno libre, como un tramo más de la tabla.
+
 Los tramos de s3p son de 48 cuadros y no de 55 porque en la sección del corte el costo por
 cuadro **no crece parejo, hace una loma** (en Peumo, el doble de caro con el techo a medio abrir,
 porque el interior se ilumina sólo de rebote por una abertura parcial). Partir en tramos más
