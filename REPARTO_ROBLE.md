@@ -197,3 +197,43 @@ Roble_ceramica / Roble_sabanas / Roble_marco`. Son objetos de interior a los que
 cambia la topología entre cuadros, así que Cycles les apaga el desenfoque de movimiento. No aborta
 nada y los cuadros salen. Si en el video final algo de la casa no arrastra desenfoque cuando el
 dron pasa rápido, el origen es ése y **no** el empalme entre tramos.
+
+## El costo por cuadro se puede calcular sin renderizar
+
+Lo más útil que salió de este reparto. El costo no hay que sondearlo: **se lee del propio script**,
+porque lo gobierna cuánto interior ve realmente la cámara, o sea *techo abierto por el corte* x
+*elevación de la cámara*. Las dos cosas están en constantes: el corte en `CUT_KEYS` y la elevación
+en las claves de `POSES`, las dos en coordenada de ruta, que se pasa a cuadros con el perfil de
+velocidad de la sección.
+
+En Roble, `CUT_KEYS` da TOP hasta ruta 250, baja a MID entre 250 y 330, a LOW entre 330 y 360,
+queda en LOW de 360 a 470, vuelve a TOP entre 470 y 545. s3 arranca en ruta 192 y s5 en 432. Pasado
+a cuadros de s3p: el corte empieza a bajar en el 58, llega a LOW (techo abierto del todo) en el
+250, y de ahí al 384 está saturado.
+
+Con eso se explican las dos secciones de una vez, y los seis puntos medidos:
+
+| tramo | ruta | techo | elevación | min/cuadro |
+|---|---|---|---|---|
+| s5 13-48   | 445-480 | abierto    | 89° → 65° | 9,2 → 6,8 |
+| s5 49-72   | 481-504 | cerrándose | 65° → 50° | 4,86 |
+| s5 73-132  | 504-563 | casi cerrado | 50° → 20° | 2,6-3,1 |
+| s5 133-192 | 563-624 | cerrado    | baja      | 2,89 |
+| s3p 1-48   | 192-240 | cerrado    | 16° → 40° | 2,16 |
+| s3p 145-192 | — | abriéndose | subiendo | 7,7 → 8,4 |
+| s3p 289-336 | — | abierto | alta | 9,23 |
+| s3p 337-384 | — | abierto | cenital | 9,0 |
+
+De paso explica dos cosas que habían quedado sueltas: que la "rampa" de s5 no es en el tiempo sino
+**en el ángulo**, y que su asíntota de ~2,85 min/cuadro es simplemente *techo cerrado*, donde ya no
+queda nada que decaer. Y explica por qué en Roble no hay loma como en Peumo: acá la elevación sube
+**a la vez** que el techo se abre, así que los dos factores empujan en la misma dirección y el
+costo sube y se queda arriba en vez de hacer un máximo y volver.
+
+**El modelo acertó dos predicciones fuera de muestra** (que 289-336 daría ~9 plano y no intermedio,
+y que 145-192 estaría en la parte alta de la subida) antes de ver esas mediciones.
+
+Salvedad del que lo derivó, que conviene conservar: la elevación sale de las claves de `POSES` y el
+mapa ruta→cuadro se reconstruyó a mano con el perfil de velocidad de las pausas (el script lo
+despeja por bisección), así que **los números de cuadro son ±15**. La forma de la curva no depende
+de esa precisión; los cortes del reparto sí.
