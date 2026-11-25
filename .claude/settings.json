@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || [ ! -x ./.cadena_roble.sh ] || pgrep -f '[c]asa_roble_3d' >/dev/null || setsid nohup ./.cadena_roble.sh >/dev/null 2>&1 </dev/null & } ; { [ ! -x ./.progreso_roble.sh ] || pgrep -f '[p]rogreso_roble' >/dev/null || setsid nohup ./.progreso_roble.sh >/dev/null 2>&1 </dev/null & } ; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
