@@ -43,7 +43,7 @@ from mathutils.bvhtree import BVHTree
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
         "wb": "6250", "save": None, "dof": "1",
-        "nevada": "1.0", "tramo": "s1", "luzint": "1.0",
+        "nevada": "1.0", "tramo": "s1", "luzint": "1.0", "relleno": "1500",
         "carga": "1.0", "techo": "0.28", "techo_modo": "capa"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
@@ -2644,10 +2644,28 @@ def apply_section(frames, g0, mapa=None):
     # grupo `ng` queda armado y sin usar: el shader solo hace el corte, a costa de apilar algunas
     # transparencias de más (de ahí los 12 rebotes transparentes de más abajo).
     socks = [zval.outputs[0]] + [g.nodes["AlturaCorte"].outputs[0] for g in groups.values()]
+    # Relleno de cielo que entra **por el corte**, en lugar del día que entraba cuando el techo se
+    # borraba. Sigue al plano de corte (siempre justo encima de lo que queda expuesto, así ilumina
+    # el piso que se está mostrando) y se apaga cuando el corte está arriba: con la casa cerrada
+    # queda en cero y los tramos con techo entero salen idénticos a s1 y s2. Sin esto el interior
+    # se cae: las seis luces interiores no cubren los baños ni el pasillo, que quedan negros.
+    bpy.ops.object.light_add(type="AREA", location=(L / 2, D / 2, CUT_TOP))
+    relleno = bpy.context.object
+    relleno.name = "RellenoCorte"
+    relleno.data.shape = "RECTANGLE"
+    relleno.data.size, relleno.data.size_y = L * 0.95, D * 0.95
+    relleno.data.color = (0.92, 0.95, 1.0)      # fría, como la luz de cielo que entraría de verdad
+    relleno.visible_camera = False
     for f in range(frames):
+        z = cut_z(mapa[f] if mapa else g0 + f)
         for sk in socks:
-            sk.default_value = cut_z(mapa[f] if mapa else g0 + f)
+            sk.default_value = z
             sk.keyframe_insert("default_value", frame=f + 1)
+        abierto = min(max((CUT_TOP - z) / (CUT_TOP - CUT_LOW), 0.0), 1.0)
+        relleno.location.z = z + 0.25
+        relleno.data.energy = float(opts["relleno"]) * abierto
+        relleno.keyframe_insert("location", index=2, frame=f + 1)
+        relleno.data.keyframe_insert("energy", frame=f + 1)
     # Antes el techo borrado dejaba entrar el día y las luces interiores iban al 30 %. Ahora la
     # luz ve la casa cerrada, así que el interior lo iluminan ellas: `--luzint` gradúa cuánto.
     for o in house:
