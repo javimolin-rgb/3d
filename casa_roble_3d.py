@@ -43,7 +43,7 @@ from mathutils.bvhtree import BVHTree
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
         "wb": "6250", "save": None, "dof": "1",
-        "nevada": "1.0", "tramo": "s1", "luzint": "1.0", "relleno": "1500",
+        "nevada": "1.0", "tramo": "s1", "luzint": "1.0", "relleno": "500",
         "carga": "1.0", "techo": "0.28", "techo_modo": "capa"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
