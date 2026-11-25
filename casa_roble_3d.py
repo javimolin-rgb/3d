@@ -43,7 +43,7 @@ from mathutils.bvhtree import BVHTree
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 opts = {"vista": "izq", "out": "//cuadro.png", "res": "720x1280", "samples": "32", "still": "1",
         "wb": "6250", "save": None, "dof": "1",
-        "nevada": "1.0", "tramo": "s1",
+        "nevada": "1.0", "tramo": "s1", "luzint": "1.0",
         "carga": "1.0", "techo": "0.28", "techo_modo": "capa"}
 for i in range(0, len(argv), 2):
     opts[argv[i].lstrip("-")] = argv[i + 1]
@@ -2572,9 +2572,19 @@ def section_groups():
             l.new(gi.outputs[0], mc.inputs[1])
             l.new(em.outputs[0], mc.inputs[2])
             shader = mc.outputs[0]
+        # El corte vale **sólo para los rayos de cámara**. Si no, el sol deja de ver el techo:
+        # entra por arriba, atraviesa la casa y sale por las ventanas, dibujando rectángulos de
+        # luz sobre la nieve fuera de la casa, y de paso la casa pierde su sombra a medida que el
+        # corte sube. Con `Is Camera Ray` la cámara ve el interior y la luz sigue viendo la casa
+        # entera, que es lo que corresponde: el corte es un recurso de presentación, no un agujero.
+        lp = n.new("ShaderNodeLightPath")
+        solocam = n.new("ShaderNodeMath")
+        solocam.operation = "MULTIPLY"
+        l.new(gt.outputs[0], solocam.inputs[0])
+        l.new(lp.outputs["Is Camera Ray"], solocam.inputs[1])
         tr = n.new("ShaderNodeBsdfTransparent")
         mx = n.new("ShaderNodeMixShader")
-        l.new(gt.outputs[0], mx.inputs[0])
+        l.new(solocam.outputs[0], mx.inputs[0])
         l.new(shader, mx.inputs[1])
         l.new(tr.outputs[0], mx.inputs[2])
         l.new(mx.outputs[0], go.inputs[0])
@@ -2629,18 +2639,21 @@ def apply_section(frames, g0, mapa=None):
     Lk.new(gi.outputs[0], dl.inputs["Geometry"])
     Lk.new(ev.outputs[0], dl.inputs["Selection"])
     Lk.new(dl.outputs[0], go.inputs[0])
-    for o in house:
-        if o.type == "MESH" and o.name != "Peumo_Casco":
-            o.modifiers.new("Corte", "NODES").node_group = ng
+    # **No** se borran las caras con nodos de geometría. Borrarlas saca el techo para *todos* los
+    # rayos, no sólo para la cámara, que es la causa de los rectángulos de luz sobre la nieve. El
+    # grupo `ng` queda armado y sin usar: el shader solo hace el corte, a costa de apilar algunas
+    # transparencias de más (de ahí los 12 rebotes transparentes de más abajo).
     socks = [zval.outputs[0]] + [g.nodes["AlturaCorte"].outputs[0] for g in groups.values()]
     for f in range(frames):
         for sk in socks:
             sk.default_value = cut_z(mapa[f] if mapa else g0 + f)
             sk.keyframe_insert("default_value", frame=f + 1)
-    for o in house:   # con el techo abierto entra el día: luces interiores suaves
+    # Antes el techo borrado dejaba entrar el día y las luces interiores iban al 30 %. Ahora la
+    # luz ve la casa cerrada, así que el interior lo iluminan ellas: `--luzint` gradúa cuánto.
+    for o in house:
         if o.type == "LIGHT":
             o.visible_camera = False
-            o.data.energy *= 0.3
+            o.data.energy *= float(opts["luzint"])
     bpy.context.scene.cycles.transparent_max_bounces = 12
 
 
