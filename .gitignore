@@ -27,3 +27,5 @@ frames_roble/
 output/*.zip
 venv-bpy/
 .soy_b
+.orden_roble
+.setup_*_listo
