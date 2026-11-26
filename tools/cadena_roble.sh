@@ -31,7 +31,7 @@ case "$ORDEN" in a) OFF=0;; b) OFF=4;; c) OFF=6;; d) OFF=7;; *) OFF=0;; esac
 nombre () { printf "%s_%04d-%04d" "$1" "$2" "$3"; }
 trae    () { git fetch -q origin $RAMA && git merge --no-edit -q FETCH_HEAD; }
 empuja  () {
-  git add -A "$1" "$2" && git -c user.email=render@local -c user.name=render commit -q -m "$3" || return 0
+  git add -A "$1" "$2" && git -c user.email=noreply@anthropic.com -c user.name=Claude commit -q -m "$3" || return 0
   for i in 1 2 3 4 5 6 7 8; do
     trae && git push -q origin $RAMA && return 0
     sleep 10

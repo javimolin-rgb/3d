@@ -23,7 +23,7 @@ while [ ! -f .cadena_lista ]; do
     printf "%s_%04d-%04d %d\n" "$sec" "$des" "$has" "$k" >> output/tramos/estado_$ORDEN.txt
   done
   git add -A output/tramos/estado_$ORDEN.txt 2>/dev/null \
-    && git -c user.email=render@local -c user.name=render commit -q -m "Roble: latido $ORDEN" 2>/dev/null \
+    && git -c user.email=noreply@anthropic.com -c user.name=Claude commit -q -m "Roble: latido $ORDEN" 2>/dev/null \
     && { git fetch -q origin $RAMA && git merge --no-edit -q FETCH_HEAD \
          && git push -q origin $RAMA; } >/dev/null 2>&1
   sleep 900
