@@ -8,6 +8,12 @@
 # Asi se reparten solos sin repetir trabajo y, si un contenedor muere, el otro termina lo que
 # falta: ninguno se queda con una lista fija que nadie mas puede recoger.
 # Reanudable: una carpeta por tramo, nada se borra. No gasta tokens: corre solo.
+# Un merge puede reescribir este archivo mientras corre y bash lo relee por posicion de byte,
+# asi que la ejecucion en curso se corrompe. Corremos desde una copia para que no pase.
+if [ "$ROBLE_COPIA" != 1 ]; then
+  cp "$0" /tmp/$(basename "$0") && chmod +x /tmp/$(basename "$0")
+  ROBLE_COPIA=1 exec /tmp/$(basename "$0") "$@"
+fi
 cd /home/user/3d || exit 1
 PY=$PWD/venv-bpy/bin/python
 RAMA=javieramolin/dreamy-gates-iqll9z
