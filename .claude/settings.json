@@ -5,6 +5,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || [ -n \"$(find .vigia_vivo -mmin -5 2>/dev/null)\" ] || [ ! -x ./.vigia_roble.sh ] || (setsid ./.vigia_roble.sh >/dev/null 2>&1 &); } ; exit 0"
+          },
+          {
+            "type": "command",
             "command": "cd /home/user/3d && { [ -f .cadena_lista ] || pgrep -f '[c]asa_roble_3d' >/dev/null || [ ! -x ./.cadena_roble.sh ] || (setsid ./.cadena_roble.sh >/dev/null 2>&1 &); } ; exit 0"
           },
           {
