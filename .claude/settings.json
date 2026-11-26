@@ -9,7 +9,7 @@
           },
           {
             "type": "command",
-            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || pgrep -f '[p]rogreso_roble' >/dev/null || [ ! -x ./.progreso_roble.sh ] || (setsid ./.progreso_roble.sh >/dev/null 2>&1 &); } ; exit 0"
+            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || [ -n \"$(find PROGRESO_RENDER.txt -mmin -3 2>/dev/null)\" ] || [ ! -x ./.progreso_roble.sh ] || (setsid ./.progreso_roble.sh >/dev/null 2>&1 &); } ; exit 0"
           }
         ]
       }
