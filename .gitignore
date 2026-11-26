@@ -26,3 +26,4 @@ frames_reel/
 frames_roble/
 output/*.zip
 venv-bpy/
+.soy_b
