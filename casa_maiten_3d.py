@@ -620,12 +620,17 @@ def dune_grass_mat():
 
 
 def concrete_mat():
-    m, n, l = new_mat("Hormigon")
+    """Pilotes. En Huingán eran de hormigón claro; en las imágenes del modelo Maitén la casa se
+    levanta sobre **perfiles de acero oscuro**, casi negros, que es lo que la hace flotar sobre
+    el deck. Con el gris claro de Huingán el zócalo se leía como una base maciza."""
+    m, n, l = new_mat("PiloteAcero")
     N = Nodos(n, l)
     b = n["Principled BSDF"]
     tc = n.new("ShaderNodeTexCoord")
-    l.new(N.mix(N.noise(tc.outputs["Object"], 6.0, 5), (0.5, 0.49, 0.46), (0.66, 0.65, 0.62)), b.inputs["Base Color"])
-    b.inputs["Roughness"].default_value = 0.9
+    l.new(N.mix(N.noise(tc.outputs["Object"], 6.0, 5), (0.038, 0.038, 0.040), (0.062, 0.062, 0.065)),
+          b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.55
+    b.inputs["Metallic"].default_value = 0.5
     return m
 
 
@@ -633,11 +638,16 @@ def materials():
     M = {
         "chapa": ribbed_metal("ChapaNegra"),
         "chapaTecho": ribbed_metal("ChapaTecho", 0.33, 0.03, 0.02, "Y"),
-        "fachada": boards_mat("MaderaFachada", (0.5, 0.37, 0.24), (0.72, 0.56, 0.38), "X", 7.0, 0.65, 0.2),
-        "cielo": boards_mat("MaderaCielo", (0.55, 0.41, 0.27), (0.74, 0.58, 0.4), "X", 7.0, 0.6, 0.15),
-        "deck": boards_mat("Deck", (0.36, 0.25, 0.15), (0.56, 0.41, 0.27), "Y", 7.5, 0.6, 0.35),
-        "piso": boards_mat("PisoInterior", (0.5, 0.37, 0.24), (0.66, 0.5, 0.33), "Y", 5.0, 0.4, 0.1),
-        "muroint": boards_mat("MuroInterior", (0.62, 0.5, 0.36), (0.78, 0.65, 0.48), "X", 6.0, 0.6, 0.1),
+        # Tonos calzados contra las imágenes oficiales del modelo (neorigen.cl/modelo-maiten):
+        # pino **blanqueado**, más claro y bastante menos saturado que el de Huingán, que se leía
+        # como otra madera. El eje del `boards_mat` es el de la **junta**, no el de la tabla: en
+        # el testero (plano y = const) la tabla va vertical y las juntas corren en X, así que es
+        # "X"; con "Z" salen tablas horizontales.
+        "fachada": boards_mat("MaderaFachada", (0.38, 0.322, 0.232), (0.565, 0.487, 0.362), "X", 7.0, 0.68, 0.2),
+        "cielo": boards_mat("MaderaCielo", (0.44, 0.38, 0.28), (0.64, 0.56, 0.42), "X", 7.0, 0.6, 0.15),
+        "deck": boards_mat("Deck", (0.33, 0.285, 0.21), (0.52, 0.455, 0.345), "Y", 7.5, 0.62, 0.35),
+        "piso": boards_mat("PisoInterior", (0.42, 0.355, 0.255), (0.60, 0.52, 0.385), "Y", 5.0, 0.4, 0.1),
+        "muroint": boards_mat("MuroInterior", (0.50, 0.43, 0.315), (0.70, 0.615, 0.465), "X", 6.0, 0.6, 0.1),
         "vidrio": glass_mat(),
         "hormigon": concrete_mat(),
         "roca": rock_mat(),

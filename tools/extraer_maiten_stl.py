@@ -30,6 +30,8 @@ fondo, z = 0 en la base del zócalo):
   cumbrera         7,81 en x = 8,31, con los faldones a 19,3° y 19,8°
   punto más alto   8,10      — es la más alta de las nueve
   terraza          y < 3,20, a todo el ancho, mirando al mar
+  materiales       testeros (y = 3,20 y 10,35) en tabla de pino clara; muros largos, techo,
+                   porch y anexo en negro; todos los cantos, marcos y aleros negros
   cuerpo principal x 2,70..14,00 · y 3,20..10,35 · dos pisos
   porch (acceso)   x < 2,70, techo propio más tendido (17°), corona en 4,3
   anexo            x > 13,80 (lavadero abajo, terraza alta arriba), corona en 4,5
@@ -138,12 +140,17 @@ def afuera(bvh, c, n):
 
 
 def en_fachada(c, holgura=0.12):
-    """¿La cara cae en alguno de los cuatro planos de fachada del cuerpo principal?
+    """¿La cara cae en uno de los dos **testeros**, que son los que van forrados en madera?
 
-    Boldo sólo tenía dos (los testeros). Maitén tiene cuatro porque el acceso es lateral: el
-    frente al mar y el fondo son muros largos, y el porch y el anexo se pegan a los costados."""
-    return (abs(c.y - Y_MAR) < holgura or abs(c.y - Y_FONDO) < holgura
-            or abs(c.x - X_PORCH) < holgura or abs(c.x - X_ANEXO) < holgura)
+    Las imágenes oficiales del modelo (neorigen.cl/modelo-maiten) reparten los materiales así:
+    los testeros —el vidriado que mira al mar y el del fondo, los dos planos y = const, que son
+    los que la cumbrera deja triangulares— van en tabla de pino clara, y **los muros largos van
+    negros**, en tabla y tapajunta, igual que el techo, el porch y el anexo.
+
+    ⚠️ Esta función daba madera a los **cuatro** planos del cuerpo y la casa salía clara por los
+    cuatro costados, que no es el modelo. Los planos x = const (X_PORCH y X_ANEXO) ya no entran:
+    caen al "chapa" del final de casco_cara(), que es lo que corresponde."""
+    return abs(c.y - Y_MAR) < holgura or abs(c.y - Y_FONDO) < holgura
 
 
 def vuela(c, margen=0.6):
