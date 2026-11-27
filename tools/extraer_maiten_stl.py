@@ -136,20 +136,44 @@ def afuera(bvh, c, n):
         return True, n
     if esc[1] and not esc[0]:
         return True, -n
-    return False, n          # encerrada (adentro) o suelta: se trata como interior
+    if esc[0] and esc[1]:
+        return False, n      # suelta: se trata como interior
+    # Los dos rayos chocan. Puede ser una cara interior de verdad... o una cara de la envolvente
+    # que tiene su gemela a pocos centímetros: el STL trae varios muros en **dos hojas** (el del
+    # porch viene en x = 2,70 y x = 3,10) y el rayo que sale hacia afuera se come la hoja de al
+    # lado antes de escapar. Sin este desempate, parte del muro alto del porch salía pintada de
+    # madera interior y en el render se leía como "una sombra clara extraña en el alero".
+    # Desempate por geometría: si la cara está **en** un plano de la envolvente y mira hacia
+    # afuera de la casa, es exterior. Los planos interiores quedan fuera por la holgura.
+    for val, eje, signo in ((X_PORCH, 0, -1), (X_ANEXO, 0, 1), (Y_MAR, 1, -1), (Y_FONDO, 1, 1)):
+        if abs(c[eje] - val) > 0.12:
+            continue
+        if n[eje] * signo > 0.7:
+            return True, n
+        if -n[eje] * signo > 0.7:
+            return True, -n
+    return False, n          # encerrada: interior de verdad
 
 
-def en_fachada(c, holgura=0.12):
-    """¿La cara cae en uno de los dos **testeros**, que son los que van forrados en madera?
+def en_fachada(c, n, holgura=0.12):
+    """¿La cara **es** uno de los dos testeros, que son los que van forrados en madera?
 
     Las imágenes oficiales del modelo (neorigen.cl/modelo-maiten) reparten los materiales así:
     los testeros —el vidriado que mira al mar y el del fondo, los dos planos y = const, que son
     los que la cumbrera deja triangulares— van en tabla de pino clara, y **los muros largos van
     negros**, en tabla y tapajunta, igual que el techo, el porch y el anexo.
 
-    ⚠️ Esta función daba madera a los **cuatro** planos del cuerpo y la casa salía clara por los
-    cuatro costados, que no es el modelo. Los planos x = const (X_PORCH y X_ANEXO) ya no entran:
-    caen al "chapa" del final de casco_cara(), que es lo que corresponde."""
+    ⚠️ Dos errores que tuvo esta función, los dos visibles en el render:
+    1. Daba madera a los **cuatro** planos del cuerpo y la casa salía clara por los cuatro
+       costados. Los planos x = const (X_PORCH y X_ANEXO) ya no entran: caen al "chapa" del
+       final de casco_cara(), que es lo que corresponde.
+    2. Miraba sólo la **posición** del centro de la cara, no hacia dónde da. Una cara del muro
+       del porch (plano x = 0,50) cuyo centro caía a menos de 12 cm de y = 3,20 pasaba el filtro
+       y salía de madera: en el render era una cuña clara pegada al anexo. Por eso ahora se
+       exige además que la normal vaya en ±Y, que es lo que hace que la cara **esté en** el
+       plano del testero y no que apenas lo roce."""
+    if abs(n.y) < 0.7:
+        return False
     return abs(c.y - Y_MAR) < holgura or abs(c.y - Y_FONDO) < holgura
 
 
@@ -209,7 +233,7 @@ def casco_cara(c, n, bvh, techo, area=1.0):
         return "pilote" if ext else "decknegro"
     if not ext:
         return "muroint"
-    if en_fachada(c):
+    if en_fachada(c, n):
         # Lo que está **en** el plano de la fachada es cara de tabla y va en madera (incluida la
         # cruz entre paños del ventanal); lo que vuela por delante es canto y va negro.
         return "madera"

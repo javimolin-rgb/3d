@@ -60,7 +60,10 @@ HC = Vector((L / 2, D / 2))  # centro de la casa en planta
 PISO, PISO2 = 1.10, 3.85     # pisos terminados (la casa es de dos pisos)
 GROUND = 0.0                 # plataforma de roca bajo la casa (el zócalo del STL arranca en z = 0)
 SEA = -7.0                   # nivel del mar: la plataforma queda 7 m sobre el agua
-SHORE_Y = -9.0               # línea de agua frente a la casa: la casa se para **en el borde**
+# La línea de agua se corrió de -9 a -13: la revisión pidió "poner la casa un poco más atrás
+# porque se ve como sobrepuesta sobre la roca". Con 9 m la terraza quedaba justo en el labio del
+# farellón y los afloramientos arrancaban debajo de ella.
+SHORE_Y = -13.0              # línea de agua frente a la casa
 SHORE_K = 520.0              # la orilla se abre hacia +Y a ambos lados: y = SHORE_Y + (x - XC)² / K
 XC = 8.1
 FPS = 24
@@ -73,15 +76,33 @@ FPS = 24
 #   (x, y, radio, alto sobre el nivel del mar).  Con SEA = -7, un alto de 8,8 deja la cima 1,8 m
 #   sobre la plataforma: por encima del piso de la terraza (1,10) y muy por debajo del segundo
 #   piso (3,85). Eso es el enganche medido: desde la terraza se ve piedra, desde arriba, mar.
+# Más chicas y más atrás que en la primera versión: la revisión las vio "demasiado falsas".
+#
+# ⚠️ Achicar **sólo el radio** las empeoró: dejó la misma altura sobre un radio menor y salieron
+# conos, una hilera de dientes. Lo que las hacía falsas no era el tamaño sino la **proporción**:
+# una roca de costa es baja y ancha, no esbelta. Así que la altura baja más que el radio, y el
+# grupo se parte en dos familias con oficios distintos:
+#
+#   - las de la base del farellón (y ≈ -9 a -12) se **funden con él** —el terreno se queda con el
+#     máximo entre su perfil y la roca—, así que no se leen como piedras sueltas apoyadas sino
+#     como que el borde del farellón está roto;
+#   - las del agua (y ≈ -16 a -21) son lajas bajas, de alto/radio ≈ 0,7, que es donde revienta la
+#     ola y donde el collar de espuma de rocas_nodes tiene sentido. Son **tres y separadas**: con
+#     seis juntas el primer plano se leía como una camada de bolones, que era justamente lo que
+#     la revisión llamó falso. El detalle fino del agua lo pone la plataforma escaneada.
+#
+# Las cimas ya no pasan del piso de la terraza, y no hace falta: con la casa 7 m sobre el agua y
+# 13 m tierra adentro, el "mirar por encima de la roca" lo da la plataforma, no las piedras.
+#   (x, y, radio, alto sobre el nivel del mar)
 ROCAS = [
-    (1.0, -6.0, 4.4, 8.8),       # la grande de la izquierda, la que hay que mirar por encima
-    (10.0, -5.0, 3.6, 8.4),
-    (18.0, -8.0, 4.0, 7.2),
-    (-5.0, -12.0, 3.4, 4.5),     # ya en el agua: rompen solas
-    (6.0, -13.5, 3.0, 3.5),
-    (21.0, -14.0, 3.8, 4.2),
-    (-10.0, -2.0, 4.0, 8.6),     # cierra el encuadre por la izquierda
-    (25.0, -2.0, 4.4, 8.9),      # y por la derecha
+    (0.5, -10.5, 5.6, 7.0),      # base del farellón: le rompen el borde
+    (10.5, -9.5, 5.0, 6.6),
+    (19.0, -11.5, 4.8, 6.2),
+    (-6.5, -8.5, 4.8, 6.6),
+    (26.5, -9.0, 5.0, 6.8),
+    (4.5, -18.0, 4.8, 3.4),      # lajas en el agua: acá revienta la ola
+    (24.0, -21.0, 4.2, 2.9),
+    (-12.0, -16.0, 4.0, 2.6),
 ]
 
 
@@ -1029,9 +1050,9 @@ def place_props(coll_lib):
                            (-125.0, 0.5, 0.55, -4.0), (150.0, 2.3, 0.45, -4.0)):
         o = rk.objects[0].copy()
         coll.objects.link(o)
-        o.location = (x, shore_y(x) + dy, SEA + 0.25)
+        o.location = (x, shore_y(x) + dy, SEA + 1.15)
         o.rotation_euler = (0, 0, rot)
-        o.scale = (sc, sc, sc * 1.15)
+        o.scale = (sc, sc, sc * 1.45)
     tr = load_ph(coll_lib, "dead_tree_trunk")
     for x, y, rot in ((-14.0, 4.0, 0.7), (27.0, 3.0, 2.4)):
         o = tr.objects[0].copy()
