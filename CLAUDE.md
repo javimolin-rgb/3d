@@ -69,8 +69,12 @@ por material y por componente conexa (`bpy.context.scene.ray_cast`, y las cajas 
 poner un vidrio nuevo donde ya hay uno deja los dos paños anidados y Cycles atraviesa cuatro
 caras en vez de una. Lo que sí corresponde es cerrar la hoja del propio modelo sobre su bisagra
 (`cerrar_puerta_acceso()`) y forrar por dentro el canto del vano (`forrar_vanos_ventanas()`), que
-si no cada ventana queda con un marco pálido alrededor y la casa se ve de maqueta. Los filtros
-para decidir qué paño es ventana y cuál no están en el apartado de Casa Roble, más abajo.
+si no cada ventana queda con un marco pálido alrededor y la casa se ve de maqueta. Para decidir
+qué paño es ventana: agrupar el vidrio en componentes conexas, quedarse con las que tienen aire
+libre de un lado (un rayo de 25 m que no choca con nada) y de ésas con las que además tienen muro
+alrededor del hueco —ese segundo filtro es el que descarta la mesa de vidrio de la terraza—, y
+forrar **sólo los paños rectangulares**, que los triángulos del frontón armados sobre su
+rectángulo envolvente dibujan una tira negra sobre el faldón del techo.
 
 **2. El corte del plano no puede comerse las sombras.** El corte de s3 tiene que valer **sólo
 para los rayos de cámara** (`Light Path > Is Camera Ray`). Si no, lo que queda sobre el plano
