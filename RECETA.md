@@ -283,7 +283,7 @@ En **orden de trabajo** (el acordado con el usuario; `PENDIENTES.md` dice qué f
 | 3 | **Peumo** | Nieve en el bosque | Nieve | `casa_lingue_3d.py` | ✅ hecho |
 | 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | ✅ hecho |
 | 5 | **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
-| 6 | **Roble** | Nieve tipo centro de ski | Nieve | hereda de Peumo | pendiente |
+| 6 | **Roble** | Nieve tipo centro de ski | Nieve | `casa_peumo_3d.py` | 🔧 escena armada |
 | 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
 | 8 | **Coihue** | Campo, *que se note el trigo* | Campo | `casa_lingue_3d.py` | pendiente |
 | 9 | **Ciprés** | Playa del norte (más seco) | Playa | `casa_huingan_3d.py` ⚠️ | pendiente |

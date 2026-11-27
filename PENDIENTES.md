@@ -13,7 +13,7 @@ primero.
 3. ~~Peumo~~ ✅ nieve en el bosque
 4. ~~Boldo~~ ✅ lago (las cinco secciones, 42 s)
 5. **Mañío** — playa urbanizada
-6. **Roble** — nieve tipo centro de ski
+6. **Roble** — nieve tipo centro de ski 🔧 *escena armada, esperando aprobación de fotos*
 7. **Maitén** — mar roca
 8. **Coihue** — campo, que se note el trigo
 9. **Ciprés** — playa del norte (más seco)
@@ -273,23 +273,149 @@ HDRI bajados y medidos con `tools/get_assets_hdri.sh lago` (se eligió **`lakesi
 
 ### Nieve — para **Peumo** y **Roble**
 
-La familia **más cara**: no hay nada hecho.
+La familia que era **más cara** cuando no había nada hecho. Peumo dejó resuelto todo lo de nieve
+y Roble lo heredó entero sin tocarlo: material con subsurface, nieve de geometría sobre las
+ramas, la capa modelada del techo, `diffuse_bounces` en 3 y la exposición baja.
 
-**Ya está:** los HDRI, bajados y medidos con `tools/get_assets_hdri.sh nieve`. Para Peumo ver el
-bloque de arriba; para **Roble** (ladera abierta, sol) el indicado es **`horn-koppe_snow`**
-(`HDRI_SUN_U = 0.6000`, `SUN_ELEV = 28.2`), alpino y con sol marcado. `snow_field_2` es nublado
-con huellas en la nieve, útil si se quiere un día plano.
+**HDRI:** los dos usan **`horn-koppe_snow`** (`HDRI_SUN_U = 0.6000`, `SUN_ELEV = 28.2`), alpino y
+con sol marcado. `snow_field_2` es nublado con huellas, por si alguna vez se quiere un día plano.
+
+#### Roble (centro de ski) — escena armada, **a la espera de las fotos de aprobación**
+
+Lo que se construyó, que es todo lo que **no** se heredaba de Peumo. El emplazamiento es lo
+opuesto al bosque cerrado: ladera abierta, mucho más cielo y la nieve pisada llenando el cuadro.
+
+- ✅ **La casa**, de `stl/Casa Roble + Ventana.stl` con `tools/extraer_roble_stl.py` →
+  `assets/roble/casa.blend`. El STL traía 1.224 restos sueltos y el origen en x = −31,5, y = +21,4.
+  El casco quedó en 1.553 caras y el resto son 26.665 piezas sueltas clasificadas por recinto.
+  Ojo con el tiempo: el extractor tardó **una hora larga**, porque hay un `bpy.ops` por pieza
+  densa y Blender revalúa la escena entera en cada uno.
+- ✅ **Cotas que el STL no dice**, medidas al convertir: piso terminado en z = 0,55, segundo piso
+  en 3,26, cumbrera en x = 6,89 a z = 6,55, testero vidriado de doble altura en y = 3,20 y acceso
+  al fondo (el casco llega a y = 15,36; la terraza y el porch son piezas sueltas). Los faldones
+  dan **32° y 27°**, que confirma los 32° de `ENGANCHES.md`.
+- ✅ **Es de dos pisos**, como Boldo: living a doble altura, y arriba dormitorio-1, w.cl., baño y
+  escritorio. Para el video eso obliga a la **pausa del corte por piso** de `RECETA.md` §1.
+- ✅ **Los recintos van en dos bandas a lo largo**, no en franjas transversales: día a −X (living,
+  comedor, cocina, lavadero) y noche a +X (dormitorio-2, los dos baños, dormitorio-3). Es la
+  corrección que la lámina de Boldo dejó a la vista tarde, aplicada de entrada.
+- ✅ **Ladera asimétrica.** Cae 17° por delante (la pista) y sube sólo 6° por detrás. No es
+  gusto: con la misma pendiente a los dos lados, el talud de arriba subía 14 m a 20 m de la casa
+  y el dron, que en s2 y s5 pasa a 15° de elevación, **se metía dentro del cerro**. Se midió
+  antes de renderizar nada, con un chequeo numérico del terreno.
+- ✅ **Pista pisada con el acordonado del pisanieve**, que es *la* firma del lugar: la franja
+  rayada al lado de la nieve virgen. Va como atributo `pisado` sobre el terreno, con una onda de
+  bandas cada 20 cm, y donde hay acordonado se **baja** el relieve natural en vez de sumarle uno
+  (el pisanieve justamente borra los grumos).
+- ✅ **Andarivel** de seis torres con los dos cables en catenaria y las sillas colgando, al canto
+  de la pista. Estuvo primero 7,5 m más afuera y **quedaba fuera de cuadro en todas las tomas**:
+  con el lente de 30 mm en vertical el cuadro abarca ±18° y caía a 30° del eje.
+- ✅ **Balizas** al borde de la pista y huellas de esquí bajando de la terraza.
+- ✅ **Cordillera en malla propia** (26 m de paso, hasta 1,7 km), con roca asomando donde la
+  pendiente pasa de 40°. Sin la roca los cerros salían como **conos blancos lisos**, un merengue;
+  con ella aparecen las aristas. Y con una sola octava de ruido tampoco alcanzaba.
+- ✅ **Bosque ralo** y línea de árboles por **altura real** (ladera + cordillera): midiendo sólo
+  la ladera local, los cerros del fondo salían forestados hasta la cumbre.
+- ✅ **Bruma mucho más larga** que en Peumo: 1800 m contra 420. Es una ladera abierta, no un
+  bosque; cortando a 400 m la cordillera quedaba plana y lavada.
+- ✅ **Las alturas de las tomas fijas van sobre el terreno**, no en cota absoluta. En una ladera
+  de 0,30 una cota fija deja la cámara enterrada arriba del talud y a tres metros del suelo abajo
+  de la pista. Y hay una quinta toma de **contexto** con lente de 24, porque el emplazamiento es
+  lo que hay que aprobar en esta casa y de cerca no se ve dónde está parada.
+
+#### Primera revisión de las fotos (21 de noviembre) — los cuatro puntos, resueltos
+
+La revisión marcó cuatro cosas sobre las dos tomas de la fachada de acceso (`izq_atras` y
+`der_atras`) y dio el resto por bueno. Lo importante de esta vuelta no son los arreglos sino **lo
+que se descubrió del STL**, porque las casas que faltan van a traer lo mismo:
+
+- ⚠️ **El STL trae la puerta de acceso abierta 90° hacia adentro.** No es que falte: la hoja está,
+  con sus 0,77 x 2,03, sus dos bisagras en y = 14,65, sus dos manillas y el picaporte, sólo que
+  de canto a cualquier cámara de afuera. Lo que se ve es el vano de 73 cm con el interior oscuro
+  detrás, y la revisión lo leyó exactamente así: "se ve muy angosta para ser puerta de acceso
+  principal… no sé si es el ángulo o que se vea extraño porque no está la puerta". **Antes de dar
+  por vacío un vano, hay que mirar si la hoja no está parada al lado**, en el plano de la jamba.
+  La cierra `cerrar_puerta_acceso()` girando la hoja del modelo sobre su bisagra: las piezas están
+  repartidas en tres objetos (`Roble_puerta`, `Roble_acero`, `Roble_maderaOsc`), así que se eligen
+  por caja, y son 3.596 vértices.
+- ⚠️ **La ventana del segundo piso tampoco estaba vacía**: trae su paño de 1,44 x 1,44 en y = 14,66
+  con `Ro_Vidrio`. Se leía como un hueco porque detrás no hay luz y el paño va pelado. Lo que le
+  faltaba era **marco, parteluz y alféizar**, y eso es lo único que agrega `build_acceso()`. Un
+  primer intento le puso además un vidrio nuevo en el mismo plano: eso deja el paño del modelo
+  metido dentro del nuevo y Cycles atraviesa cuatro caras de vidrio en vez de una. **No reponer
+  vidrio sin medir antes si ya hay.**
+- **La decisión sobre el ancho de la puerta fue no tocarlo.** Se preguntó en el cronograma, porque
+  el modelo es el oficial, y la respuesta fue: "si es a base de los renders oficiales hay q
+  dejarla así pero ponle puerta pa darle más prestancia". Así que el vano queda en sus 73 cm y lo
+  que cambia es que la puerta se vea.
+- **La terraza de entrada no puede ser de ancho completo.** El suelo de la casa termina en
+  y = 14,97 a 16,06 según la franja de x, y sólo la lengüeta del acceso (x = 3,5 a 6,0) llega a
+  16,81. Una terraza de lado a lado que arranque más afuera que eso deja aire a los dos costados
+  y **se lee como una balsa suelta** — así salió el primer intento. Va en la franja de la lengüeta
+  (x = 3,30 a 6,25) y arrancando encima de ella (y = 16,00), hasta y = 18,90.
+- **El andarivel: la separación de las sillas la manda el encuadre.** Una torre sola, con su
+  travesaño pero sin sillas alrededor, se lee como poste de luz, y eso fue lo que marcó la
+  revisión ("sacar el andarivel que está justo atrás, porque se confunde con poste de luz; si
+  quieres poner andarivel que sea un poco más lejos y se vean las sillas, sino sacarlo"). Se
+  corrió a 14 m del borde de la pista —ojo: es el tercer movimiento, y el rango bueno es
+  estrecho, está explicado en `andarivel_x()`— y las sillas pasaron de una cada 35 m a una cada
+  17 m, que además es lo real en un cuadrimotor. Con 35 m **no entraba ninguna** en las tomas del
+  acceso. Efecto lateral a mirar: a 14 m la línea ya no entra en la toma de `contexto`, salvo una
+  silla cortada por el borde izquierdo del cuadro.
+
+#### Segunda vuelta: el canto de los vanos (21 de noviembre)
+
+Pedido del usuario: *"pinta el canto del interior de todas las ventanas negro, haz que las
+ventanas se vean lo más real posible"*. El STL revestía cada hueco con el material interior que
+tocara —muro, cielo, piso, todos madera clara—, así que sobre el revestimiento negro de los muros
+largos cada ventana llevaba **un marco pálido** alrededor, y en el testero el vidrio quedaba metido
+entre maderas del mismo tono que el interior.
+
+Lo resuelve `forrar_vanos_ventanas()`: **27 ventanas exteriores**, 108 tiras negras. Dos cosas que
+conviene no volver a descubrir:
+
+- **No se repinta la malla, se construye el forro.** Repintar por criterio geométrico se probó y
+  no sirve: `Roble_Casco` tiene 1.553 caras para toda la cáscara, así que la cara de la jamba y la
+  del muro interior que llega hasta ella suelen ser la misma cara enorme. Medido, el "canto" que
+  salía tenía hasta 1,3 m de profundidad media contra los 0,10 m que mide el muro: pintarlo deja
+  manchones negros adentro, visibles por el vidrio.
+- **Cuál de los 69 paños de vidrio es una ventana.** Dos filtros encadenados: que haya aire libre
+  de un lado (rayo de 25 m que no choca con nada) **y** que haya muro alrededor del hueco (rayos
+  desde afuera justo por fuera del borde). El primero solo no alcanza — deja pasar la mesa de
+  vidrio de la terraza, que también tiene cielo encima. El espesor del muro sale de esos mismos
+  rayos: 0,100 m parejo en los muros; en el testero da mezclado, porque es un muro cortina
+  escalonado con paños en y = 3,15 y en 3,25, así que ahí se acota a 0,12.
+
+**Dos cosas que salieron de revisar el primer intento** ("¿ahora aparecen unos tubos raros del
+techo o no?"), y las dos se veían en el techo:
+
+- 🐛 **Los paños del vértice del frontón son triángulos**, no rectángulos: siguen la pendiente del
+  techo. El forro se armaba sobre el **rectángulo envolvente**, así que las tiras de arriba caían
+  fuera del vidrio, donde no hay hueco sino losa de techo, y la atravesaban: en el render quedaba
+  **un rectángulo negro dibujado sobre el faldón**. Ahora se mide la envolvente convexa del paño
+  proyectado y se descartan los que no llenan su rectángulo (un rectángulo da 1,0 y un triángulo
+  0,5; el corte está en 0,85). Quedan 24 ventanas forradas en vez de 27: los tres triángulos del
+  frontón se quedan sin forro, que no se nota porque ahí el vano da contra el alero negro.
+- 🪧 **Una baliza justo detrás de la cumbrera.** El borde de adentro de la pista pasa a entre 1,5
+  y 4 m del muro (y = 0, 15 y 30), así que desde las tomas del lado contrario una baliza caía
+  detrás del techo y asomaba por encima de la cumbrera: se leía como un tubo saliendo del tejado.
+  `build_balizas()` ya no pone ninguna en la franja pegada a la casa, que además es lo correcto
+  (al borde de una pista de verdad los jalones se retiran de los edificios). Pasan de 30 a 26 y la
+  hilera no se nota cortada, porque la de enfrente sigue entera.
+
+Queda **sin hacer, por si lo piden**: alféizar que sobresalga en las ventanas de los muros (hoy
+sólo lo tiene la del acceso). En un emplazamiento de nieve juntaría nieve encima y sumaría
+realismo, pero es agregarle una pieza al diseño oficial, así que no se hizo sin preguntar.
 
 **Falta:**
-- 🔴 **Material de nieve con subsurface scattering.** Es lo que decide si se ve nieve o yeso
-  blanco. No existe nada parecido en el repo. **Lo resuelve Peumo y Roble lo hereda.**
-- 🟡 **Nieve sobre la vegetación** (Peumo): no alcanza con el suelo blanco, tiene que haber carga
-  de nieve en las ramas. Es trabajo de geometría, no solo de material.
-- 🟡 **Árboles de bosque sureño nevado** (Peumo) y **contexto de montaña** (Roble: pistas,
-  andariveles, huellas en la nieve).
-- 🟡 **Ajuste de render**: subir `diffuse_bounces` de 2 a 3 por el albedo alto, y vigilar la
-  exposición para que la nieve no se queme con AgX. Única excepción a los ajustes de `RECETA.md`.
-- Verificar en las fotos de aprobación que **las sombras salgan azules**, no grises.
+- 🟡 **El visto bueno del usuario sobre las fotos de esta segunda vuelta.** Nada de video hasta
+  entonces (`RECETA.md` §0).
+- 🟡 Las cinco secciones del recorrido, con la **pausa del corte en cada piso** (dos pisos).
+- 🟡 `tools/plano_roble.py` para s4, con la lámina `assets/roble/planta_sin_cotas.png` (ya está
+  bajada, es PNG y trae las dos plantas, igual que la de Boldo) calibrada con
+  `tools/calibrar_planta.py` sobre la cenital de s3.
+- Verificar en las fotos que **las sombras salgan azules**, no grises.
+
 
 ---
 
@@ -304,7 +430,7 @@ trabajo acordado:
 | 3 | **Peumo** | Material de nieve con SSS + nieve en las ramas |
 | 4 | ~~Boldo~~ | ✅ hecho; sólo falta la lámina de planta para s4 |
 | 5 | **Mañío** | Contexto urbano y vegetación ornamental |
-| 6 | **Roble** | Hereda la nieve de Peumo; falta contexto de montaña |
+| 6 | **Roble** | 🔧 escena armada (pista, andarivel, cordillera); falta el visto bueno de las fotos |
 | 7 | **Maitén** | Reescribir la orilla rocosa y la espuma contra la piedra |
 | 8 | **Coihue** | Conseguir trigo y resolver viento |
 | 9 | **Ciprés** | 🔴 **Falta el STL**; lo demás es solo parametrizar Huingán |

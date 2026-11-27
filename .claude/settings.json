@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || [ -n \"$(find .vigia_vivo -mmin -5 -newermt \"$(uptime -s)\" 2>/dev/null)\" ] || [ ! -x ./.vigia_roble.sh ] || (setsid ./.vigia_roble.sh >/dev/null 2>&1 &); } ; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || pgrep -f '[c]asa_roble_3d' >/dev/null || [ ! -x ./.cadena_roble.sh ] || (setsid ./.cadena_roble.sh >/dev/null 2>&1 &); } ; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || [ -n \"$(find PROGRESO_RENDER.txt -mmin -3 -newermt \"$(uptime -s)\" 2>/dev/null)\" ] || [ ! -x ./.progreso_roble.sh ] || (setsid ./.progreso_roble.sh >/dev/null 2>&1 &); } ; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "cd /home/user/3d && { [ -f .cadena_lista ] || [ ! -s .orden_roble ] || [ -n \"$(find .vigia_vivo -mmin -5 -newermt \"$(uptime -s)\" 2>/dev/null)\" ] || (setsid tools/vigia_roble.sh \"$(cat .orden_roble)\" >/dev/null 2>&1 &); } ; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -16,7 +16,7 @@ Emplazamiento de cada casa, en orden de trabajo (detalle en `RECETA.md` §5):
 3. Peumo — nieve en el bosque ✅
 4. Boldo — lago ✅
 5. Mañío — playa urbanizada
-6. Roble — nieve tipo centro de ski
+6. Roble — nieve tipo centro de ski ✅
 7. Maitén — mar roca
 8. Coihue — campo, que se note el trigo
 9. Ciprés — playa del norte (más seco) ⚠️
@@ -103,7 +103,14 @@ que al partir una casa nueva desde Lingue, Huingán, Peumo o Boldo hay que lleva
   su tramo con `tools/armar_video.sh` y después se pegan sin recodificar con el demuxer `concat`
   de ffmpeg: el look de `armar_video.sh` no depende del tiempo (la viñeta va con
   `lt(t,1000)`), así que los pedazos quedan con la misma corrección de color.
-  Para repartir bien hay que medir el costo cuadro a cuadro en `render.log`, no suponerlo: en la
+  Para repartir bien, **el costo por cuadro se puede calcular sin renderizar**: lo gobierna cuánto
+  interior ve la cámara, o sea *techo abierto por el corte* (`CUT_KEYS`) x *elevación de la cámara*
+  (claves de `POSES`), las dos en coordenada de ruta. En Casa Roble eso explicó los seis puntos
+  medidos de las dos secciones y acertó dos predicciones fuera de muestra; está derivado en
+  `REPARTO_ROBLE.md`. Si igual se mide, hay que mirar el `render.log` **cuadro a cuadro dentro de un
+  mismo tramo**, no el promedio del tramo: el promedio esconde la rampa e invita a atribuirle a la
+  máquina lo que es posición en el recorrido. Y no ajustarle una recta, que la curva es convexa.
+  El costo no se supone: en la
   sección del corte no crece parejo, hace una loma (en Peumo, 3,3 min/cuadro con el techo cerrado,
   6,5 min con el techo a medio abrir —el interior se ilumina sólo de rebote por una abertura
   parcial— y 3,3 otra vez cuando queda abierto del todo). Partir por la mitad en cantidad de
@@ -199,6 +206,57 @@ que al partir una casa nueva desde Lingue, Huingán, Peumo o Boldo hay que lleva
   sobre el agua son ~29 cuadros/hora; acercándose baja a 21 (entra más bosque y más reflejo); en
   la cenital sube a 38, porque desde arriba casi no entra bosque. s1 tardó 9,5 h, s2 8 h, s3 7 h
   y s5 6 h, en cuatro núcleos.
+- Casa Roble (centro de ski): `casa_roble_3d.py` (casa desde el STL con `tools/extraer_roble_stl.py`;
+  mismos recursos que Peumo: `tools/get_assets_nieve.sh` y `tools/get_assets_hdri.sh nieve`).
+  Hereda de Peumo toda la receta de nieve y cambia el emplazamiento a ladera abierta: pista con el
+  acordonado del pisanieve (atributo `pisado`), andarivel, balizas y cordillera en malla propia.
+  Fotos de aprobación con `tools/fotos_roble.sh` (`output/roble_propuesta/`, cinco tomas más una
+  de **contexto** con lente de 24, que es la que muestra el andarivel y dónde está parada la casa).
+  Secciones con `setsid nohup tools/render_roble.sh s1 [s2 ...] &`.
+  **Completa**: `output/casa_roble_secuencia.mp4`, 1286 cuadros, 53,6 s. Es de dos pisos, así que
+  s3p pausa el corte en cada piso y s4 muestra las dos plantas (`tools/plano_roble.py`, calibrado
+  con `FRANJA=0.12`; los dos dibujos de la lámina están casi a la misma escala, 65,3 y 65,6 px/m).
+  Se renderizó **repartida entre once contenedores**: el reparto, la curva de costo medida y los
+  seis errores de medición que costó entenderla están en `REPARTO_ROBLE.md`, que conviene leer
+  antes del próximo reparto. Lo más útil de ahí: el costo por cuadro varía **x8** a lo largo del
+  recorrido (2,2 a 18,3 min), el pico está donde el corte pasa por la losa del 2do piso (z≈3,3-3,6 m)
+  y **no** donde el techo ya está abierto, y para medirlo hay que mirar el `render.log` cuadro a
+  cuadro: los promedios por tramo esconden la curva.
+  Tres cosas que costaron y conviene no volver a descubrir:
+  **la ladera es asimétrica a propósito** (cae 17° adelante y sube 6° atrás; con la misma
+  pendiente a los dos lados el dron se mete dentro del talud en s2 y s5);
+  **las alturas de las tomas fijas van sobre el terreno**, no en cota absoluta;
+  y **los cerros del fondo necesitan roca en las caras de más de 40°**, si no salen como conos
+  blancos lisos. Es de **dos pisos**, así que el barrido de s3 tiene que pausar en cada piso.
+  El extractor del STL tarda **más de una hora** (26.665 piezas sueltas, un `bpy.ops` por pieza densa).
+  Y una trampa del STL que vale para **todas** las casas, no sólo ésta: **un vano que se ve negro
+  en el render no quiere decir que esté vacío.** En Roble la puerta de acceso venía *abierta 90°
+  hacia adentro* —la hoja está entera, con bisagras, manillas y picaporte, pero de canto a la
+  cámara no se ve— y la ventana de al lado sí traía su vidrio, sólo que sin marco y con el
+  interior a oscuras detrás. Las dos se leyeron como agujeros y la revisión las marcó. Antes de
+  modelar lo que "falta", tirar rayos contra el modelo y listar las piezas por material y por
+  componente conexa (`bpy.context.scene.ray_cast`, y las cajas por objeto): poner un vidrio nuevo
+  donde ya hay uno deja los dos paños anidados y Cycles atraviesa cuatro caras en vez de una.
+  La puerta la cierra `cerrar_puerta_acceso()` girando la hoja del propio modelo sobre su bisagra,
+  que además es lo que corresponde cuando el cliente pide no inventar sobre los planos oficiales.
+  Lo mismo con **el canto del vano de las ventanas**: el STL lo deja revestido con el material
+  que toque por dentro (muro interior, cielo, piso), todos madera clara, así que sobre los muros
+  negros cada ventana queda con **un marco pálido** alrededor y se ve de maqueta. Lo arregla
+  `forrar_vanos_ventanas()`, que **construye** una tira negra por dentro de cada hueco en vez de
+  repintar la malla. Repintar no sirve y conviene no volver a intentarlo: `Roble_Casco` tiene
+  1.553 caras para toda la cáscara —o sea caras enormes— y cualquier criterio geométrico que
+  agarre la jamba se lleva también el muro interior que llega hasta ella (medido: el "canto" daba
+  hasta 1,3 m de profundidad media contra los 0,10 m que mide el muro), lo que deja manchones
+  negros adentro que se ven por el vidrio. Para decidir qué es ventana y qué no: agrupar el vidrio
+  en componentes conexas, quedarse con las que tienen aire libre de un lado (un rayo de 25 m que
+  no choca con nada) y de ésas con las que además tienen muro alrededor del hueco. En Roble son 27
+  de 69 paños, y ese segundo filtro es el que descarta la mesa de vidrio de la terraza, que
+  también tiene cielo encima. El espesor del muro sale de los mismos rayos: 0,100 m parejo.
+  Y el forro va **sólo en los paños rectangulares**: los del vértice del frontón son triángulos
+  que siguen la pendiente del techo, y armado sobre su rectángulo envolvente las tiras de arriba
+  caen donde no hay hueco sino losa de techo y la atraviesan, o sea **un rectángulo negro dibujado
+  sobre el faldón**. Se filtra con la envolvente convexa del paño proyectado contra su rectángulo
+  (rectángulo 1,0, triángulo 0,5; corte en 0,85).
 - Casa Huingan (playa): `casa_huingan_3d.py` (casa desde el STL con `tools/extraer_huingan_stl.py`; recursos de
   Poly Haven con `tools/get_assets_playa.sh`). Recorrido de dron por secciones (`SECCIONES` en el script):
   `setsid nohup tools/render_huingan.sh s1 [s2 ...] &` (cuadros en `frames_huingan/<sección>/`, avance en
