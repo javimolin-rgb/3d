@@ -15,7 +15,7 @@ detenerse en el ventanal.
 | Boldo | 7,49 × 14,33 | 6,55 | dos aguas 32°, cumbrera a x = 5,60 | la más angosta y larga; techo muy asimétrico |
 | Mañío | 16,02 × 11,15 | 5,07 | una agua **12°** | fachada vidriada corrida |
 | Roble | 8,79 × 16,81 | 6,55 | dos aguas 32° | angosta y larga |
-| Maitén | 16,27 × 11,84 | **8,10** | 20° | la más alta, dos volúmenes |
+| Maitén | 16,27 × 11,84 | **8,10** | 19°/20° | la más alta; **dos pisos**, testero de doble altura |
 | Coihue | **19,81** × 13,76 | 5,15 | 16° | la más ancha |
 | Ciprés | 12,18 × 7,24 | 5,27 | **una agua** 2,58→5,27 | sobre pilotes |
 
@@ -81,9 +81,22 @@ vidriado mirando a la pista.
 ## Maitén — mar roca
 
 **Se para frente al mar.** Es la más alta de las nueve (8,10 m), y esa altura es la que permite
-mirar por encima de la roca en vez de quedar encajonada contra ella. Son **dos volúmenes**: el
-principal con el frente de doble altura, y uno menor adosado con techo propio, que da un programa
-aparte sin ensuciar la casa grande.
+mirar por encima de la roca en vez de quedar encajonada contra ella. El cuerpo principal abre al
+mar con un **testero vidriado de doble altura** que sube hasta la cumbrera, con la terraza
+corrida por delante a todo el ancho.
+
+> ⚠️ Correcciones medidas sobre el STL y la lámina de planta al convertir la casa
+> (`tools/extraer_maiten_stl.py`, `assets/maiten/planta_sin_cotas.png`):
+>
+> - **Es de dos pisos**, y este cuadro no lo decía. Piso terminado en 1,10 y losa del segundo en
+>   3,85, con cuatro dormitorios y el vacío de doble altura sobre el living. Eso cambia el
+>   entregable: el barrido de s3 pausa en cada piso y s4 muestra las dos plantas (RECETA.md §1),
+>   así que la secuencia dura 50 s y no 42, como en Boldo.
+> - **Los volúmenes menores son dos, no uno**: el porch del acceso (x < 2,70) y el anexo del
+>   lavadero (x > 13,80), los dos de ~4,5 m con techo propio más tendido (17° contra los 19-20°
+>   del principal). El cuerpo alto queda entre ellos, x 2,70..14,00.
+> - **El acceso es lateral**, por el porch, no por un testero: es la única de las casas hechas
+>   hasta ahora que entra por el costado, y por eso el recorrido del dron va espejado.
 
 ## Coihue — campo, que se note el trigo
 

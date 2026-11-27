@@ -14,7 +14,7 @@ primero.
 4. ~~Boldo~~ ✅ lago (las cinco secciones, 42 s)
 5. **Mañío** — playa urbanizada
 6. **Roble** — nieve tipo centro de ski
-7. **Maitén** — mar roca
+7. **Maitén** — mar roca — *en curso*
 8. **Coihue** — campo, que se note el trigo
 9. **Ciprés** — playa del norte (más seco)
 
@@ -186,18 +186,33 @@ Es la familia **más barata de arrancar**: casi todo se hereda.
   nada de verde. Es parametrizar lo que ya existe, no construir cosas nuevas.
 - Ojo: **no partir de `archivo/cipres_v1/`**, que es campo al atardecer y está archivado.
 
-### Costa rocosa — para **Maitén**
+### Costa rocosa — para **Maitén** — en curso
 
-**Ya está:** todo el océano de Huingán. `cape_hill_2k.exr` y `white_cliff_top_2k.exr` calzan con
-el carácter.
+**Hecho:** `assets/maiten/casa.blend` (con `tools/extraer_maiten_stl.py`), `casa_maiten_3d.py`
+con el emplazamiento completo, `tools/render_maiten.sh`, `tools/fotos_maiten.sh` y
+`tools/medir_pausas.py`. HDRI elegido: **`white_cliff_top`** (`HDRI_SUN_U = 0.6243`,
+`SUN_ELEV = 23.2`); `cape_hill` tiene el carácter pero el sol a 4,2°, casi en el horizonte.
 
-**Falta:**
-- 🟡 **Geometría de costa rocosa.** Hoy la orilla es una parábola suave de arena (`shore_y`,
-  `SHORE_K`). Hay que reemplazarla por roca: formaciones, cantos, poza de marea.
-- 🟡 **Espuma contra la roca.** La espuma actual se calcula por profundidad del agua, que sirve
-  para una playa en pendiente. Contra un farellón hay que concentrarla donde el agua golpea la
-  piedra, y agregar salpicadura.
-- 🟢 Rocas CC0: `namaqualand_boulder_02` y `coast_rocks_01` ya los baja el script de assets.
+- ✅ **Geometría de costa rocosa.** Plataforma de roca 7 m sobre el mar con la casa parada en el
+  borde, farellón a 45° y afloramientos entre la casa y el agua (`ROCAS`). Tres cosas que
+  decidieron si se leía piedra o arcilla: malla de 0,25 m sobre la rompiente (con 0,6 el relieve
+  corto no existe en la silueta), ruido *ridged* `1 - |n|` en vez de ruido normal (deja aristas,
+  no bultos) y Voronoi de grieta **deformada por ruido** (sin eso es enchape con junta).
+- ✅ **Espuma contra la roca.** Los afloramientos van en una lista explícita y no como ruido,
+  justamente para que el shader del agua sepa dónde está cada piedra y les arme el collar
+  (`rocas_nodes`). La espuma por profundidad no sirve acá: con el fondo cayendo 0,45 m por metro
+  la franja de agua baja mide dos metros.
+- ⚠️ `coast_rocks_01` **no es una roca suelta**: es una plataforma de abrasión de 60 × 42 × 3,3 m.
+  Sirve al pie del farellón, no de detalle. El detalle cercano es `namaqualand_boulder_02`.
+- ⚠️ **Agua opaca mar adentro**, la lección de Boldo: con el agua transparente de Huingán se veía
+  la roca sumergida y el mar se leía como explanada mojada.
+
+**Falta:** el visto bueno del usuario sobre las fotos, `tools/plano_maiten.py` (s4, con las dos
+plantas) y renderizar las cinco secciones.
+
+> Ojo para `plano_maiten.py`: la lámina de Maitén trae las dos plantas **una sobre otra**
+> (primer piso arriba, segundo abajo), no lado a lado como la de Boldo, así que el
+> `mitad = izq|der` de `tools/calibrar_planta.py` no sirve tal cual.
 
 ### Lago — para **Boldo** — hecho
 
@@ -305,6 +320,6 @@ trabajo acordado:
 | 4 | ~~Boldo~~ | ✅ hecho; sólo falta la lámina de planta para s4 |
 | 5 | **Mañío** | Contexto urbano y vegetación ornamental |
 | 6 | **Roble** | Hereda la nieve de Peumo; falta contexto de montaña |
-| 7 | **Maitén** | Reescribir la orilla rocosa y la espuma contra la piedra |
+| 7 | ~~Maitén~~ | Orilla rocosa y espuma contra la piedra ✅; falta aprobar fotos y renderizar |
 | 8 | **Coihue** | Conseguir trigo y resolver viento |
 | 9 | **Ciprés** | 🔴 **Falta el STL**; lo demás es solo parametrizar Huingán |
