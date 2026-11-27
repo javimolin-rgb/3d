@@ -1570,6 +1570,11 @@ VISTAS = {
     # opuestas: desde el acceso (el porch está en -X) y desde tierra adentro, con el mar detrás
     "izq_atras": ((-44.0, 28.0, 9.0), (6.0, 4.0, 3.6), 30),
     "der_atras": ((44.0, 40.0, 11.0), (10.0, 5.0, 3.6), 30),
+    # las mismas dos del agua pero **más cerca y algo más altas** (pedido de la revisión): a 31 m
+    # la casa ocupa ~0,85 del ancho de pantalla, y a 8 m la cámara pasa de mirar hacia arriba a
+    # quedar apenas por encima del punto de mira, sin perder el farellón del primer plano
+    "izq_cerca": ((-11.6, -23.2, 8.0), (6.0, 3.5, 4.4), 30),
+    "der_cerca": ((27.3, -23.5, 8.5), (10.5, 3.5, 4.4), 30),
 }
 
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Las fotos de aprobación de Casa Maitén (RECETA.md §0). PY=<python con bpy>.
-# Cuatro ángulos: los dos desde el agua —bajos, mirando hacia arriba, porque el enganche de
-# Maitén es la altura (ENGANCHES.md)— y los dos de tierra, con el mar detrás de la casa.
+# Seis ángulos: los dos desde el agua —bajos, mirando hacia arriba, porque el enganche de
+# Maitén es la altura (ENGANCHES.md)—, los mismos dos más cerca y algo más altos (los pidió la
+# revisión), y los dos de tierra, con el mar detrás de la casa.
 set -u
 cd "$(dirname "$0")/.."
 PY=${PY:-$PWD/venv-bpy/bin/python}
@@ -17,6 +18,8 @@ shot() {  # nombre vista
 }
 shot izq        izq
 shot der        der
+shot izq_cerca  izq_cerca
+shot der_cerca  der_cerca
 shot izq_atras  izq_atras
 shot der_atras  der_atras
 echo "FOTOS LISTAS $(date +%H:%M:%S)"
