@@ -54,6 +54,7 @@ import sys
 import bpy  # noqa: E402  (bpy debe importarse antes que bmesh)
 import bmesh
 import numpy as np
+from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 stl, out = sys.argv[-2], sys.argv[-1]
@@ -206,8 +207,42 @@ def es_casco(dx, dy, dz):
     return e[1] > 2.0 and e[2] > 4.0      # volumen entero: cuerpo principal, porch, anexo
 
 
-def casco_cara(c, n, bvh, techo, area=1.0):
+def perfileria(c, n, bvh_vidrio):
+    """¿La cara es perfilería del ventanal (montante, travesaño o retorno) y va negra?
+
+    Lo pidió la revisión —"porfa los marcos de las ventanas negras"— y es lo que muestran las
+    imágenes del modelo: en el testero vidriado las tablas van en pino claro pero **toda la
+    perfilería que separa los paños va negra**, igual que el marco que rodea el testero. Boldo
+    resolvía el testero por plano y mandaba a madera "la cruz entre paños, por ancha o angosta
+    que sea"; acá eso deja los montantes del color de la tabla.
+
+    ⚠️ El criterio **no puede ser el tamaño de la cara**. Se probó (cara fina y de menos de 3 m²)
+    y pintó de negro casi todo el testero: el STL tesela el revestimiento en triángulos chicos,
+    la mediana de las caras del testero es de 0,09 m², así que una tabla ancha son muchas caras
+    angostas y el filtro no distingue nada. La madera cayó de 83 a 17 m².
+
+    Lo que sí distingue un montante de una tabla es **tener cristal a los dos lados**. Así que se
+    tiran cuatro rayos cortos en el plano de la cara contra el BVH de los paños de vidrio: si los
+    dos de un mismo eje chocan, la cara está entre dos paños y es perfilería. Una tabla pegada a
+    una ventana choca por un lado solo."""
+    if min(abs(c.y - Y_MAR), abs(c.y - Y_FONDO)) > 0.6:
+        return False
+    t1 = n.cross(Vector((0.0, 0.0, 1.0)))
+    if t1.length < 1e-4:
+        t1 = Vector((1.0, 0.0, 0.0))
+    t1.normalize()
+    t2 = n.cross(t1).normalized()
+    for a, b in ((t1, -t1), (t2, -t2)):
+        if (bvh_vidrio.ray_cast(c + a * 0.01, a, 0.45)[0] is not None
+                and bvh_vidrio.ray_cast(c + b * 0.01, b, 0.45)[0] is not None):
+            return True
+    return False
+
+
+def casco_cara(c, n, bvh, techo, area=1.0, bvh_vidrio=None):
     """Material de una cara del casco, por su posición, hacia dónde da y qué tan grande es."""
+    if bvh_vidrio is not None and perfileria(c, n, bvh_vidrio):
+        return "marco"
     ext, o = afuera(bvh, c, n)
     inclinada = 0.25 < abs(n.z) < 0.98 and c.z > 2.6
     if inclinada:                                            # faldones del techo
@@ -387,9 +422,27 @@ if sub and baj:
     print("CUMBRERA en x = %.2f, z = %.2f   (faldones %.0f° y %.0f°)"
           % (xc, z1 + s1 * xc, abs(np.degrees(np.arctan(s1))), abs(np.degrees(np.arctan(s2)))))
 bvh = BVHTree.FromBMesh(bm)
+# BVH de los paños de cristal: lo necesita perfileria() para saber qué cara del testero está
+# entre dos vidrios (montante) y cuál es tabla.
+bm_v = bmesh.new()
+n_vid = 0
+for nombre in nom_sueltas:
+    ob = bpy.data.objects.get(nombre)
+    if ob is None or not ob.data.vertices:
+        continue
+    vs = np.empty(len(ob.data.vertices) * 3)
+    ob.data.vertices.foreach_get("co", vs)
+    vs = vs.reshape(-1, 3)
+    e = sorted(vs.max(0) - vs.min(0))
+    if e[0] < 0.012 and e[1] * e[2] > 0.25:
+        bm_v.from_mesh(ob.data)
+        n_vid += 1
+bvh_vidrio = BVHTree.FromBMesh(bm_v) if n_vid else None
+print("paños de cristal para la perfilería:", n_vid)
 for f in bm.faces:
     f.material_index = ORDEN.index(casco_cara(f.calc_center_median(), f.normal, bvh, techo,
-                                               f.calc_area()))
+                                               f.calc_area(), bvh_vidrio))
+bm_v.free()
 bm.to_mesh(casco.data)
 bm.free()
 print("casco: %d caras  dim %.2f %.2f %.2f" % (len(casco.data.polygons), *casco.dimensions))

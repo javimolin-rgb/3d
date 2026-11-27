@@ -439,6 +439,13 @@ def rock_mat():
     at.attribute_name = "veg"
     suelo = N.mix(N.smooth(N.noise(tc.outputs["Object"], 2.0, 5), 0.35, 0.6), (0.16, 0.14, 0.08), (0.08, 0.09, 0.05))
     col = N.mix(N.math("MULTIPLY", at.outputs["Fac"], 0.7), col, suelo)
+    # jardín de piedrecillas: gravilla clara y moteada en la franja que rodea la casa
+    jd = n.new("ShaderNodeAttribute")
+    jd.attribute_name = "jardin"
+    grava = N.mix(N.smooth(N.noise(tc.outputs["Object"], 22.0, 4), 0.42, 0.60),
+                  (0.215, 0.198, 0.168), (0.340, 0.318, 0.282))
+    grava = N.mix(N.smooth(N.noise(tc.outputs["Object"], 55.0, 3), 0.48, 0.64), grava, (0.085, 0.078, 0.068))
+    col = N.mix(N.math("MULTIPLY", jd.outputs["Fac"], 0.92), col, grava)
     cm = n.new("ShaderNodeAttribute")
     cm.attribute_name = "camino"
     col = N.mix(N.math("MULTIPLY", cm.outputs["Fac"], 0.75), col, (0.24, 0.22, 0.19))
@@ -941,7 +948,10 @@ def build_landscape(M):
     # 0,6 m de la malla cercana el relieve de escala corta —el que le da aristas a la piedra— no
     # llegaba a existir en la silueta y la roca se leía como arcilla lisa con las grietas pintadas
     # encima. Es la zona por la que además pasa más cerca el dron.
-    fina = (-46, 63, -35, 7)
+    # ⚠️ El borde de arriba va en y = -3 y no en +7. Con +7 la malla fina se comía **todo el
+    # entorno de la casa**, y como la vegetación se siembra sobre la malla cercana (`sand`), el
+    # frente y los costados de la casa quedaban pelados sin que se notara de dónde venía.
+    fina = (-46, 63, -35, -3)
     near = (-175, 128, -78, 95)
     en_fina = lambda x, y: fina[0] < x < fina[1] and fina[2] < y < fina[3]   # noqa: E731
     sand = grid("Roca", *near, 0.6, M["roca"], coll, skip=en_fina, sink=en_fina)
@@ -1089,6 +1099,25 @@ def build_vegetation(sand, bq, ph):
         w *= min(1.0, max(0.0, 0.55 + 1.3 * noise.noise(Vector((x / 7.0, y / 7.0, 2.2)))
                           + 0.4 * noise.noise(Vector((x / 2.5, y / 2.5, 4.1)))))
         veg.append(max(0.0, min(1.0, w)))
+    # Franja de jardín alrededor de la casa. La pidió la revisión: "darle más ambiente alrededor
+    # de la casa, algo de vegetación, o tal vez jardín sustentable, de piedrecitas". Se resuelve
+    # con un atributo y no con geometría nueva —el segundo comentario avisaba de no encarecer el
+    # render—: pinta gravilla en `rock_mat` y, con el mismo atributo, siembra las matas bajas y
+    # las suculentas que ya trae la escena, que son las de la zona.
+    jar = []
+    for i, v in enumerate(me.vertices):
+        x, y = v.co.x, v.co.y
+        hd = house_dist(x, y)
+        w = min(1.0, max(0.0, (hd - 0.4) / 1.2)) * min(1.0, max(0.0, (8.5 - hd) / 3.5))
+        nz = max(0.05, nrm[i].vector.z)
+        w *= min(1.0, max(0.0, (0.55 - math.sqrt(max(0.0, 1.0 - nz * nz)) / nz) / 0.35))
+        w *= min(1.0, max(0.0, (path_dist(x, y) - 0.9) / 1.2))
+        if 1.5 < y < 95:
+            w *= min(1.0, max(0.0, (road_dist(x, y) - 1.8) / 1.5))
+        jar.append(max(0.0, min(1.0, w)))
+    at = me.attributes.new("jardin", "FLOAT", "POINT")
+    at.data.foreach_set("value", jar)
+    veg = [min(1.0, a + 0.55 * b) for a, b in zip(veg, jar)]   # la franja también lleva matas
     at = me.attributes.new("veg", "FLOAT", "POINT")
     at.data.foreach_set("value", veg)
     at = me.attributes.new("camino", "FLOAT", "POINT")
@@ -1101,7 +1130,7 @@ def build_vegetation(sand, bq, ph):
     join = N.new("GeometryNodeJoinGeometry")
     Lk.new(gi.outputs[0], join.inputs[0])
 
-    def scatter(obj, dens, smin, smax, seed, lo=0.4, hi=0.65, nscale=0.15, tilt=0.12):
+    def scatter(obj, dens, smin, smax, seed, lo=0.4, hi=0.65, nscale=0.15, tilt=0.12, attr="veg"):
         d = N.new("GeometryNodeDistributePointsOnFaces")
         d.inputs["Seed"].default_value = seed
         z = N.new("ShaderNodeTexNoise")
@@ -1114,7 +1143,7 @@ def build_vegetation(sand, bq, ph):
         Lk.new(z.outputs["Fac"], r.inputs[0])
         na = N.new("GeometryNodeInputNamedAttribute")
         na.data_type = "FLOAT"
-        na.inputs["Name"].default_value = "veg"
+        na.inputs["Name"].default_value = attr
         mul = N.new("ShaderNodeMath")
         mul.operation = "MULTIPLY"
         Lk.new(r.outputs[0], mul.inputs[0])
@@ -1168,6 +1197,13 @@ def build_vegetation(sand, bq, ph):
     scatter(ph["doca"], 7.0, 1.6, 2.8, 36, 0.46, 0.58, 0.1, 0.02)
     scatter(ph["cheiri"], 0.8, 0.9, 1.4, 37, 0.42, 0.62, 0.15, 0.03)
     scatter(ph["roca"], 0.004, 0.4, 1.0, 40, 0.55, 0.62, 0.05, 0.4)
+    # jardín alrededor de la casa: matas bajas y suculentas de la zona, más tupidas que el
+    # matorral de la plataforma, sobre la gravilla
+    scatter(ph["cheiri"], 2.6, 0.9, 1.5, 51, 0.25, 0.45, 0.25, 0.04, "jardin")
+    scatter(ph["doca"], 11.0, 1.6, 2.6, 52, 0.25, 0.45, 0.2, 0.02, "jardin")
+    scatter(bq["Grass_Karl-foerster_B"], 2.2, 0.6, 1.0, 53, 0.25, 0.5, 0.3, 0.12, "jardin")
+    scatter(ph["othonna"], 0.9, 0.9, 1.4, 54, 0.3, 0.5, 0.18, 0.05, "jardin")
+    scatter(ph["searsia"], 0.10, 0.8, 1.3, 55, 0.35, 0.55, 0.12, 0.05, "jardin")
     Lk.new(join.outputs[0], go.inputs[0])
     md = sand.modifiers.new("Duna", "NODES")
     md.node_group = ng
