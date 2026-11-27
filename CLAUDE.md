@@ -55,6 +55,31 @@ seguir volando. El detalle de cómo se hace —las dos líneas de tiempo, el des
 bisección que cierra el recorrido en el cenital— está en `RECETA.md` §1. Y s4 muestra las dos
 plantas lado a lado, no sólo la baja.
 
+## Dos revisiones obligatorias en toda casa
+
+Las dos han aparecido en varios modelos, las dos se ven recién en el render y las dos cuestan
+horas de rehacer. Revisarlas **antes** de lanzar cualquier render largo.
+
+**1. Puertas y ventanas que "no aparecen".** Un vano que se ve negro en el render **no** quiere
+decir que esté vacío. Los STL de SketchUp traen las hojas de puerta *abiertas 90° hacia adentro*
+—la hoja está entera, con bisagras y manillas, pero de canto a la cámara no se ve— y vidrios
+**sin marco** con el interior a oscuras detrás. Las dos cosas se leen como agujeros y el cliente
+las marca. Antes de modelar lo que "falta", **tirar rayos contra el modelo** y listar las piezas
+por material y por componente conexa (`bpy.context.scene.ray_cast`, y las cajas por objeto):
+poner un vidrio nuevo donde ya hay uno deja los dos paños anidados y Cycles atraviesa cuatro
+caras en vez de una. Lo que sí corresponde es cerrar la hoja del propio modelo sobre su bisagra
+(`cerrar_puerta_acceso()`) y forrar por dentro el canto del vano (`forrar_vanos_ventanas()`), que
+si no cada ventana queda con un marco pálido alrededor y la casa se ve de maqueta. Los filtros
+para decidir qué paño es ventana y cuál no están en el apartado de Casa Roble, más abajo.
+
+**2. El corte del plano no puede comerse las sombras.** El corte de s3 tiene que valer **sólo
+para los rayos de cámara** (`Light Path > Is Camera Ray`). Si no, lo que queda sobre el plano
+deja de existir también para el sol: el techo no proyecta sombra, pero los vidrios sí, y quedan
+**los marcos de las ventanas volando sobre el suelo**, despegados de la casa y cada vez más
+arriba a medida que el corte sube. El corte es un recurso de presentación, no un agujero en la
+casa. Cómo revisarlo está en `RECETA.md` §3; hoy sólo `casa_roble_3d.py` lo tiene resuelto, así
+que al partir una casa nueva desde Lingue, Huingán, Peumo o Boldo hay que llevarse el arreglo.
+
 ## Renders de video (largos)
 
 - Siempre que se renderice un video, dejar un proceso activo en segundo plano mientras dure
