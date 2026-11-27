@@ -254,7 +254,7 @@ En **orden de trabajo** (el acordado con el usuario; `PENDIENTES.md` dice qué f
 | 4 | **Boldo** | Lago | Lago | `casa_huingan_3d.py` | ✅ hecho |
 | 5 | **Mañío** | Playa urbanizada | Playa | `casa_huingan_3d.py` | pendiente |
 | 6 | **Roble** | Nieve tipo centro de ski | Nieve | hereda de Peumo | pendiente |
-| 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | pendiente |
+| 7 | **Maitén** | Mar roca | Costa rocosa | `casa_huingan_3d.py` | escena lista, en revisión |
 | 8 | **Coihue** | Campo, *que se note el trigo* | Campo | `casa_lingue_3d.py` | pendiente |
 | 9 | **Ciprés** | Playa del norte (más seco) | Playa | `casa_huingan_3d.py` ⚠️ | pendiente |
 
@@ -305,12 +305,38 @@ muerto. Las espigas en contraluz con el sol bajo son lo que da el efecto.
   porque el aire seco del norte deja ver lejos con nitidez. Sombras más marcadas y contrastadas.
   `flamingo_pan` es el HDRI más cercano a ese carácter árido. Arena más clara y amarilla.
 
-**Costa rocosa** (*Maitén*, "mar roca") — lo más cercano a Huingán: se hereda el océano completo
-(oleaje en tres escalas, espuma por profundidad). Lo que cambia es la orilla: en vez de la
-parábola suave de arena, una costa de **roca**. La firma visual es el **oleaje reventando contra
-la piedra**: concentrar la espuma donde el agua golpea la roca y agregar salpicadura. Paleta más
-oscura y fría que Huingán, roca húmeda con brillo especular en la zona de rompiente.
-`cape_hill` y `white_cliff_top` calzan con ese carácter.
+**Costa rocosa** (*Maitén*, "mar roca") — resuelto en `casa_maiten_3d.py`. Se hereda el océano
+completo de Huingán; lo que cambia es la orilla. Lo que costó, y vale para cualquier acantilado:
+
+- **El relieve de una pared se pone en horizontal, no en vertical.** Es lo más importante y lo
+  que costó tres revisiones. El ruido que `terrain_h` suma a la altura es vertical, y en una cara
+  de ~57° eso corre el punto *por la propia cara* sin cambiar la silueta: el farellón sale liso
+  por mucho ruido que se le ponga. Hay que perturbar **`shore_d`** —la distancia a la orilla,
+  perpendicular a la cara— con ruido en x e y: un metro de avance son metro y medio de altura y
+  aparecen contrafuertes, quebradas y repisas.
+- **Un acantilado no se arma con piedras sueltas.** Se intentó con afloramientos (domos de
+  terreno) y a cualquier tamaño se leen como bolones: grandes son huevos, chicos con la misma
+  altura son conos, y muchos juntos una camada. El acantilado es **terreno**: un perfil de bancos
+  (`perfil_muralla`, repisas casi horizontales separadas por caras casi verticales) más el ruido
+  horizontal de arriba. Las piedras sueltas quedan sólo como lajas bajas mar afuera, donde
+  revienta la ola.
+- **Mar adentro, agua opaca**, igual que en el lago de Boldo: con el fondo cayendo 0,45 m por
+  metro, a diez metros de la orilla ya hay cinco de agua. Con el agua transparente de Huingán se
+  ve la roca sumergida y el mar se lee como una explanada mojada.
+- **La espuma contra la roca no se puede calcular por profundidad.** Con un fondo así la franja
+  de agua baja mide dos metros y la ola revienta contra nada. Los afloramientos van en una lista
+  explícita (`ROCAS`) para que el shader del agua sepa dónde está cada piedra y les arme el
+  collar (`rocas_nodes`). Y la franja de rompiente al pie del farellón hay que desflecarla
+  fuerte: pareja y blanca pura se lee como mancha de pintura.
+- **Malla fina sólo en la muralla y la rompiente.** A 0,6 m el relieve de escala corta no existe
+  en la silueta; va una segunda malla a 0,25 m, acotada a esa franja. Ojo con estirarla hasta la
+  casa: la vegetación se siembra sobre la malla cercana y el entorno queda pelado.
+- `coast_rocks_01` de Poly Haven **no es una roca suelta**: es una plataforma de abrasión de
+  60 × 42 × 3,3 m. Sirve al pie del farellón; de detalle cercano, `namaqualand_boulder_02`.
+
+Paleta más oscura y fría que Huingán, roca húmeda con brillo especular en la rompiente.
+`white_cliff_top` es el HDRI elegido (`HDRI_SUN_U = 0.6243`, `SUN_ELEV = 23.2`); `cape_hill`
+tiene el carácter pero el sol a 4,2°, casi en el horizonte, deja la casa sin modelado.
 
 **Lago** (*Boldo*) — resuelto en `casa_boldo_3d.py`; lo que se aprendió, por si sirve para otra
 escena de agua quieta:

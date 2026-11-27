@@ -60,10 +60,12 @@ HC = Vector((L / 2, D / 2))  # centro de la casa en planta
 PISO, PISO2 = 1.10, 3.85     # pisos terminados (la casa es de dos pisos)
 GROUND = 0.0                 # plataforma de roca bajo la casa (el zócalo del STL arranca en z = 0)
 SEA = -7.0                   # nivel del mar: la plataforma queda 7 m sobre el agua
-# La línea de agua se corrió de -9 a -13: la revisión pidió "poner la casa un poco más atrás
-# porque se ve como sobrepuesta sobre la roca". Con 9 m la terraza quedaba justo en el labio del
-# farellón y los afloramientos arrancaban debajo de ella.
-SHORE_Y = -13.0              # línea de agua frente a la casa
+# La línea de agua se fue corriendo con las revisiones: -9 → -13 → -22. La primera vez porque la
+# casa "se veía sobrepuesta sobre la roca"; la segunda porque, ya con el farellón hecho muralla,
+# "parecía que se iba a caer por el acantilado". Con 22 m quedan unos 17 de plataforma llana
+# entre la terraza y el labio, que es lo que se ve en cuadro y lo que da la sensación de que la
+# casa está parada en terreno firme y no en el borde.
+SHORE_Y = -22.0              # línea de agua frente a la casa
 SHORE_K = 520.0              # la orilla se abre hacia +Y a ambos lados: y = SHORE_Y + (x - XC)² / K
 XC = 8.1
 FPS = 24
@@ -84,9 +86,9 @@ FPS = 24
 # Siguen siendo una lista explícita porque `rocas_nodes` les arma el collar de espuma.
 #   (x, y, radio, alto sobre el nivel del mar)
 ROCAS = [
-    (4.5, -18.5, 3.2, 2.4),
-    (24.0, -21.0, 2.8, 2.0),
-    (-12.0, -16.5, 3.0, 2.2),
+    (4.5, -27.5, 3.2, 2.4),
+    (24.0, -30.0, 2.8, 2.0),
+    (-12.0, -25.5, 3.0, 2.2),
 ]
 
 
@@ -715,7 +717,7 @@ def build_boardwalk(M):
     y = -0.6
     i = 0
     z = terrain_h(path_x(y), y) + 0.14
-    while y > -15.0:
+    while y > -20.0:          # hasta el mirador, antes del labio del farellón
         cx = path_x(y)
         zt = terrain_h(cx, y) + 0.14
         if zt < z - 0.09:                       # escalón: la tabla se mantiene, baja la siguiente
@@ -963,10 +965,11 @@ def build_landscape(M):
     # 0,6 m de la malla cercana el relieve de escala corta —el que le da aristas a la piedra— no
     # llegaba a existir en la silueta y la roca se leía como arcilla lisa con las grietas pintadas
     # encima. Es la zona por la que además pasa más cerca el dron.
-    # ⚠️ El borde de arriba va en y = -3 y no en +7. Con +7 la malla fina se comía **todo el
-    # entorno de la casa**, y como la vegetación se siembra sobre la malla cercana (`sand`), el
-    # frente y los costados de la casa quedaban pelados sin que se notara de dónde venía.
-    fina = (-46, 63, -35, -3)
+    # La malla fina cubre **sólo la muralla y la rompiente** (y -40..-14), que es donde el relieve
+    # de escala corta tiene que existir en la silueta. ⚠️ Llegó a ir hasta y = +7 y se comía todo
+    # el entorno de la casa; como la vegetación se siembra sobre la malla cercana (`sand`), el
+    # frente y los costados quedaban pelados sin que se notara de dónde venía.
+    fina = (-46, 63, -40, -14)
     near = (-175, 128, -78, 95)
     en_fina = lambda x, y: fina[0] < x < fina[1] and fina[2] < y < fina[3]   # noqa: E731
     sand = grid("Roca", *near, 0.6, M["roca"], coll, skip=en_fina, sink=en_fina)
@@ -1647,16 +1650,18 @@ def setup_render():
 # que en Huingán** (11-15 m contra 16-17) y mirando algo hacia arriba: Maitén mide 8,10 m y el
 # enganche es la altura, que desde un dron alto se pierde (ENGANCHES.md, "si es la altura").
 VISTAS = {
-    "izq": ((-26.0, -46.0, 2.5), (5.0, 3.0, 4.6), 30),        # desde el agua, por el lado del porch
-    "der": ((40.0, -44.0, 3.0), (11.0, 3.0, 4.6), 30),        # desde el agua, por el lado del anexo
+    # Las del agua suben de 2,5 a 9 m: desde abajo la plataforma que separa la casa del labio no
+    # se ve y la casa parece asomada al vacío, que es lo que pidió corregir la revisión.
+    "izq": ((-26.0, -60.0, 14.0), (5.0, 4.0, 3.6), 30),       # desde el agua, por el lado del porch
+    "der": ((38.0, -58.0, 14.5), (11.0, 4.0, 3.6), 30),       # desde el agua, por el lado del anexo
     # opuestas: desde el acceso (el porch está en -X) y desde tierra adentro, con el mar detrás
     "izq_atras": ((-44.0, 28.0, 9.0), (6.0, 4.0, 3.6), 30),
     "der_atras": ((44.0, 40.0, 11.0), (10.0, 5.0, 3.6), 30),
     # las mismas dos del agua pero **más cerca y algo más altas** (pedido de la revisión): a 31 m
     # la casa ocupa ~0,85 del ancho de pantalla, y a 8 m la cámara pasa de mirar hacia arriba a
     # quedar apenas por encima del punto de mira, sin perder el farellón del primer plano
-    "izq_cerca": ((-11.6, -23.2, 8.0), (6.0, 3.5, 4.4), 30),
-    "der_cerca": ((27.3, -23.5, 8.5), (10.5, 3.5, 4.4), 30),
+    "izq_cerca": ((-13.0, -27.0, 9.5), (6.0, 3.5, 4.4), 30),
+    "der_cerca": ((29.0, -27.0, 10.0), (10.5, 3.5, 4.4), 30),
 }
 
 
