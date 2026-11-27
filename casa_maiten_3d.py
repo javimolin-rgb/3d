@@ -76,33 +76,17 @@ FPS = 24
 #   (x, y, radio, alto sobre el nivel del mar).  Con SEA = -7, un alto de 8,8 deja la cima 1,8 m
 #   sobre la plataforma: por encima del piso de la terraza (1,10) y muy por debajo del segundo
 #   piso (3,85). Eso es el enganche medido: desde la terraza se ve piedra, desde arriba, mar.
-# Más chicas y más atrás que en la primera versión: la revisión las vio "demasiado falsas".
-#
-# ⚠️ Achicar **sólo el radio** las empeoró: dejó la misma altura sobre un radio menor y salieron
-# conos, una hilera de dientes. Lo que las hacía falsas no era el tamaño sino la **proporción**:
-# una roca de costa es baja y ancha, no esbelta. Así que la altura baja más que el radio, y el
-# grupo se parte en dos familias con oficios distintos:
-#
-#   - las de la base del farellón (y ≈ -9 a -12) se **funden con él** —el terreno se queda con el
-#     máximo entre su perfil y la roca—, así que no se leen como piedras sueltas apoyadas sino
-#     como que el borde del farellón está roto;
-#   - las del agua (y ≈ -16 a -21) son lajas bajas, de alto/radio ≈ 0,7, que es donde revienta la
-#     ola y donde el collar de espuma de rocas_nodes tiene sentido. Son **tres y separadas**: con
-#     seis juntas el primer plano se leía como una camada de bolones, que era justamente lo que
-#     la revisión llamó falso. El detalle fino del agua lo pone la plataforma escaneada.
-#
-# Las cimas ya no pasan del piso de la terraza, y no hace falta: con la casa 7 m sobre el agua y
-# 13 m tierra adentro, el "mirar por encima de la roca" lo da la plataforma, no las piedras.
+# Lajas bajas en el agua. Eran once y hacían de farellón; ahora el farellón es terreno —una
+# muralla continua en bajada, ver `perfil_muralla`— y estas quedan sólo como lo que rompe la ola
+# mar afuera. La revisión las vio "muy gigantes" dos veces seguidas: primero como domos grandes y
+# después, al achicarles el radio sin bajarles la altura, como conos. Lo que no funcionaba era
+# resolver un acantilado con piedras sueltas; apiladas o separadas, se leen como bolones.
+# Siguen siendo una lista explícita porque `rocas_nodes` les arma el collar de espuma.
 #   (x, y, radio, alto sobre el nivel del mar)
 ROCAS = [
-    (0.5, -10.5, 5.6, 7.0),      # base del farellón: le rompen el borde
-    (10.5, -9.5, 5.0, 6.6),
-    (19.0, -11.5, 4.8, 6.2),
-    (-6.5, -8.5, 4.8, 6.6),
-    (26.5, -9.0, 5.0, 6.8),
-    (4.5, -18.0, 4.8, 3.4),      # lajas en el agua: acá revienta la ola
-    (24.0, -21.0, 4.2, 2.9),
-    (-12.0, -16.0, 4.0, 2.6),
+    (4.5, -18.5, 3.2, 2.4),
+    (24.0, -21.0, 2.8, 2.0),
+    (-12.0, -16.5, 3.0, 2.2),
 ]
 
 
@@ -423,7 +407,7 @@ def rock_mat():
     bw = n.new("ShaderNodeRGBToBW")
     l.new(bloq.outputs["Color"], bw.inputs[0])
     seca = N.mix(N.math("MULTIPLY_ADD", bw.outputs[0], 0.85, 0.05), seca, (0.185, 0.145, 0.092))
-    seca = N.mix(N.math("MULTIPLY", N.math("SUBTRACT", 1.0, grieta), 0.35), seca, (0.030, 0.027, 0.024))
+    seca = N.mix(N.math("MULTIPLY", N.math("SUBTRACT", 1.0, grieta), 0.17), seca, (0.040, 0.036, 0.032))
     # mojado bajo la cota de marea
     moja = N.math("SUBTRACT", 1.0, N.smooth(z, SEA + 0.5, SEA + 1.9))
     col = N.mix(moja, seca, (0.045, 0.045, 0.043))
@@ -551,9 +535,12 @@ def water_mat():
     edge = N.math("MULTIPLY", edge, N.smooth(N.math("ADD", brk, N.math("MULTIPLY", grain, 0.5)), 0.4, 0.6))
     # 2) agua blanca donde la ola rompe: cresta (sobre el nivel medio) en agua baja
     brkz = N.math("MULTIPLY", N.smooth(zrel, 0.05, 0.3), N.math("SUBTRACT", 1.0, N.smooth(depth, 0.5, 1.3)))
-    brkz = N.math("MULTIPLY", brkz, N.smooth(N.math("ADD", streak, N.math("MULTIPLY", grain, 0.4)), 0.35, 0.6))
+    # Contra una muralla la ola revienta en una franja ancha, y si esa franja sale pareja se lee
+    # como una mancha de pintura. Se desfleca más que en la playa de Huingán: umbral más alto y
+    # más peso al grano.
+    brkz = N.math("MULTIPLY", brkz, N.smooth(N.math("ADD", streak, N.math("MULTIPLY", grain, 0.7)), 0.44, 0.74))
     # 3) espuma que queda en vetas sobre el agua muy baja, detrás de la ola
-    swash = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(depth, 0.05, 0.35)), N.math("MULTIPLY", streak, 0.4))
+    swash = N.math("MULTIPLY", N.math("SUBTRACT", 1.0, N.smooth(depth, 0.05, 0.35)), N.math("MULTIPLY", streak, 0.28))
     surf = N.math("MAXIMUM", N.math("MAXIMUM", edge, brkz), swash)
     # 4) rompiente contra la piedra: collar de espuma alrededor de cada afloramiento de ROCAS,
     # desflecado por las mismas vetas y el mismo grano que la espuma de orilla. Es la firma del
@@ -570,7 +557,7 @@ def water_mat():
     foam = N.math("MAXIMUM", surf, N.math("MULTIPLY", whitecap, 0.6))
     foam = N.math("MINIMUM", foam, 1.0)
     fb = n.new("ShaderNodeBsdfPrincipled")
-    fb.inputs["Base Color"].default_value = (0.85, 0.87, 0.86, 1)
+    fb.inputs["Base Color"].default_value = (0.74, 0.77, 0.765, 1)
     fb.inputs["Roughness"].default_value = 0.8
     mx = n.new("ShaderNodeMixShader")
     l.new(foam, mx.inputs["Fac"])
@@ -756,20 +743,48 @@ def house_dist(x, y):
 
 FORE = 0.45      # pendiente del farellón: sigue cayendo bajo el agua, no es una playa tendida
 BEACH = 4.0      # ancho de la franja de rompiente sobre la línea de agua (m)
-SLOPE_W = 7.0    # 7 m de la línea de agua a la plataforma: 45°, un farellón de verdad
+SLOPE_W = 4.6    # de la línea de agua a la plataforma: ~57°, una muralla, no un talud
+
+
+def perfil_muralla(t):
+    """Perfil del farellón, de 0 en la línea de agua a 1 en la plataforma.
+
+    No es una rampa: son **bancos**. Tres repisas casi horizontales separadas por caras casi
+    verticales, que es como se desgasta una roca estratificada y lo que hace que el farellón se
+    lea como muralla. Con el `smoothstep` que venía de la duna de Huingán salía un talud liso, y
+    el relieve había que ponerlo con piedras sueltas encima, que es justo lo que la revisión
+    rechazó por "muy gigantes"."""
+    ks = ((0.00, 0.00), (0.10, 0.40), (0.34, 0.46), (0.44, 0.76), (0.66, 0.82), (0.78, 1.00),
+          (1.00, 1.00))
+    for (t0, v0), (t1, v1) in zip(ks, ks[1:]):
+        if t <= t1:
+            u = (t - t0) / (t1 - t0)
+            return v0 + (v1 - v0) * u * u * (3 - 2 * u)
+    return 1.0
 
 
 def terrain_base(x, y):
-    """Perfil sin accidentes: el farellón cae del borde de la plataforma al agua y sigue bajando.
+    """Perfil sin accidentes: la muralla cae del borde de la plataforma al agua y sigue bajando.
 
     Nada que ver con el de Huingán, que era fondo marino < playa < ladera de duna < meseta: acá no
-    hay playa. La plataforma de roca llega hasta el borde y de ahí baja de golpe."""
+    hay playa. Dos cosas la hacen muralla y no talud: el perfil de bancos y que la distancia a la
+    orilla va **perturbada por ruido que sólo depende de x**. Eso hace que la muralla avance y
+    retroceda a lo largo de la costa, y como la cara es casi vertical, un metro de avance son casi
+    dos de altura: salen contrafuertes y quebradas verticales. Es lo que reemplazó a los
+    afloramientos sueltos, que a cualquier tamaño se leían como bolones."""
     d = shore_d(x, y)
+    # El ruido va sobre **d**, o sea perpendicular a la cara, y en las dos direcciones (x e y).
+    # Es la diferencia entre que la muralla tenga relieve o no: el ruido que `terrain_h` suma a
+    # la altura es vertical, y en una cara de 57° desplazar un punto hacia arriba lo corre por la
+    # propia cara sin cambiar la silueta —por eso el farellón salía liso y el relieve había que
+    # ponerlo con piedras encima—. Empujando la cara hacia adentro y hacia afuera, en cambio, un
+    # metro de avance son metro y medio de altura: salen contrafuertes, quebradas y repisas.
+    d += (1.9 * noise.noise(Vector((x / 9.0, y / 7.0, 21.0)))
+          + 0.9 * noise.noise(Vector((x / 3.1, y / 2.6, 23.0)))
+          + 0.40 * noise.noise(Vector((x / 1.15, y / 1.0, 27.0))))
     if d < 0:
         return SEA + max(d * FORE, -11.0)          # bajo el agua
-    t = min(1.0, d / SLOPE_W)
-    t = t * t * (3 - 2 * t)
-    return SEA + t * (GROUND - SEA)
+    return SEA + perfil_muralla(min(1.0, d / SLOPE_W)) * (GROUND - SEA)
 
 
 def path_x(y):
@@ -806,9 +821,9 @@ def terrain_h(x, y):
     h += flat * (1.15 * gr + 0.95 * (ridge - 1.0))
     esc = min(1.0, max(0.0, (18.0 - d) / 16.0)) * flat
     if esc > 0.01:
-        paso = 1.15
+        paso = 0.85
         quant = paso * math.floor(h / paso + 0.45)
-        h += (quant - h) * 0.33 * esc
+        h += (quant - h) * 0.55 * esc
     rh = rocas_h(x, y)
     if rh > h:                                     # los afloramientos mandan donde los hay
         h = rh + (0.55 * noise.noise(Vector((x / 2.2, y / 2.2, 3.3)))
