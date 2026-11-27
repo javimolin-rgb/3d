@@ -206,6 +206,36 @@ sc.render.use_persistent_data = True
 Los rebotes bajos y las cáusticas apagadas son deliberados: a 32 samples dan una imagen **más
 limpia** que subirlos. El motion blur es lo que hace leer el movimiento como cámara real.
 
+### El corte es sólo para la cámara
+
+El corte de s3 **no puede apagar la geometría para la luz**, sólo para la cámara. Si el shader de
+corte vuelve transparente todo lo que queda sobre el plano sin más, el sol deja de ver el techo y
+los muros: la casa pierde su sombra en el suelo y, como los vidrios **sí** siguen proyectando,
+quedan los marcos de las ventanas **volando sobre el terreno**, despegados de la casa y subiendo
+con el corte. Es de maqueta y salta a la vista en la nieve o en la arena.
+
+```python
+lp = n.new("ShaderNodeLightPath")
+l.new(lp.outputs["Is Camera Ray"], solocam.inputs[1])   # mezcla: corte si es cámara, casa si no
+```
+
+Así la cámara ve el interior y la luz sigue viendo la casa entera, que es lo que corresponde: el
+corte es un recurso de presentación, no un agujero en la casa.
+
+**Cómo revisarlo, antes del render largo:** un cuadro de prueba con el **techo a medio abrir**
+—no cerrado ni abierto del todo, que ahí no se nota— y mirar el **suelo alrededor de la casa**:
+tiene que estar la sombra de la casa completa y nada más. Si se ven rectángulos sueltos sobre el
+suelo, son los vidrios.
+
+Está resuelto en `casa_roble_3d.py` (`section_groups()`); Lingue, Huingán, Peumo y Boldo todavía
+tienen la versión vieja, así que al derivar una casa nueva de ellas hay que llevarse el arreglo.
+
+**Y si se rehace s3, hay que regenerar s4.** La sección 4 no es render: es post 2D construido
+sobre el **último cuadro de s3** (`tools/plano_<casa>.py`). Si s3 se vuelve a renderizar y s4 no
+se regenera, la lámina queda armada sobre el cenital viejo y el defecto reaparece justo en los
+dos tramos donde s4 muestra la foto aérea —al entrar y al volver de la lámina azul—, con un
+quiebre visible contra s3 y s5. Regenerarla no cuesta render, son un par de minutos de post.
+
 ---
 
 ## 4. Recorrido de dron
@@ -399,6 +429,11 @@ Un modelo completo son **~17 h de CPU** en 4 núcleos (~100 s por cuadro). Leer 
 - [ ] Las 5 secciones completas, cada una con su MP4.
 - [ ] Secuencia concatenada **sin recodificar**: 1008 cuadros, 42 s.
 - [ ] Empalmes invisibles salvo el de s4, que es intencional.
+- [ ] Ninguna puerta ni ventana leída como agujero: hojas cerradas sobre su bisagra, vidrios
+      sin duplicar y cantos de vano forrados (CLAUDE.md, revisión 1).
+- [ ] Suelo alrededor de la casa limpio en un cuadro con el techo a medio abrir: la sombra de
+      la casa completa y ningún marco de ventana volando (§3, el corte es sólo para la cámara).
+- [ ] s4 regenerada sobre el último cuadro de s3 **de este render**, no de uno anterior.
 - [ ] Sin textos ni rótulos.
 - [ ] MP4 commiteados y empujados; los PNG y los `.zip` de entrega **no** van al repo.
 - [ ] Si el usuario pidió un ZIP: `zip -j output/casa_<nombre>_videos.zip output/casa_<nombre>_*.mp4`
