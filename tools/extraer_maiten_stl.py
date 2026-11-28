@@ -68,6 +68,7 @@ X_PORCH = 2.70                    # muro del cuerpo principal contra el porch (a
 X_ANEXO = 13.80                   # muro del cuerpo principal contra el anexo (+X)
 X_LIVING = 7.40                   # living a la izquierda, comedor y cocina a la derecha
 X_BANO0, X_BANO1 = 6.20, 9.90     # franja central de baños en la banda de dormitorios
+BANDA_MARCO = 0.16                # ancho de la banda de fachada pegada al cristal que va negra
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 
@@ -207,7 +208,7 @@ def es_casco(dx, dy, dz):
     return e[1] > 2.0 and e[2] > 4.0      # volumen entero: cuerpo principal, porch, anexo
 
 
-def perfileria(c, n, bvh_vidrio):
+def perfileria(c, bvh_vidrio):
     """¿La cara es perfilería del ventanal (montante, travesaño o retorno) y va negra?
 
     Lo pidió la revisión —"porfa los marcos de las ventanas negras"— y es lo que muestran las
@@ -221,27 +222,25 @@ def perfileria(c, n, bvh_vidrio):
     la mediana de las caras del testero es de 0,09 m², así que una tabla ancha son muchas caras
     angostas y el filtro no distingue nada. La madera cayó de 83 a 17 m².
 
-    Lo que sí distingue un montante de una tabla es **tener cristal a los dos lados**. Así que se
-    tiran cuatro rayos cortos en el plano de la cara contra el BVH de los paños de vidrio: si los
-    dos de un mismo eje chocan, la cara está entre dos paños y es perfilería. Una tabla pegada a
-    una ventana choca por un lado solo."""
+    Lo que distingue perfilería de tabla es **estar pegada al cristal**: el marco es la banda de
+    fachada que rodea cada paño. Se mide la distancia de la cara al paño más cercano contra un
+    BVH de los vidrios y, por debajo de `BANDA_MARCO`, va negra. Una tabla ancha entre dos
+    ventanas se ennegrece sólo en sus bordes, que es justamente lo que es el marco.
+
+    ⚠️ Antes esto pedía cristal a **los dos lados** (cuatro rayos cortos en el plano de la cara,
+    negro si chocaban los dos de un mismo eje). Eso pinta los montantes de entre paños pero deja
+    en madera todo el marco perimetral, que tiene vidrio por un lado y muro por el otro: lo único
+    negro que quedaba era el canto del retorno, y la revisión lo marcó dos veces ("el color de
+    los marcos sigue sin ser negro, es sólo el canto")."""
     if min(abs(c.y - Y_MAR), abs(c.y - Y_FONDO)) > 0.6:
         return False
-    t1 = n.cross(Vector((0.0, 0.0, 1.0)))
-    if t1.length < 1e-4:
-        t1 = Vector((1.0, 0.0, 0.0))
-    t1.normalize()
-    t2 = n.cross(t1).normalized()
-    for a, b in ((t1, -t1), (t2, -t2)):
-        if (bvh_vidrio.ray_cast(c + a * 0.01, a, 0.45)[0] is not None
-                and bvh_vidrio.ray_cast(c + b * 0.01, b, 0.45)[0] is not None):
-            return True
-    return False
+    cerca = bvh_vidrio.find_nearest(c, BANDA_MARCO * 2.5)
+    return cerca[0] is not None and cerca[3] < BANDA_MARCO
 
 
 def casco_cara(c, n, bvh, techo, area=1.0, bvh_vidrio=None):
     """Material de una cara del casco, por su posición, hacia dónde da y qué tan grande es."""
-    if bvh_vidrio is not None and perfileria(c, n, bvh_vidrio):
+    if bvh_vidrio is not None and perfileria(c, bvh_vidrio):
         return "marco"
     ext, o = afuera(bvh, c, n)
     inclinada = 0.25 < abs(n.z) < 0.98 and c.z > 2.6
